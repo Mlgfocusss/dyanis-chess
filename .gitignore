@@ -1,0 +1,49 @@
+# --- Сборка Go ---
+*.exe
+*.test
+
+*.prof
+dist-linux/
+
+# --- Данные и результаты экспериментов (большие, воспроизводимы) ---
+data/
+train/out/
+nets-archive/
+spsa-nnue/
+carry-*.json
+spsa*.json
+*.log
+*.flag
+*.done
+.venv/
+__pycache__/
+*.pyc
+
+# --- Чужие движки для гаунтлета (Stockfish и т.п.) ---
+engines/
+
+# --- Веб ---
+web/node_modules/
+web/dist/
+cmd/wasm/dyanis.wasm
+# копируются из cmd/wasm и assets/ при подготовке (см. README)
+web/public/wasm/
+web/public/assets/
+
+# --- Секреты и окружение (будущий сервер: Google OAuth, MySQL) ---
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# --- Локальные данные Docker и БД ---
+mysql-data/
+*.sql.gz
+
+# --- Редакторы и ОС ---
+.vscode/
+.idea/
+.claude/
+.DS_Store
+Thumbs.db
