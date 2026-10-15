@@ -8,6 +8,11 @@ const isolation = {
 
 export default defineConfig({
   plugins: [react()],
+  build: {
+    // Never inline assets into the JS bundle: hundreds of small piece SVGs
+    // would otherwise be base64-encoded into it.
+    assetsInlineLimit: 0,
+  },
   server: {
     headers: isolation,
     // The Go server (cmd/server) answers /api; run it on its default port.

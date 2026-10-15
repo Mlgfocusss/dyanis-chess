@@ -6,12 +6,15 @@
 // import.meta.glob finds them. Folders that are incomplete are reported
 // on the settings page instead of failing silently.
 
+import { mapSoundFiles } from "../sound/kinds.js";
+import { NAMES_RU } from "./names.js";
+
 const pieceFiles = import.meta.glob("./pieces/*/*.{svg,png,webp,jpg,jpeg,gif,avif}", {
   eager: true,
   query: "?url",
   import: "default",
 });
-const boardImages = import.meta.glob("./boards/*.{svg,png,webp,jpg,jpeg,gif,avif}", {
+const boardImages = import.meta.glob(["./boards/*.{svg,png,webp,jpg,jpeg,gif,avif}", "!./boards/*.orig.*"], {
   eager: true,
   query: "?url",
   import: "default",
@@ -46,6 +49,8 @@ function prettify(name) {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
+const label = (kind, key) => NAMES_RU[kind]?.[key] || prettify(key);
+
 function byName(a, b) {
   return a.name.localeCompare(b.name);
 }
@@ -69,11 +74,11 @@ for (const folder of Object.keys(rawSets).sort()) {
   const files = rawSets[folder];
   const missing = PIECE_CODES.filter((c) => !files[c]);
   if (missing.length) {
-    incompletePieceSets.push({ id: folder, name: prettify(folder), missing });
+    incompletePieceSets.push({ id: folder, name: label("pieces", folder), missing });
   } else {
     pieceSets.push({
       id: folder,
-      name: prettify(folder),
+      name: label("pieces", folder),
       // react-chessboard piece keys are wP, bN, ...
       files: Object.fromEntries(PIECE_CODES.map((c) => [c[0] + c[1].toUpperCase(), files[c]])),
     });
@@ -85,11 +90,11 @@ for (const folder of Object.keys(rawSets).sort()) {
 // Plain colours: light and dark are the two square colours.
 export const colorBoards = [
   { id: "slate", name: "Сланец", light: "#dfe6ee", dark: "#7a93ad" },
-  { id: "green", name: "Зелёная", light: "#eeeed2", dark: "#769656" },
-  { id: "brown", name: "Дерево", light: "#f0d9b5", dark: "#b58863" },
-  { id: "blue", name: "Синяя", light: "#dee3e6", dark: "#8ca2ad" },
+  { id: "green", name: "Травяная", light: "#eeeed2", dark: "#769656" },
+  { id: "brown", name: "Коричневая", light: "#f0d9b5", dark: "#b58863" },
+  { id: "blue", name: "Голубая", light: "#dee3e6", dark: "#8ca2ad" },
   { id: "ice", name: "Лёд", light: "#e8f1f8", dark: "#7fa6c9" },
-  { id: "purple", name: "Фиолетовая", light: "#efe9f7", dark: "#8877b7" },
+  { id: "purple", name: "Сиреневая", light: "#efe9f7", dark: "#8877b7" },
   { id: "coral", name: "Коралл", light: "#f6e7d7", dark: "#c97b63" },
   { id: "sand", name: "Песок", light: "#efe6cf", dark: "#c2a36a" },
   { id: "night", name: "Ночь", light: "#9aa5b5", dark: "#3b4559" },
@@ -100,7 +105,7 @@ export const colorBoards = [
 const imageBoards = Object.entries(boardImages)
   .map(([path, url]) => {
     const { name } = parse(path, 1);
-    return { id: `img:${name}`, name: prettify(name), kind: "image", image: url };
+    return { id: `img:${name}`, name: label("boards", name), kind: "image", image: url };
   })
   .sort(byName);
 
@@ -115,9 +120,9 @@ const tileBoards = [];
 for (const folder of Object.keys(tileFolders).sort()) {
   const f = tileFolders[folder];
   if (f.light && f.dark) {
-    tileBoards.push({ id: `tiles:${folder}`, name: prettify(folder), kind: "tiles", light: f.light, dark: f.dark });
+    tileBoards.push({ id: `tiles:${folder}`, name: label("boards", folder), kind: "tiles", light: f.light, dark: f.dark });
   } else {
-    incompleteBoards.push({ id: folder, name: prettify(folder), missing: ["light", "dark"].filter((k) => !f[k]) });
+    incompleteBoards.push({ id: folder, name: label("boards", folder), missing: ["light", "dark"].filter((k) => !f[k]) });
   }
 }
 
@@ -135,7 +140,7 @@ export const backgrounds = [
   ...Object.entries(backgroundFiles)
     .map(([path, url]) => {
       const { name } = parse(path, 1);
-      return { id: `img:${name}`, name: prettify(name), kind: "image", image: url };
+      return { id: `img:${name}`, name: label("backgrounds", name), kind: "image", image: url };
     })
     .sort(byName),
 ];
@@ -152,19 +157,22 @@ export function backgroundCss(bg) {
 
 export const SOUND_KINDS = ["move", "capture", "check", "castle", "promote", "end", "start"];
 
-export const DEFAULT_SOUND = { id: "default", name: "Стандартная (синтез)", builtin: true };
+export const DEFAULT_SOUND = { id: "synth", name: "Синтезированная", builtin: true };
 
+// One folder = one theme; its files are matched to move kinds by name
+// (see mapSoundFiles). Folders without a "move" sound are not themes.
 const soundFolders = {};
 for (const [path, url] of Object.entries(soundFiles)) {
-  const { folder, name } = parse(path, 2);
-  (soundFolders[folder] ||= {})[name] = url;
+  const parts = path.split("/");
+  const file = parts[parts.length - 1];
+  const dot = file.lastIndexOf(".");
+  (soundFolders[parts[2]] ||= []).push({ name: file.slice(0, dot), ext: file.slice(dot + 1).toLowerCase(), url });
 }
-export const soundThemes = [
-  DEFAULT_SOUND,
-  ...Object.keys(soundFolders)
-    .sort()
-    .map((folder) => ({ id: folder, name: prettify(folder), files: soundFolders[folder] })),
-];
+const folderThemes = Object.keys(soundFolders)
+  .sort()
+  .map((folder) => ({ id: folder, name: label("sounds", folder), files: mapSoundFiles(soundFolders[folder]) }))
+  .filter((t) => t.files);
+export const soundThemes = [...folderThemes, DEFAULT_SOUND];
 
 // --------------------------------------------------------------- presets
 

@@ -351,24 +351,23 @@ function Thumb({ name, selected, onSelect, children }) {
   );
 }
 
-// 2x2 squares of a board theme.
+// A small 8x8 board of a theme (whole-board pictures are shown as they are).
+const CELLS = Array.from({ length: 64 }, (_, i) => ((i >> 3) + (i & 7)) % 2 === 0);
 function BoardSwatch({ theme, small = false }) {
   let light = { backgroundColor: theme.light };
   let dark = { backgroundColor: theme.dark };
   let wrap = {};
+  let cells = true;
   if (theme.kind === "tiles") {
     light = { backgroundImage: `url("${theme.light}")`, backgroundSize: "cover" };
     dark = { backgroundImage: `url("${theme.dark}")`, backgroundSize: "cover" };
   } else if (theme.kind === "image") {
-    light = dark = {};
+    cells = false;
     wrap = { backgroundImage: `url("${theme.image}")`, backgroundSize: "100% 100%" };
   }
   return (
     <span className={`bsw${small ? " bsw--small" : ""}`} style={wrap}>
-      <i style={light} />
-      <i style={dark} />
-      <i style={dark} />
-      <i style={light} />
+      {cells && CELLS.map((isLight, i) => <i key={i} style={isLight ? light : dark} />)}
     </span>
   );
 }

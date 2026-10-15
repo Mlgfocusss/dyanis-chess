@@ -66,7 +66,7 @@
 }
 
 /* board swatch: 2x2 squares */
-.bsw { display: grid; grid-template-columns: 1fr 1fr; width: 76px; height: 76px; border-radius: 6px; overflow: hidden; }
+.bsw { display: grid; grid-template-columns: repeat(8, 1fr); width: 76px; height: 76px; border-radius: 6px; overflow: hidden; }
 .bsw i { display: block; }
 .bsw--small { width: 44px; height: 44px; border-radius: 4px; box-shadow: 0 4px 10px rgba(2, 6, 23, 0.4); }
 
