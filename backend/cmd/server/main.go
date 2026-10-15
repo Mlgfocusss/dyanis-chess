@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"dyanis-chess/backend/internal/api"
+	"dyanis-chess/backend/internal/auth"
 	"dyanis-chess/backend/internal/store"
 	"dyanis-chess/engine"
 )
@@ -33,6 +34,8 @@ func main() {
 	maxDepth := flag.Int("maxdepth", 20, "largest depth a request may ask for")
 	static := flag.String("static", "", "directory with the built front end to serve at /")
 	dsn := flag.String("dsn", os.Getenv("DYANIS_DB_DSN"), "MySQL DSN (user:pass@tcp(host:3306)/db); empty = keep results in memory only")
+	publicURL := flag.String("public-url", envOr("PUBLIC_URL", "http://localhost:8080"), "address people open the site at; Google redirects back to it")
+	googleID := flag.String("google-client-id", os.Getenv("GOOGLE_CLIENT_ID"), "Google OAuth client id (empty = no Google sign-in)")
 	flag.Parse()
 
 	if *evalFile != "" {
@@ -45,6 +48,7 @@ func main() {
 	}
 
 	cfg := api.Config{DefaultDepth: *depth, MaxDepth: *maxDepth}
+	var accounts *auth.Service
 	if *dsn != "" {
 		ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 		db, err := store.Open(ctx, *dsn, 60*time.Second)
@@ -54,15 +58,33 @@ func main() {
 		}
 		defer db.Close()
 		cfg.Store = db
+		if err := db.PurgeExpiredSessions(context.Background()); err != nil {
+			log.Printf("purge sessions: %v", err)
+		}
+		accounts = auth.New(auth.Config{
+			Store:        db,
+			CookieSecure: strings.HasPrefix(*publicURL, "https://"),
+			Google: auth.Google{
+				ClientID:     *googleID,
+				ClientSecret: os.Getenv("GOOGLE_CLIENT_SECRET"), // not a flag: flags show up in process lists and -h
+				RedirectURL:  strings.TrimRight(*publicURL, "/") + "/api/auth/google/callback",
+			},
+		})
+		cfg.UserID = accounts.UserID
 		log.Printf("database connected, schema up to date")
 	} else {
-		log.Printf("no -dsn: results are kept in memory only")
+		log.Printf("no -dsn: results are kept in memory only, and there are no accounts")
 	}
 	srv := api.New(cfg)
 	defer srv.Close()
 
 	mux := http.NewServeMux()
 	mux.Handle("/api/", srv.Handler())
+	if accounts != nil {
+		mux.Handle("/api/me", accounts.Handler())
+		mux.Handle("/api/me/", accounts.Handler())
+		mux.Handle("/api/auth/", accounts.Handler())
+	}
 	if *static != "" {
 		mux.Handle("/", spa(*static))
 	}
@@ -87,6 +109,13 @@ func main() {
 	if err := hs.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Fatal(err)
 	}
+}
+
+func envOr(key, def string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return def
 }
 
 // spa serves dir, falling back to index.html for paths that are not files

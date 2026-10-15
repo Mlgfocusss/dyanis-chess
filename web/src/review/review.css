@@ -144,3 +144,6 @@
   .eval-chart { width: 100%; margin-left: 0; }
   .review__toggle { margin-left: 0; width: 100%; }
 }
+
+.review-form__note { color: var(--muted); font-size: 0.88rem; margin-bottom: 12px; }
+.review-form__note a { color: var(--primary); }

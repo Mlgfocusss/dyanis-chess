@@ -18,6 +18,7 @@ test("sanitize keeps valid values and drops invalid ones", () => {
     animation: "fast",
     sound: false,
     soundTheme: "wood",
+    playLayout: "center",
   });
   assert.deepEqual(out, {
     boardTheme: "green",
@@ -29,12 +30,14 @@ test("sanitize keeps valid values and drops invalid ones", () => {
     animation: "fast",
     sound: false,
     soundTheme: "wood",
+    playLayout: "center",
   });
 
   const bad = sanitize({
     coordinates: "sideways", // not an allowed choice
     moveMethod: 3, // wrong type
     animation: "warp",
+    playLayout: "diagonal",
     sound: "yes", // wrong type
     boardTheme: 7,
     unknownKey: "x",

@@ -131,9 +131,9 @@ func TestBadRequests(t *testing.T) {
 	}
 	// Wrong method on the collection.
 	rec := httptest.NewRecorder()
-	h.ServeHTTP(rec, httptest.NewRequest("GET", "/api/analyses", nil))
+	h.ServeHTTP(rec, httptest.NewRequest("PUT", "/api/analyses", nil))
 	if rec.Code != http.StatusMethodNotAllowed {
-		t.Errorf("GET /api/analyses = %d", rec.Code)
+		t.Errorf("PUT /api/analyses = %d", rec.Code)
 	}
 }
 
@@ -275,6 +275,29 @@ func (m *memStore) LoadAnalysis(_ context.Context, id string) (*store.Analysis, 
 	return nil, store.ErrNotFound
 }
 
+func (m *memStore) ListAnalyses(_ context.Context, userID string, limit int) ([]*store.Analysis, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var out []*store.Analysis
+	for _, a := range m.rows {
+		if a.UserID == userID {
+			c := *a
+			out = append(out, &c)
+		}
+	}
+	return out, nil
+}
+
+func (m *memStore) DeleteAnalysis(_ context.Context, userID, id string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if a, ok := m.rows[id]; ok && a.UserID == userID {
+		delete(m.rows, id)
+		return nil
+	}
+	return store.ErrNotFound
+}
+
 // A finished analysis is written to the store, and a new Server (a restart)
 // serves it from there.
 func TestPersistenceAcrossRestart(t *testing.T) {
@@ -334,5 +357,177 @@ func TestPersistsErrorResult(t *testing.T) {
 			t.Fatal("error result never stored")
 		}
 		time.Sleep(5 * time.Millisecond)
+	}
+}
+
+// ---------------------------------------------------------------- owners
+
+// userCfg treats the X-User header as the signed-in user.
+func userCfg(db Store) Config {
+	return Config{Store: db, UserID: func(r *http.Request) string { return r.Header.Get("X-User") }}
+}
+
+func as(user, method, path, body string) *http.Request {
+	req := httptest.NewRequest(method, path, strings.NewReader(body))
+	if user != "" {
+		req.Header.Set("X-User", user)
+	}
+	return req
+}
+
+func serve(h http.Handler, req *http.Request) *httptest.ResponseRecorder {
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	return rec
+}
+
+func TestListNeedsSignIn(t *testing.T) {
+	s := New(Config{})
+	defer s.Close()
+	if rec := serve(s.Handler(), as("", "GET", "/api/analyses", "")); rec.Code != http.StatusUnauthorized {
+		t.Errorf("anonymous list: %d", rec.Code)
+	}
+	if rec := serve(s.Handler(), as("", "DELETE", "/api/analyses/abc", "")); rec.Code != http.StatusUnauthorized {
+		t.Errorf("anonymous delete: %d", rec.Code)
+	}
+}
+
+func listOf(t *testing.T, h http.Handler, user string) []Listed {
+	t.Helper()
+	rec := serve(h, as(user, "GET", "/api/analyses", ""))
+	if rec.Code != 200 {
+		t.Fatalf("list: %d %s", rec.Code, rec.Body)
+	}
+	var out struct{ Items []Listed }
+	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+		t.Fatal(err)
+	}
+	return out.Items
+}
+
+// Each user sees only their own reviews, a link still opens for anyone, and
+// the list survives a restart (it comes from the store then).
+func TestOwnersListAndLinks(t *testing.T) {
+	db := &memStore{}
+	s := New(userCfg(db))
+	h := s.Handler()
+
+	mk := func(user string) string {
+		rec := serve(h, as(user, "POST", "/api/analyses", jsonBody(foolsMate, `,"depth":3`)))
+		if rec.Code != http.StatusAccepted {
+			t.Fatalf("POST as %q: %d %s", user, rec.Code, rec.Body)
+		}
+		var out struct{ ID string }
+		json.Unmarshal(rec.Body.Bytes(), &out)
+		return out.ID
+	}
+	a1, a2, anon := mk("alice"), mk("alice"), mk("")
+	b1 := mk("bob")
+	for _, id := range []string{a1, a2, anon, b1} {
+		waitFor(t, h, id, StatusDone)
+	}
+	// The save follows the status flip; wait until all four are stored.
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		db.mu.Lock()
+		n := len(db.rows)
+		db.mu.Unlock()
+		if n == 4 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("analyses never reached the store")
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+
+	check := func(h http.Handler) {
+		t.Helper()
+		got := listOf(t, h, "alice")
+		if len(got) != 2 || got[0].ID == got[1].ID {
+			t.Fatalf("alice's list: %+v", got)
+		}
+		for _, l := range got {
+			if l.ID != a1 && l.ID != a2 {
+				t.Errorf("alice sees %s, which is not hers", l.ID)
+			}
+			if l.Status != StatusDone || l.Game.White != "Анна" || l.Summary == nil || l.Summary.Plies != 4 || l.Summary.Accuracy[0] == 0 {
+				t.Errorf("row: %+v summary %+v", l, l.Summary)
+			}
+		}
+		if got := listOf(t, h, "bob"); len(got) != 1 || got[0].ID != b1 {
+			t.Errorf("bob's list: %+v", got)
+		}
+		if got := listOf(t, h, "carol"); len(got) != 0 {
+			t.Errorf("carol's list: %+v", got)
+		}
+		// The link works for everybody, signed in or not.
+		if code, j := getJob(t, h, a1); code != 200 || j.Report == nil {
+			t.Errorf("link of alice's review: %d", code)
+		}
+	}
+	check(h)
+	s.Close()
+	s2 := New(userCfg(db))
+	defer s2.Close()
+	check(s2.Handler())
+}
+
+func TestDeleteOwnReviewOnly(t *testing.T) {
+	db := &memStore{}
+	s := New(userCfg(db))
+	defer s.Close()
+	h := s.Handler()
+	rec := serve(h, as("alice", "POST", "/api/analyses", jsonBody(foolsMate, `,"depth":3`)))
+	var out struct{ ID string }
+	json.Unmarshal(rec.Body.Bytes(), &out)
+	waitFor(t, h, out.ID, StatusDone)
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		if _, err := db.LoadAnalysis(context.Background(), out.ID); err == nil {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("never stored")
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+
+	if rec := serve(h, as("bob", "DELETE", "/api/analyses/"+out.ID, "")); rec.Code != http.StatusNotFound {
+		t.Errorf("bob deleting alice's review: %d", rec.Code)
+	}
+	if code, _ := getJob(t, h, out.ID); code != 200 {
+		t.Fatalf("review vanished after a foreign delete: %d", code)
+	}
+	if rec := serve(h, as("alice", "DELETE", "/api/analyses/"+out.ID, "")); rec.Code != http.StatusNoContent {
+		t.Errorf("alice deleting her review: %d", rec.Code)
+	}
+	if code, _ := getJob(t, h, out.ID); code != http.StatusNotFound {
+		t.Errorf("review still there after delete: %d", code)
+	}
+	if got := listOf(t, h, "alice"); len(got) != 0 {
+		t.Errorf("list after delete: %+v", got)
+	}
+}
+
+func TestDeleteRefusedWhileRunning(t *testing.T) {
+	release := make(chan struct{})
+	s := New(Config{UserID: func(r *http.Request) string { return r.Header.Get("X-User") },
+		Analyze: func(g *pgn.Game, opt analysis.Options) (*analysis.Report, error) {
+			<-release
+			return nil, errors.New("stopped")
+		}})
+	defer s.Close()
+	defer close(release)
+	h := s.Handler()
+	rec := serve(h, as("alice", "POST", "/api/analyses", jsonBody(foolsMate, "")))
+	var out struct{ ID string }
+	json.Unmarshal(rec.Body.Bytes(), &out)
+	if rec := serve(h, as("alice", "DELETE", "/api/analyses/"+out.ID, "")); rec.Code != http.StatusConflict {
+		t.Errorf("delete while running: %d", rec.Code)
+	}
+	// An unfinished review is listed, so a reload does not lose it.
+	if got := listOf(t, h, "alice"); len(got) != 1 || got[0].ID != out.ID {
+		t.Errorf("list during analysis: %+v", got)
 	}
 }

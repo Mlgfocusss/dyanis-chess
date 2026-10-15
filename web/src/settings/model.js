@@ -10,12 +10,14 @@ export const DEFAULTS = {
   animation: "medium", // "none" | "slow" | "medium" | "fast"
   sound: true,
   soundTheme: "default",
+  playLayout: "side", // "side" | "center": where the board sits on the play page
 };
 
 const CHOICES = {
   coordinates: ["inside", "outside", "off"],
   moveMethod: ["both", "drag", "click"],
   animation: ["none", "slow", "medium", "fast"],
+  playLayout: ["side", "center"],
 };
 
 // Duration of a piece animation, in milliseconds.

@@ -1,0 +1,27 @@
+/* Account page and avatars. Colours come from the tokens in index.css. */
+.avatar { border-radius: 50%; object-fit: cover; flex: none; display: block; background: var(--surface-3); }
+.avatar--letter {
+  display: grid; place-items: center; font-weight: 700; color: var(--primary); background: var(--primary-soft);
+}
+
+.account { max-width: 760px; }
+.account__options { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+.account__option { padding: 20px; display: flex; flex-direction: column; gap: 10px; }
+.account__option h2 { font-size: 1.05rem; font-weight: 700; }
+.account__option p { color: var(--text-2); font-size: 0.92rem; flex: 1; }
+.account__option .btn { margin-top: 6px; text-decoration: none; }
+.btn--google { background: #fff; border-color: #fff; color: #1f2937; font-weight: 600; }
+.btn--google:hover:not(:disabled) { background: #e5e7eb; border-color: #e5e7eb; }
+.btn--danger { background: var(--danger-soft); border-color: rgba(248, 113, 113, 0.5); color: #fecaca; }
+.btn--danger:hover:not(:disabled) { background: rgba(248, 113, 113, 0.26); }
+
+.account__me { display: flex; align-items: center; gap: 16px; padding: 20px; margin-bottom: 16px; }
+.account__name { font-size: 1.2rem; font-weight: 700; letter-spacing: -0.01em; }
+.account__meta { color: var(--muted); font-size: 0.9rem; }
+.account__upgrade { margin-bottom: 16px; border-color: rgba(52, 211, 153, 0.4); }
+.account__actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
+.account__warn { color: var(--text-2); font-size: 0.92rem; }
+
+/* the account entry in the menu */
+.nav__avatar { margin: -2px; }
+.nav__label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

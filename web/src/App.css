@@ -1,18 +1,34 @@
 /* "Игра с ботом" page. Tokens from index.css. */
 .page--loading { display: grid; place-items: center; min-height: 100vh; color: var(--text-2); }
 
-.layout { display: flex; gap: 28px; align-items: flex-start; flex-wrap: wrap; }
-
-.board-wrap { flex: 1 1 480px; max-width: 620px; min-width: 280px; }
-
-.panel {
-  flex: 1 1 300px;
-  max-width: 380px;
-  padding: 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
+/* The page uses the whole width; the board takes the height that is left
+   under the heading (so it fits the screen without scrolling) and the side
+   panels hold everything else. --board is the board's edge. */
+.play {
+  --board: min(calc(100vh - 150px), 900px);
+  --panel: 360px;
+  padding: 20px 32px 40px;
 }
+.play__head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; margin-bottom: 18px; }
+
+.play__grid { display: grid; gap: 28px; align-items: start; }
+.board-wrap { width: 100%; }
+.play__board { min-width: 0; width: min(100%, var(--board)); }
+
+/* Board beside the panel: the panel is pushed to the right edge, the board
+   sits centred in the space that remains. */
+.play--side .play__grid { grid-template-columns: minmax(0, 1fr) var(--panel); }
+.play--side .play__board { grid-column: 1; grid-row: 1; justify-self: center; }
+.play--side .play__side { grid-column: 2; grid-row: 1; }
+
+/* Board in the middle of the page: game record on the left, controls on the right. */
+.play--center { --board: clamp(360px, min(calc(100vh - 150px), calc(100vw - 248px - 64px - 2 * 300px - 56px)), 900px); }
+.play--center .play__grid { grid-template-columns: minmax(300px, 1fr) var(--board) minmax(300px, 1fr); }
+.play--center .play__board { grid-column: 2; grid-row: 1; width: 100%; }
+.play--center .play__left { grid-column: 1; grid-row: 1; justify-self: start; }
+.play--center .play__side { grid-column: 3; grid-row: 1; justify-self: end; }
+
+.play__side, .play__left { width: 100%; max-width: var(--panel); padding: 20px; display: flex; flex-direction: column; gap: 20px; }
 
 .status__turn { color: var(--text-2); }
 .status__turn strong { color: var(--text); }
@@ -30,6 +46,15 @@
 
 .controls { display: flex; flex-direction: column; gap: 18px; }
 .controls > .btn { width: 100%; }
+.controls__main { display: flex; gap: 8px; }
+.controls__main > .btn { flex: 1 1 0; }
+.controls__confirm { flex: 1 1 0; display: flex; gap: 8px; }
+.controls__confirm .btn { flex: 1 1 0; padding: 0 8px; }
+
+.btn--danger { background: var(--danger-soft); border-color: rgba(248, 113, 113, 0.5); color: #fecaca; }
+.btn--danger:hover:not(:disabled) { background: rgba(248, 113, 113, 0.26); }
+.btn--danger-ghost { background: transparent; color: var(--text-2); }
+.btn--danger-ghost:hover:not(:disabled) { background: var(--danger-soft); border-color: rgba(248, 113, 113, 0.5); color: #fecaca; }
 
 .fen-controls { display: flex; flex-direction: column; gap: 8px; }
 .fen-controls__row { display: flex; flex-direction: column; gap: 6px; font-size: 0.85rem; color: var(--text-2); }
@@ -61,7 +86,13 @@
   white-space: pre-wrap;
   margin: 0;
 }
+.play--center .move-log__text { max-height: 46vh; }
 
-@media (max-width: 860px) {
-  .panel { max-width: none; flex-basis: 100%; }
+/* Not enough room for three columns: board first, panels under it. */
+@media (max-width: 1180px) {
+  .play { --board: 100%; padding: 18px 16px 40px; }
+  .play--side .play__grid, .play--center .play__grid { grid-template-columns: minmax(0, 1fr); }
+  .play--side .play__board, .play--center .play__board { grid-column: 1; grid-row: 1; justify-self: center; width: min(100%, calc(100vh - 140px)); }
+  .play--side .play__side, .play--center .play__side { grid-column: 1; grid-row: 2; max-width: none; justify-self: stretch; }
+  .play--center .play__left { grid-column: 1; grid-row: 3; max-width: none; justify-self: stretch; }
 }

@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { ChessboardDnDProvider, SparePiece } from "react-chessboard";
 import Icon from "../ui/Icon.jsx";
+import Segmented from "../ui/Segmented.jsx";
 import ThemedBoard from "../components/ThemedBoard.jsx";
 import { DEFAULTS, useSettings } from "./SettingsContext.jsx";
 import { playSound } from "../sound/sound.js";
@@ -157,6 +158,17 @@ export default function SettingsPage() {
                   ["both", "Перетаскивать или нажимать"],
                   ["drag", "Только перетаскивать"],
                   ["click", "Только нажимать"],
+                ]}
+              />
+            </Row>
+
+            <Row title="Расположение доски в игре с ботом" hint="Сбоку: доска слева, панель справа. По центру: доска посередине, а партия и управление по бокам.">
+              <Segmented
+                value={draft.playLayout}
+                onChange={(v) => set({ playLayout: v })}
+                options={[
+                  ["side", "Сбоку"],
+                  ["center", "По центру"],
                 ]}
               />
             </Row>
@@ -431,25 +443,6 @@ function Switch({ checked, onChange, label }) {
     >
       <span className="switch__knob" />
     </button>
-  );
-}
-
-function Segmented({ value, onChange, options }) {
-  return (
-    <div className="segmented" role="radiogroup">
-      {options.map(([v, label]) => (
-        <button
-          key={v}
-          type="button"
-          role="radio"
-          aria-checked={value === v}
-          className={`segmented__opt${value === v ? " segmented__opt--on" : ""}`}
-          onClick={() => onChange(v)}
-        >
-          {label}
-        </button>
-      ))}
-    </div>
   );
 }
 

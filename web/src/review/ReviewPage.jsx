@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { createAnalysis, getAnalysis } from "./api.js";
 import ReviewView from "./ReviewView.jsx";
 import Icon from "../ui/Icon.jsx";
+import { useAuth } from "../auth/AuthContext.jsx";
 import "./review.css";
 
 const POLL_MS = 400;
@@ -19,6 +20,7 @@ function idFromHash() {
 }
 
 export default function ReviewPage() {
+  const { status: authStatus, user } = useAuth();
   const [pgn, setPgn] = useState("");
   const [depth, setDepth] = useState(14);
   const [job, setJob] = useState(null); // last state from the server
@@ -128,6 +130,12 @@ export default function ReviewPage() {
                   : `Позиций оценено: ${job.done} из ${job.total}`}
               </span>
             </div>
+          )}
+          {authStatus === "ready" && !user && (
+            <p className="review-form__note">
+              Вы не вошли, поэтому партия не попадёт в «Мои партии» (по ссылке она всё равно откроется).{" "}
+              <a href="#account">Войти</a>
+            </p>
           )}
           {error && <div className="banner banner--error">{error}</div>}
         </section>

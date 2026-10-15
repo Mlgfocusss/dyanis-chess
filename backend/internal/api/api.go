@@ -2,12 +2,15 @@
 //
 //	POST /api/analyses        {"pgn": "...", "game": 1, "depth": 14}  -> 202 {"id": "..."}
 //	GET  /api/analyses/{id}   status, progress and, when done, the report
+//	GET  /api/analyses        the signed-in user's reviews, newest first
+//	DELETE /api/analyses/{id} remove one of the user's reviews
 //	GET  /api/health          liveness probe for Docker
 //
 // Analyses are queued and run one at a time (every analysis already uses
-// all CPUs), so a burst of requests cannot overload the machine. Results
-// are kept in memory only; the MySQL store comes with stage 0 of
-// WEB-PLAN.md.
+// all CPUs), so a burst of requests cannot overload the machine. Finished
+// results are kept in memory and, when a Store is configured, in MySQL.
+// Whoever is signed in (Config.UserID) owns the reviews they start; the
+// link of a review works for everyone.
 package api
 
 import (
@@ -19,6 +22,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -37,6 +41,8 @@ type Analyzer func(g *pgn.Game, opt analysis.Options) (*analysis.Report, error)
 type Store interface {
 	SaveAnalysis(ctx context.Context, a *store.Analysis) error
 	LoadAnalysis(ctx context.Context, id string) (*store.Analysis, error)
+	ListAnalyses(ctx context.Context, userID string, limit int) ([]*store.Analysis, error)
+	DeleteAnalysis(ctx context.Context, userID, id string) error
 }
 
 // Config tunes a Server. Zero values get the defaults noted.
@@ -49,6 +55,10 @@ type Config struct {
 	QueueLen     int      // waiting analyses before 503; default 20
 	KeepJobs     int      // analyses remembered; default 200
 	Store        Store    // optional database for finished analyses
+
+	// UserID names the signed-in user of a request, "" for nobody; the
+	// default treats everybody as anonymous.
+	UserID func(*http.Request) string
 }
 
 func (c *Config) fill() {
@@ -73,7 +83,13 @@ func (c *Config) fill() {
 	if c.KeepJobs <= 0 {
 		c.KeepJobs = 200
 	}
+	if c.UserID == nil {
+		c.UserID = func(*http.Request) string { return "" }
+	}
 }
+
+// maxListed is how many reviews "my games" returns.
+const maxListed = 200
 
 // Status values of a job.
 const (
@@ -104,8 +120,27 @@ type Job struct {
 	Error   string           `json:"error,omitempty"`
 	Created time.Time        `json:"created"`
 
-	game  *pgn.Game
-	depth int
+	game   *pgn.Game
+	depth  int
+	userID string
+}
+
+// Summary is the handful of figures the "my games" list shows.
+type Summary struct {
+	Accuracy [2]float64 `json:"accuracy"`
+	Opening  string     `json:"opening,omitempty"`
+	ECO      string     `json:"eco,omitempty"`
+	Plies    int        `json:"plies"`
+}
+
+// Listed is one row of "my games".
+type Listed struct {
+	ID      string    `json:"id"`
+	Status  string    `json:"status"`
+	Depth   int       `json:"depth"`
+	Created time.Time `json:"created"`
+	Game    GameInfo  `json:"game"`
+	Summary *Summary  `json:"summary,omitempty"`
 }
 
 // Server holds the queue and the results.
@@ -145,6 +180,8 @@ func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /api/analyses", s.create)
 	mux.HandleFunc("GET /api/analyses/{id}", s.get)
+	mux.HandleFunc("GET /api/analyses", s.list)
+	mux.HandleFunc("DELETE /api/analyses/{id}", s.remove)
 	mux.HandleFunc("GET /api/health", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	})
@@ -210,6 +247,7 @@ func (s *Server) create(w http.ResponseWriter, r *http.Request) {
 	job := &Job{
 		ID: newID(), Status: StatusQueued, Total: len(g.Moves) + 1,
 		Game: gameInfo(g), Created: time.Now().UTC(), game: g, depth: depth,
+		userID: s.cfg.UserID(r),
 	}
 	// Register before queueing: the worker may pick the job up at once.
 	s.mu.Lock()
@@ -252,6 +290,109 @@ func (s *Server) get(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, &snap)
 }
 
+// list returns the signed-in user's reviews, newest first. Reviews still
+// waiting or running (memory only) come first, so a page that was reloaded
+// during an analysis still shows it.
+func (s *Server) list(w http.ResponseWriter, r *http.Request) {
+	uid := s.cfg.UserID(r)
+	if uid == "" {
+		writeError(w, http.StatusUnauthorized, "нужно войти, чтобы увидеть свои партии")
+		return
+	}
+	items := []Listed{}
+	inMemory := map[string]bool{}
+	s.mu.Lock()
+	for i := len(s.order) - 1; i >= 0; i-- {
+		j := s.jobs[s.order[i]]
+		if j == nil || j.userID != uid {
+			continue
+		}
+		inMemory[j.ID] = true
+		l := Listed{ID: j.ID, Status: j.Status, Depth: j.depth, Created: j.Created, Game: j.Game}
+		if j.Report != nil {
+			l.Summary = summarize(j.Report)
+		}
+		items = append(items, l)
+	}
+	s.mu.Unlock()
+
+	if s.cfg.Store != nil {
+		rows, err := s.cfg.Store.ListAnalyses(r.Context(), uid, maxListed)
+		if err != nil {
+			log.Printf("api: list analyses: %v", err)
+			writeError(w, http.StatusInternalServerError, "не удалось прочитать список партий")
+			return
+		}
+		for _, a := range rows {
+			if inMemory[a.ID] {
+				continue
+			}
+			l := Listed{ID: a.ID, Status: a.Status, Depth: a.Depth, Created: a.CreatedAt}
+			if json.Unmarshal(a.Game, &l.Game) != nil {
+				continue // an unreadable row is not worth failing the list
+			}
+			if a.Summary != nil {
+				var sm Summary
+				if json.Unmarshal(a.Summary, &sm) == nil {
+					l.Summary = &sm
+				}
+			}
+			items = append(items, l)
+		}
+	}
+	sort.SliceStable(items, func(i, j int) bool { return items[i].Created.After(items[j].Created) })
+	if len(items) > maxListed {
+		items = items[:maxListed]
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"items": items})
+}
+
+// remove deletes one of the user's reviews.
+func (s *Server) remove(w http.ResponseWriter, r *http.Request) {
+	uid := s.cfg.UserID(r)
+	if uid == "" {
+		writeError(w, http.StatusUnauthorized, "нужно войти")
+		return
+	}
+	id := r.PathValue("id")
+	found := false
+	s.mu.Lock()
+	if j := s.jobs[id]; j != nil && j.userID == uid {
+		if j.Status == StatusQueued || j.Status == StatusRunning {
+			s.mu.Unlock()
+			writeError(w, http.StatusConflict, "разбор ещё идёт, подождите его конца")
+			return
+		}
+		delete(s.jobs, id)
+		found = true
+	}
+	s.mu.Unlock()
+	if s.cfg.Store != nil {
+		err := s.cfg.Store.DeleteAnalysis(r.Context(), uid, id)
+		switch {
+		case err == nil:
+			found = true
+		case !errors.Is(err, store.ErrNotFound):
+			log.Printf("api: delete analysis %s: %v", id, err)
+			writeError(w, http.StatusInternalServerError, "не удалось удалить разбор")
+			return
+		}
+	}
+	if !found {
+		writeError(w, http.StatusNotFound, "разбор не найден")
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func summarize(rep *analysis.Report) *Summary {
+	sm := &Summary{Accuracy: rep.Accuracy, Plies: len(rep.Moves)}
+	if rep.Opening != nil {
+		sm.Opening, sm.ECO = rep.Opening.Name, rep.Opening.ECO
+	}
+	return sm
+}
+
 // loadStored reads a finished analysis from the database; nil, nil when
 // there is no store or no such analysis.
 func (s *Server) loadStored(ctx context.Context, id string) (*Job, error) {
@@ -289,11 +430,14 @@ func (s *Server) persist(job Job, depth int) {
 	game, err := json.Marshal(job.Game)
 	if err == nil {
 		a := &store.Analysis{
-			ID: job.ID, Status: job.Status, Depth: depth, Game: game,
+			ID: job.ID, UserID: job.userID, Status: job.Status, Depth: depth, Game: game,
 			Error: job.Error, CreatedAt: job.Created, FinishedAt: time.Now(),
 		}
 		if job.Report != nil {
 			a.Report, err = json.Marshal(job.Report)
+			if err == nil {
+				a.Summary, err = json.Marshal(summarize(job.Report))
+			}
 		}
 		if err == nil {
 			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)

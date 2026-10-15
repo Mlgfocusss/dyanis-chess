@@ -30,3 +30,13 @@ export async function createAnalysis({ pgn, game = 1, depth = 0 }) {
 export async function getAnalysis(id) {
   return readJSON(await fetch(`/api/analyses/${encodeURIComponent(id)}`));
 }
+
+// The signed-in user's reviews, newest first (rows of api.Listed).
+export async function listAnalyses() {
+  return (await readJSON(await fetch("/api/analyses"))).items;
+}
+
+export async function deleteAnalysis(id) {
+  const res = await fetch(`/api/analyses/${encodeURIComponent(id)}`, { method: "DELETE" });
+  if (!res.ok) await readJSON(res); // throws with the server's message
+}

@@ -90,6 +90,9 @@ let worker = null;
 let workerReadyPromise = null;
 let nextRequestId = 1;
 const pending = new Map();
+// The book last loaded into the worker, so a worker restarted by
+// cancelSearch() gets it back.
+let workerBook = null;
 
 function ensureWorker() {
   if (worker) return workerReadyPromise;
@@ -100,6 +103,8 @@ function ensureWorker() {
       const { type, id, result, error } = e.data;
 
       if (type === "ready") {
+        // Messages are handled in order, so the book is in place before any search.
+        if (workerBook) worker.postMessage({ id: nextRequestId++, method: "loadBook", args: [workerBook] });
         resolve();
         return;
       }
@@ -148,12 +153,35 @@ export function engineMoveAsync(fen, depth = 3, movetimeMs = 0) {
   return callWorker("searchMove", [fen, depth, movetimeMs]);
 }
 
+/**
+ * Stops a search that is running in the worker (a long one cannot be
+ * interrupted from inside WebAssembly, so the worker is simply thrown
+ * away and a fresh one starts on the next call). The promise of the
+ * abandoned search rejects with an error whose `cancelled` is true.
+ */
+export function cancelSearch() {
+  if (!worker) return;
+  worker.terminate();
+  worker = null;
+  workerReadyPromise = null;
+  for (const p of pending.values()) {
+    const e = new Error("поиск остановлен");
+    e.cancelled = true;
+    p.reject(e);
+  }
+  pending.clear();
+}
+
 /** Loads a book into the WORKER's instance — separate from loadBook() above, which loads into the main thread's instance. engineMoveAsync only ever consults the worker's own book. */
 export function loadBookInWorker(bytes) {
-  return callWorker("loadBook", [bytes]);
+  return callWorker("loadBook", [bytes]).then((r) => {
+    workerBook = bytes;
+    return r;
+  });
 }
 
 export function clearBookInWorker() {
+  workerBook = null;
   return callWorker("clearBook", []);
 }
 

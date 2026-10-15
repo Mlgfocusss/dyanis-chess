@@ -1,5 +1,5 @@
-// Package store keeps the service's data in MySQL: finished game reviews
-// now, users, games and the rest as the stages of WEB-PLAN.md arrive.
+// Package store keeps the service's data in MySQL: users and sessions,
+// finished game reviews, and the rest as the stages of WEB-PLAN.md arrive.
 //
 // The schema is versioned by the numbered files in migrations/, applied in
 // order at start-up and recorded in the schema_migrations table. The
@@ -169,55 +169,4 @@ func (s *Store) migrate(ctx context.Context) error {
 		}
 	}
 	return nil
-}
-
-// Analysis is a finished review as stored: the JSON documents are kept
-// opaque here, their shape belongs to internal/api and internal/analysis.
-type Analysis struct {
-	ID         string
-	Status     string // "done" or "error"
-	Depth      int
-	Game       []byte // JSON
-	Report     []byte // JSON; nil when Status is "error"
-	Error      string
-	CreatedAt  time.Time
-	FinishedAt time.Time
-}
-
-// SaveAnalysis inserts or replaces a review.
-func (s *Store) SaveAnalysis(ctx context.Context, a *Analysis) error {
-	var report any
-	if a.Report != nil {
-		report = string(a.Report)
-	}
-	var errText any
-	if a.Error != "" {
-		errText = a.Error
-	}
-	_, err := s.db.ExecContext(ctx, `REPLACE INTO analyses
-		(id, status, depth, game, report, error, created_at, finished_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-		a.ID, a.Status, a.Depth, string(a.Game), report, errText,
-		a.CreatedAt.UTC(), a.FinishedAt.UTC())
-	return err
-}
-
-// LoadAnalysis returns the review with this id, or ErrNotFound.
-func (s *Store) LoadAnalysis(ctx context.Context, id string) (*Analysis, error) {
-	var a Analysis
-	var game, report []byte
-	var errText sql.NullString
-	var finished sql.NullTime
-	err := s.db.QueryRowContext(ctx, `SELECT id, status, depth, game, report, error, created_at, finished_at
-		FROM analyses WHERE id = ?`, id).
-		Scan(&a.ID, &a.Status, &a.Depth, &game, &report, &errText, &a.CreatedAt, &finished)
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, ErrNotFound
-	}
-	if err != nil {
-		return nil, err
-	}
-	a.Game, a.Report, a.Error = game, report, errText.String
-	a.FinishedAt = finished.Time
-	return &a, nil
 }

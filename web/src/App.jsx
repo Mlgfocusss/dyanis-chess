@@ -1,15 +1,25 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Board from "./components/Board.jsx";
-import { useMoveSound } from "./settings/SettingsContext.jsx";
+import { useMoveSound, useSettings } from "./settings/SettingsContext.jsx";
 import MoveLog from "./components/MoveLog.jsx";
+import Segmented from "./ui/Segmented.jsx";
+import { playSound } from "./sound/sound.js";
 import * as engine from "./engine/dyanisEngine.js";
 import "./App.css";
 
 const DEFAULT_DEPTH = 4;
 const DEFAULT_MOVETIME_MS = 800;
+const MIN_DEPTH = 1;
+const MAX_DEPTH = 30;
+// Past this depth a search without a time limit can run for minutes.
+const SLOW_DEPTH = 12;
+
+const clampDepth = (n) => Math.min(MAX_DEPTH, Math.max(MIN_DEPTH, Math.round(n)));
+const SIDE_NAME = { white: "белые", black: "чёрные" };
 
 export default function App() {
   const playMoveSound = useMoveSound();
+  const { settings, save } = useSettings();
   const [state, setState] = useState(null);
   const [error, setError] = useState(null);
   const [thinking, setThinking] = useState(false);
@@ -17,6 +27,10 @@ export default function App() {
   const [bookStatus, setBookStatus] = useState({ loaded: false, entries: 0 });
   const [lastMove, setLastMove] = useState(null);
   const [engineNote, setEngineNote] = useState("");
+  // Who resigned ("white" | "black"), or null. The engine's own status stays
+  // "ongoing", so the page treats a resignation as the end of the game itself.
+  const [resigned, setResigned] = useState(null);
+  const [confirmResign, setConfirmResign] = useState(false);
 
   // Search strength controls. depth is always the max-depth ceiling;
   // when useMovetime is on, the engine uses iterative deepening with
@@ -24,9 +38,11 @@ export default function App() {
   // fixed depth — same relationship -depth/-movetime have in the
   // CLI's -play (see cmd/cli/main.go). Turning useMovetime off means
   // "search exactly to `depth`, however long that takes" — safe to do
-  // now even at high depth, since the search runs in a Web Worker and
-  // can no longer freeze the page (see engine/dyanisEngine.js).
+  // even at high depth, since the search runs in a Web Worker and
+  // can no longer freeze the page (see engine/dyanisEngine.js), and a
+  // search that takes too long can be abandoned (resign / new game).
   const [depth, setDepth] = useState(DEFAULT_DEPTH);
+  const [depthText, setDepthText] = useState(String(DEFAULT_DEPTH)); // what is typed, before it is valid
   const [useMovetime, setUseMovetime] = useState(true);
   const [movetimeMs, setMovetimeMs] = useState(DEFAULT_MOVETIME_MS);
 
@@ -35,6 +51,10 @@ export default function App() {
   // into it doesn't fight with the board's own current position —
   // it's only read when "Загрузить FEN" is actually clicked.
   const [fenInput, setFenInput] = useState("");
+
+  // Bumped whenever a running search stops mattering (new game, resignation,
+  // undo, leaving the page): the answer of an older search is then dropped.
+  const searchId = useRef(0);
 
   const refreshBook = useCallback(() => {
     engine
@@ -57,8 +77,17 @@ export default function App() {
       .catch((e) => setError(String(e)));
     return () => {
       cancelled = true;
+      searchId.current++;
+      engine.cancelSearch(); // do not keep a CPU core busy for a page nobody sees
     };
   }, [refreshBook]);
+
+  // Abandons the search in progress, if any.
+  const stopSearch = useCallback(() => {
+    searchId.current++;
+    engine.cancelSearch();
+    setThinking(false);
+  }, []);
 
   const triggerEngineIfNeeded = useCallback(
     async (freshState, side = playerSide) => {
@@ -68,6 +97,7 @@ export default function App() {
         (freshState.sideToMove === "black" && side === "white");
       if (!engineToMove) return;
 
+      const mine = ++searchId.current;
       setThinking(true);
       try {
         const budget = useMovetime ? movetimeMs : 0;
@@ -76,6 +106,7 @@ export default function App() {
         // needed here (unlike a synchronous main-thread call would
         // require): awaiting a worker call never blocks anything.
         const decision = await engine.engineMoveAsync(freshState.fen, depth, budget);
+        if (mine !== searchId.current) return; // abandoned meanwhile
         if (!decision.ok) {
           setError(decision.error);
           return;
@@ -94,9 +125,9 @@ export default function App() {
           setError(result.error);
         }
       } catch (e) {
-        setError(String(e));
+        if (!e?.cancelled && mine === searchId.current) setError(String(e));
       } finally {
-        setThinking(false);
+        if (mine === searchId.current) setThinking(false);
       }
     },
     [playerSide, depth, useMovetime, movetimeMs, playMoveSound]
@@ -117,13 +148,28 @@ export default function App() {
     return result;
   }
 
-  function handleNewGame() {
-    const s = engine.newGame();
-    setState(s);
+  function resetGameView() {
     setLastMove(null);
     setEngineNote("");
     setError(null);
+    setResigned(null);
+    setConfirmResign(false);
+  }
+
+  function handleNewGame() {
+    stopSearch();
+    const s = engine.newGame();
+    setState(s);
+    resetGameView();
     triggerEngineIfNeeded(s);
+  }
+
+  function handleResign() {
+    stopSearch();
+    setConfirmResign(false);
+    setResigned(playerSide);
+    setEngineNote("");
+    if (settings.sound) playSound("end", settings.soundTheme);
   }
 
   // jsNewGame (see cmd/wasm/main.go) returns either a full stateResponse
@@ -134,15 +180,14 @@ export default function App() {
   function handleLoadPosition() {
     const fen = fenInput.trim();
     if (!fen) return;
+    stopSearch();
     const s = engine.newGame(fen);
     if (s.ok === false) {
       setError(`неверный FEN: ${s.error}`);
       return;
     }
     setState(s);
-    setLastMove(null);
-    setEngineNote("");
-    setError(null);
+    resetGameView();
     triggerEngineIfNeeded(s);
   }
 
@@ -160,12 +205,27 @@ export default function App() {
       setState(result.state);
       setLastMove(null);
       setEngineNote("");
+      setResigned(null); // taking a move back reopens a resigned game
+      setConfirmResign(false);
     }
   }
 
   function handleSwitchSide(side) {
     setPlayerSide(side);
-    if (state) triggerEngineIfNeeded(state, side);
+    if (state && !resigned) triggerEngineIfNeeded(state, side);
+  }
+
+  function commitDepth(text) {
+    const n = Number(text);
+    const next = Number.isFinite(n) && text.trim() !== "" ? clampDepth(n) : depth;
+    setDepth(next);
+    setDepthText(String(next));
+  }
+
+  function onDepthChange(text) {
+    setDepthText(text);
+    const n = Number(text);
+    if (text.trim() !== "" && Number.isFinite(n) && n >= MIN_DEPTH && n <= MAX_DEPTH) setDepth(Math.round(n));
   }
 
   async function handleLoadBook() {
@@ -193,143 +253,192 @@ export default function App() {
     );
   }
 
+  const gameOn = state.status === "ongoing" && !resigned;
+  const center = settings.playLayout === "center";
+  const winner = resigned ? (resigned === "white" ? "black" : "white") : null;
+
+  const statusBlock = (
+    <div className="status">
+      <p className="status__turn">
+        Ход: <strong>{state.sideToMove === "white" ? "белые" : "чёрные"}</strong>
+      </p>
+      {resigned && (
+        <p className="status__flag status__flag--warn">
+          Вы сдались: победили {SIDE_NAME[winner]}
+        </p>
+      )}
+      {!resigned && state.inCheck && state.status === "ongoing" && (
+        <p className="status__flag status__flag--warn">Шах</p>
+      )}
+      {state.status === "checkmate" && <p className="status__flag status__flag--warn">Мат</p>}
+      {state.status === "stalemate" && <p className="status__flag status__flag--warn">Пат — ничья</p>}
+      {state.status === "draw-fifty-move" && <p className="status__flag status__flag--warn">Ничья по правилу 50 ходов</p>}
+      {state.status === "draw-repetition" && (
+        <p className="status__flag status__flag--warn">Ничья — троекратное повторение позиции</p>
+      )}
+      {thinking && <p className="status__flag status__flag--thinking">движок думает… (страница не зависает)</p>}
+      {engineNote && <p className="status__note">{engineNote}</p>}
+    </div>
+  );
+
+  const controls = (
+    <div className="controls">
+      <div className="controls__main">
+        <button className="btn btn--primary" onClick={handleNewGame}>
+          Новая партия
+        </button>
+        {confirmResign ? (
+          <span className="controls__confirm">
+            <button className="btn btn--danger" onClick={handleResign}>
+              Да, сдаться
+            </button>
+            <button className="btn btn--ghost" onClick={() => setConfirmResign(false)}>
+              Нет
+            </button>
+          </span>
+        ) : (
+          <button className="btn btn--danger-ghost" onClick={() => setConfirmResign(true)} disabled={!gameOn}>
+            Сдаться
+          </button>
+        )}
+      </div>
+      <button className="btn" onClick={handleUndo} disabled={thinking}>
+        Отменить ход
+      </button>
+
+      <div className="side-toggle">
+        <label>
+          <input type="radio" name="side" checked={playerSide === "white"} onChange={() => handleSwitchSide("white")} />
+          Играю за белых
+        </label>
+        <label>
+          <input type="radio" name="side" checked={playerSide === "black"} onChange={() => handleSwitchSide("black")} />
+          Играю за чёрных
+        </label>
+      </div>
+
+      <div className="depth-controls">
+        <label className="depth-controls__row">
+          Глубина (потолок):
+          <input
+            type="number"
+            className="field"
+            min={MIN_DEPTH}
+            max={MAX_DEPTH}
+            step={1}
+            value={depthText}
+            onChange={(e) => onDepthChange(e.target.value)}
+            onBlur={(e) => commitDepth(e.target.value)}
+          />
+        </label>
+
+        <label className="depth-controls__row">
+          <input type="checkbox" checked={useMovetime} onChange={(e) => setUseMovetime(e.target.checked)} />
+          Ограничить по времени
+        </label>
+
+        {useMovetime && (
+          <label className="depth-controls__row">
+            Бюджет, мс:
+            <input
+              type="number"
+              className="field"
+              min={100}
+              step={100}
+              value={movetimeMs}
+              onChange={(e) => setMovetimeMs(Math.max(100, Number(e.target.value) || 100))}
+            />
+          </label>
+        )}
+
+        <p className="depth-controls__hint">
+          {useMovetime
+            ? `итеративное углубление до глубины ${depth}, но не дольше ${movetimeMs} мс`
+            : `всегда ровно глубина ${depth}`}
+          {!useMovetime && depth >= SLOW_DEPTH
+            ? `: ход может занять минуты. Остановить поиск можно кнопкой «Сдаться» или «Новая партия».`
+            : ""}
+        </p>
+      </div>
+
+      <div className="fen-controls">
+        <label className="fen-controls__row">
+          FEN:
+          <input
+            type="text"
+            className="field fen-controls__input"
+            value={fenInput}
+            onChange={(e) => setFenInput(e.target.value)}
+            placeholder="вставь позицию сюда"
+            disabled={thinking}
+          />
+        </label>
+        <div className="fen-controls__buttons">
+          <button className="btn" onClick={handleLoadPosition} disabled={thinking || !fenInput.trim()}>
+            Загрузить FEN
+          </button>
+          <button className="btn" onClick={handleCopyCurrentFen} disabled={thinking}>
+            Скопировать текущий FEN
+          </button>
+        </div>
+      </div>
+
+      <div className="book-controls">
+        <button className="btn" onClick={handleLoadBook} disabled={bookStatus.loaded}>
+          Загрузить книгу
+        </button>
+        <button className="btn" onClick={handleClearBook} disabled={!bookStatus.loaded}>
+          Отключить книгу
+        </button>
+        <span className="book-controls__status">
+          {bookStatus.loaded ? `книга: ${bookStatus.entries} записей` : "книга: не загружена"}
+        </span>
+      </div>
+    </div>
+  );
+
   return (
-    <div className="page">
-      <header className="page__head">
-        <h1 className="page__title">Игра с ботом</h1>
-        <p className="page__sub">Движок работает прямо в браузере (Go, скомпилированный в WebAssembly), сервер не нужен.</p>
+    <div className={`play play--${center ? "center" : "side"}`}>
+      <header className="play__head">
+        <div>
+          <h1 className="page__title">Игра с ботом</h1>
+          <p className="page__sub">Движок работает прямо в браузере (Go, скомпилированный в WebAssembly), сервер не нужен.</p>
+        </div>
+        <Segmented
+          label="Расположение доски"
+          value={center ? "center" : "side"}
+          onChange={(v) => save({ ...settings, playLayout: v })}
+          options={[
+            ["side", "Доска сбоку"],
+            ["center", "Доска по центру"],
+          ]}
+        />
       </header>
 
       {error && <div className="banner banner--error">{error}</div>}
 
-      <div className="layout">
-        <Board
-          state={state}
-          orientation={playerSide}
-          disabled={thinking || state.status !== "ongoing"}
-          lastMove={lastMove}
-          onPlayerMove={handlePlayerMove}
-        />
+      <div className="play__grid">
+        <div className="play__board">
+          <Board
+            state={state}
+            orientation={playerSide}
+            disabled={thinking || !gameOn}
+            lastMove={lastMove}
+            onPlayerMove={handlePlayerMove}
+          />
+        </div>
 
-        <aside className="panel card">
-          <div className="status">
-            <p className="status__turn">
-              Ход: <strong>{state.sideToMove === "white" ? "белые" : "чёрные"}</strong>
-            </p>
-            {state.inCheck && state.status === "ongoing" && <p className="status__flag status__flag--warn">Шах</p>}
-            {state.status === "checkmate" && <p className="status__flag status__flag--warn">Мат</p>}
-            {state.status === "stalemate" && <p className="status__flag status__flag--warn">Пат — ничья</p>}
-            {state.status === "draw-fifty-move" && (
-              <p className="status__flag status__flag--warn">Ничья по правилу 50 ходов</p>
-            )}
-            {state.status === "draw-repetition" && (
-              <p className="status__flag status__flag--warn">Ничья — троекратное повторение позиции</p>
-            )}
-            {thinking && <p className="status__flag status__flag--thinking">движок думает… (страница не зависает)</p>}
-            {engineNote && <p className="status__note">{engineNote}</p>}
-          </div>
+        {center && (
+          <aside className="play__left card">
+            {statusBlock}
+            <MoveLog log={state.log} />
+          </aside>
+        )}
 
-          <div className="controls">
-            <button className="btn btn--primary" onClick={handleNewGame}>Новая партия</button>
-            <button className="btn" onClick={handleUndo} disabled={thinking}>
-              Отменить ход
-            </button>
-
-            <div className="fen-controls">
-              <label className="fen-controls__row">
-                FEN:
-                <input
-                  type="text"
-                  className="field fen-controls__input"
-                  value={fenInput}
-                  onChange={(e) => setFenInput(e.target.value)}
-                  placeholder="вставь позицию сюда"
-                  disabled={thinking}
-                />
-              </label>
-              <div className="fen-controls__buttons">
-                <button className="btn" onClick={handleLoadPosition} disabled={thinking || !fenInput.trim()}>
-                  Загрузить FEN
-                </button>
-                <button className="btn" onClick={handleCopyCurrentFen} disabled={thinking}>
-                  Скопировать текущий FEN
-                </button>
-              </div>
-            </div>
-
-            <div className="side-toggle">
-              <label>
-                <input
-                  type="radio"
-                  name="side"
-                  checked={playerSide === "white"}
-                  onChange={() => handleSwitchSide("white")}
-                />
-                Играю за белых
-              </label>
-              <label>
-                <input
-                  type="radio"
-                  name="side"
-                  checked={playerSide === "black"}
-                  onChange={() => handleSwitchSide("black")}
-                />
-                Играю за чёрных
-              </label>
-            </div>
-
-            <div className="depth-controls">
-              <label className="depth-controls__row">
-                Глубина (потолок):
-                <select className="field" value={depth} onChange={(e) => setDepth(Number(e.target.value))}>
-                  {[1, 2, 3, 4, 5, 6, 7, 8].map((d) => (
-                    <option key={d} value={d}>
-                      {d}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="depth-controls__row">
-                <input type="checkbox" checked={useMovetime} onChange={(e) => setUseMovetime(e.target.checked)} />
-                Ограничить по времени
-              </label>
-
-              {useMovetime && (
-                <label className="depth-controls__row">
-                  Бюджет, мс:
-                  <input
-                    type="number"
-                    className="field"
-                    min={100}
-                    step={100}
-                    value={movetimeMs}
-                    onChange={(e) => setMovetimeMs(Math.max(100, Number(e.target.value) || 100))}
-                  />
-                </label>
-              )}
-
-              <p className="depth-controls__hint">
-                {useMovetime
-                  ? `итеративное углубление до глубины ${depth}, но не дольше ${movetimeMs} мс`
-                  : `всегда ровно глубина ${depth} — может занять много времени, но страницу это больше не подвесит`}
-              </p>
-            </div>
-
-            <div className="book-controls">
-              <button className="btn" onClick={handleLoadBook} disabled={bookStatus.loaded}>
-                Загрузить книгу
-              </button>
-              <button className="btn" onClick={handleClearBook} disabled={!bookStatus.loaded}>
-                Отключить книгу
-              </button>
-              <span className="book-controls__status">
-                {bookStatus.loaded ? `книга: ${bookStatus.entries} записей` : "книга: не загружена"}
-              </span>
-            </div>
-          </div>
-
-          <MoveLog log={state.log} />
+        <aside className="play__side card">
+          {!center && statusBlock}
+          {controls}
+          {!center && <MoveLog log={state.log} />}
         </aside>
       </div>
     </div>
