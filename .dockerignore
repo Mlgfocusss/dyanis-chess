@@ -1,0 +1,18 @@
+# Whitelist: the build context is the repository root, but the images need
+# only the Go sources of the server and the browser engine, the network
+# file, the opening books and the web front end.
+*
+!go.mod
+!go.sum
+!engine/engine.go
+!engine/internal
+!engine/cmd/wasm
+!engine/assets
+!engine/net-kingf-m4.bin
+!backend
+!deploy/nginx.conf
+!web
+web/node_modules
+web/dist
+web/public/wasm
+web/public/assets

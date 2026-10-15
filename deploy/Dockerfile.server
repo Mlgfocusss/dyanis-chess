@@ -1,0 +1,31 @@
+# Go server: the backend plus the engine behind the engine/ facade and the
+# NNUE network. Build context: repo root (see docker-compose.yml).
+#
+# GOEXPERIMENT=simd gives the AVX2 loops of the engine's network code; the
+# program checks the CPU at run time and falls back to plain loops without
+# AVX2, so the image runs anywhere. Set SIMD_EXPERIMENT="" to build without.
+#
+# To use another engine: change engine/ (keeping the API of engine/engine.go)
+# and the NET_FILE build argument if the network file is called differently.
+FROM golang:1.26-alpine AS build
+ARG SIMD_EXPERIMENT=simd
+WORKDIR /src
+COPY go.mod go.sum* ./
+RUN go mod download
+COPY engine/engine.go ./engine/engine.go
+COPY engine/internal ./engine/internal
+COPY backend ./backend
+RUN CGO_ENABLED=0 GOEXPERIMENT=${SIMD_EXPERIMENT} \
+    go build -trimpath -ldflags="-s -w" -o /out/server ./backend/cmd/server
+
+FROM alpine:3.20
+ARG NET_FILE=net-kingf-m4.bin
+RUN adduser -D -u 10001 app
+WORKDIR /app
+COPY --from=build /out/server /app/server
+COPY engine/${NET_FILE} /app/net.bin
+USER app
+EXPOSE 8080
+HEALTHCHECK --interval=15s --timeout=3s --start-period=10s \
+    CMD wget -qO- http://127.0.0.1:8080/api/health >/dev/null || exit 1
+ENTRYPOINT ["/app/server", "-addr", ":8080", "-evalfile", "/app/net.bin"]

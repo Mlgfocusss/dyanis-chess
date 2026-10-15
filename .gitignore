@@ -7,7 +7,7 @@ dist-linux/
 
 # --- Данные и результаты экспериментов (большие, воспроизводимы) ---
 data/
-train/out/
+engine/train/out/
 nets-archive/
 spsa-nnue/
 carry-*.json
@@ -25,8 +25,8 @@ engines/
 # --- Веб ---
 web/node_modules/
 web/dist/
-cmd/wasm/dyanis.wasm
-# копируются из cmd/wasm и assets/ при подготовке (см. README)
+engine/cmd/wasm/dyanis.wasm
+# копируются из engine/cmd/wasm и engine/assets/ (в Docker это делает deploy/Dockerfile.web)
 web/public/wasm/
 web/public/assets/
 

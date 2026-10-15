@@ -1,13 +1,18 @@
 import { useMemo, useState } from "react";
-import { Chessboard } from "react-chessboard";
-import { useElementWidth } from "../hooks/useElementWidth.js";
+import ThemedBoard from "./ThemedBoard.jsx";
+import { useSettings } from "../settings/SettingsContext.jsx";
 
 // state: stateResponse from dyanisEngine.getState()/makeMove()/etc.
 // onPlayerMove(uci) -> moveResponse; called for both drag-drop and
-// click-click attempts once a legal from/to pair is picked.
+// click-click attempts once a legal from/to pair is picked. How pieces may
+// be moved (drag, click or both), the last-move highlight and everything
+// about the board's look come from the user's settings.
 export default function Board({ state, orientation, disabled, lastMove, onPlayerMove }) {
+  const { settings } = useSettings();
   const [selectedSquare, setSelectedSquare] = useState(null);
-  const [containerRef, width] = useElementWidth();
+
+  const canDrag = settings.moveMethod !== "click";
+  const canClick = settings.moveMethod !== "drag";
 
   const movesBySquare = useMemo(() => {
     const map = new Map();
@@ -38,7 +43,7 @@ export default function Board({ state, orientation, disabled, lastMove, onPlayer
   }
 
   function handleSquareClick(square) {
-    if (disabled) return;
+    if (disabled || !canClick) return;
     if (selectedSquare === square) {
       setSelectedSquare(null);
       return;
@@ -52,7 +57,7 @@ export default function Board({ state, orientation, disabled, lastMove, onPlayer
   }
 
   function handlePieceDrop(sourceSquare, targetSquare) {
-    if (disabled) return false;
+    if (disabled || !canDrag) return false;
     const moved = attemptMove(sourceSquare, targetSquare);
     setSelectedSquare(null);
     return moved;
@@ -60,34 +65,29 @@ export default function Board({ state, orientation, disabled, lastMove, onPlayer
 
   const squareStyles = useMemo(() => {
     const styles = {};
-    if (lastMove) {
-      styles[lastMove.from] = { backgroundColor: "rgba(205, 210, 106, 0.65)" };
-      styles[lastMove.to] = { backgroundColor: "rgba(205, 210, 106, 0.65)" };
+    if (lastMove && settings.highlightLastMove) {
+      styles[lastMove.from] = { backgroundColor: "rgba(250, 204, 21, 0.45)" };
+      styles[lastMove.to] = { backgroundColor: "rgba(250, 204, 21, 0.45)" };
     }
     if (selectedSquare) {
-      styles[selectedSquare] = { ...(styles[selectedSquare] || {}), backgroundColor: "rgba(255, 230, 90, 0.55)" };
+      styles[selectedSquare] = { ...(styles[selectedSquare] || {}), backgroundColor: "rgba(250, 204, 21, 0.6)" };
     }
     for (const sq of legalTargetSquares) {
-      styles[sq] = { ...(styles[sq] || {}), boxShadow: "inset 0 0 0 4px rgba(20, 85, 30, 0.55)" };
+      styles[sq] = { ...(styles[sq] || {}), boxShadow: "inset 0 0 0 4px rgba(52, 211, 153, 0.8)" };
     }
     return styles;
-  }, [lastMove, selectedSquare, legalTargetSquares]);
+  }, [lastMove, selectedSquare, legalTargetSquares, settings.highlightLastMove]);
 
   return (
-    <div ref={containerRef} className="board-wrap">
-      <Chessboard
+    <div className="board-wrap">
+      <ThemedBoard
         id="DyanisBoard"
         position={state.fen}
-        boardWidth={width}
-        boardOrientation={orientation}
+        orientation={orientation}
         onPieceDrop={handlePieceDrop}
         onSquareClick={handleSquareClick}
-        isDraggablePiece={({ sourceSquare }) => !disabled && movesBySquare.has(sourceSquare)}
+        isDraggablePiece={({ sourceSquare }) => !disabled && canDrag && movesBySquare.has(sourceSquare)}
         customSquareStyles={squareStyles}
-        customDarkSquareStyle={{ backgroundColor: "#7c6a58" }}
-        customLightSquareStyle={{ backgroundColor: "#eee0c9" }}
-        customBoardStyle={{ borderRadius: "6px", boxShadow: "0 10px 30px rgba(0,0,0,0.35)" }}
-        animationDuration={200}
         autoPromoteToQueen
       />
     </div>

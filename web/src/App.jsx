@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import Board from "./components/Board.jsx";
+import { useMoveSound } from "./settings/SettingsContext.jsx";
 import MoveLog from "./components/MoveLog.jsx";
 import * as engine from "./engine/dyanisEngine.js";
 import "./App.css";
@@ -8,6 +9,7 @@ const DEFAULT_DEPTH = 4;
 const DEFAULT_MOVETIME_MS = 800;
 
 export default function App() {
+  const playMoveSound = useMoveSound();
   const [state, setState] = useState(null);
   const [error, setError] = useState(null);
   const [thinking, setThinking] = useState(false);
@@ -85,6 +87,7 @@ export default function App() {
         if (result.ok) {
           setState(result.state);
           setLastMove({ from: decision.uci.slice(0, 2), to: decision.uci.slice(2, 4) });
+          playMoveSound(decision.san);
           setEngineNote(decision.fromBook ? `движок сыграл ${decision.san} (из книги)` : `движок сыграл ${decision.san}`);
           setError(null);
         } else {
@@ -96,7 +99,7 @@ export default function App() {
         setThinking(false);
       }
     },
-    [playerSide, depth, useMovetime, movetimeMs]
+    [playerSide, depth, useMovetime, movetimeMs, playMoveSound]
   );
 
   function handlePlayerMove(uci) {
@@ -104,6 +107,7 @@ export default function App() {
     if (result.ok) {
       setState(result.state);
       setLastMove({ from: uci.slice(0, 2), to: uci.slice(2, 4) });
+      playMoveSound(result.san);
       setEngineNote("");
       setError(null);
       triggerEngineIfNeeded(result.state); // fire-and-forget
@@ -183,17 +187,17 @@ export default function App() {
 
   if (!state) {
     return (
-      <div className="app app--loading">
+      <div className="page page--loading">
         {error ? <p className="banner banner--error">{error}</p> : <p>Загружаю движок…</p>}
       </div>
     );
   }
 
   return (
-    <div className="app">
-      <header className="app__header">
-        <h1>Dyanis</h1>
-        <p className="app__tagline">Собственный шахматный движок на Go, скомпилированный в WASM</p>
+    <div className="page">
+      <header className="page__head">
+        <h1 className="page__title">Игра с ботом</h1>
+        <p className="page__sub">Движок работает прямо в браузере (Go, скомпилированный в WebAssembly), сервер не нужен.</p>
       </header>
 
       {error && <div className="banner banner--error">{error}</div>}
@@ -207,7 +211,7 @@ export default function App() {
           onPlayerMove={handlePlayerMove}
         />
 
-        <aside className="sidebar">
+        <aside className="panel card">
           <div className="status">
             <p className="status__turn">
               Ход: <strong>{state.sideToMove === "white" ? "белые" : "чёрные"}</strong>
@@ -226,8 +230,8 @@ export default function App() {
           </div>
 
           <div className="controls">
-            <button onClick={handleNewGame}>Новая партия</button>
-            <button onClick={handleUndo} disabled={thinking}>
+            <button className="btn btn--primary" onClick={handleNewGame}>Новая партия</button>
+            <button className="btn" onClick={handleUndo} disabled={thinking}>
               Отменить ход
             </button>
 
@@ -236,7 +240,7 @@ export default function App() {
                 FEN:
                 <input
                   type="text"
-                  className="fen-controls__input"
+                  className="field fen-controls__input"
                   value={fenInput}
                   onChange={(e) => setFenInput(e.target.value)}
                   placeholder="вставь позицию сюда"
@@ -244,10 +248,10 @@ export default function App() {
                 />
               </label>
               <div className="fen-controls__buttons">
-                <button onClick={handleLoadPosition} disabled={thinking || !fenInput.trim()}>
+                <button className="btn" onClick={handleLoadPosition} disabled={thinking || !fenInput.trim()}>
                   Загрузить FEN
                 </button>
-                <button onClick={handleCopyCurrentFen} disabled={thinking}>
+                <button className="btn" onClick={handleCopyCurrentFen} disabled={thinking}>
                   Скопировать текущий FEN
                 </button>
               </div>
@@ -277,7 +281,7 @@ export default function App() {
             <div className="depth-controls">
               <label className="depth-controls__row">
                 Глубина (потолок):
-                <select value={depth} onChange={(e) => setDepth(Number(e.target.value))}>
+                <select className="field" value={depth} onChange={(e) => setDepth(Number(e.target.value))}>
                   {[1, 2, 3, 4, 5, 6, 7, 8].map((d) => (
                     <option key={d} value={d}>
                       {d}
@@ -296,6 +300,7 @@ export default function App() {
                   Бюджет, мс:
                   <input
                     type="number"
+                    className="field"
                     min={100}
                     step={100}
                     value={movetimeMs}
@@ -312,10 +317,10 @@ export default function App() {
             </div>
 
             <div className="book-controls">
-              <button onClick={handleLoadBook} disabled={bookStatus.loaded}>
+              <button className="btn" onClick={handleLoadBook} disabled={bookStatus.loaded}>
                 Загрузить книгу
               </button>
-              <button onClick={handleClearBook} disabled={!bookStatus.loaded}>
+              <button className="btn" onClick={handleClearBook} disabled={!bookStatus.loaded}>
                 Отключить книгу
               </button>
               <span className="book-controls__status">

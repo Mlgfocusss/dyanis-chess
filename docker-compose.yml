@@ -1,0 +1,52 @@
+# docker compose up --build   ->   http://localhost:8080
+# Passwords live in .env (copy .env.example); use letters and digits only,
+# they end up inside a connection string.
+services:
+  db:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?copy .env.example to .env and set the passwords}
+      MYSQL_DATABASE: dyanis
+      MYSQL_USER: dyanis
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?copy .env.example to .env and set the passwords}
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_0900_ai_ci
+    volumes:
+      - dbdata:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+    # For a SQL client on this machine only; the stack does not need it.
+    ports:
+      - "127.0.0.1:${DB_PORT:-3317}:3306"
+
+  server:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.server
+    restart: unless-stopped
+    environment:
+      DYANIS_DB_DSN: dyanis:${MYSQL_PASSWORD}@tcp(db:3306)/dyanis
+    depends_on:
+      db:
+        condition: service_healthy
+    # Not published: only nginx talks to it.
+    expose:
+      - "8080"
+
+  web:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.web
+    restart: unless-stopped
+    depends_on:
+      server:
+        condition: service_healthy
+    ports:
+      - "${WEB_PORT:-8080}:80"
+
+volumes:
+  dbdata:

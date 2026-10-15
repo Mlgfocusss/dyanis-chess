@@ -1,20 +1,118 @@
+@import "@fontsource-variable/inter";
+/* Design tokens and base styles. Dark theme; every colour used elsewhere
+   comes from a token here (no hex values in component CSS). */
+:root {
+  color-scheme: dark;
+
+  --bg: #0b1220;
+  --surface: #121b2e;
+  --surface-2: #19243b;
+  --surface-3: #223050;
+  --border: rgba(148, 163, 184, 0.16);
+  --border-strong: rgba(148, 163, 184, 0.32);
+
+  --text: #e6edf7;
+  --text-2: #b4c0d4; /* secondary: 8:1 on --surface */
+  --muted: #8b9bb4;  /* tertiary: 5.5:1 on --surface */
+
+  --primary: #34d399;        /* emerald */
+  --primary-strong: #10b981;
+  --on-primary: #052e22;
+  --primary-soft: rgba(52, 211, 153, 0.14);
+  --info: #60a5fa;
+  --warn: #fbbf24;
+  --danger: #f87171;
+  --danger-soft: rgba(248, 113, 113, 0.14);
+
+  --board-light: #dfe6ee;
+  --board-dark: #7a93ad;
+
+  --radius: 12px;
+  --radius-sm: 8px;
+  --shadow: 0 8px 28px rgba(2, 6, 23, 0.45);
+  --font: "Inter Variable", "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: ui-monospace, "JetBrains Mono", Consolas, monospace;
+}
+
 * { box-sizing: border-box; }
 
 html, body { margin: 0; padding: 0; }
 
 body {
-  background: #201812;
-  color: #f5efe6;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 15px;
+  line-height: 1.5;
   min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
 }
 
-button {
-  font: inherit;
-  cursor: pointer;
+h1, h2, h3, p { margin: 0; }
+
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+button:disabled { cursor: not-allowed; opacity: 0.45; }
+
+:focus-visible {
+  outline: 2px solid var(--info);
+  outline-offset: 2px;
 }
 
-button:disabled {
-  cursor: not-allowed;
-  opacity: 0.5;
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
 }
+
+/* ---- shared controls ---- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 16px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-strong);
+  background: var(--surface-2);
+  color: var(--text);
+  font-weight: 500;
+  transition: background 0.15s, border-color 0.15s;
+}
+.btn:hover:not(:disabled) { background: var(--surface-3); }
+.btn--primary { background: var(--primary); border-color: var(--primary); color: var(--on-primary); font-weight: 600; }
+.btn--primary:hover:not(:disabled) { background: var(--primary-strong); border-color: var(--primary-strong); }
+.btn--ghost { background: transparent; }
+.btn--block { width: 100%; }
+
+.field {
+  width: 100%;
+  min-height: 40px;
+  padding: 8px 12px;
+  background: var(--bg);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+}
+.field::placeholder { color: var(--muted); }
+.field:focus-visible { outline-offset: 0; border-color: var(--info); }
+select.field { width: auto; }
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.banner {
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  margin-bottom: 16px;
+  font-size: 0.92rem;
+}
+.banner--error {
+  background: var(--danger-soft);
+  border: 1px solid rgba(248, 113, 113, 0.45);
+  color: #fecaca;
+}
+
+.icon { width: 20px; height: 20px; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
