@@ -531,3 +531,37 @@ func TestDeleteRefusedWhileRunning(t *testing.T) {
 		t.Errorf("list during analysis: %+v", got)
 	}
 }
+
+func TestOpeningEndpoint(t *testing.T) {
+	s := New(Config{})
+	defer s.Close()
+	get := func(q string) (int, struct {
+		Opening *struct{ ECO, Name string }
+		Book    bool
+	}) {
+		rec := httptest.NewRecorder()
+		s.Handler().ServeHTTP(rec, httptest.NewRequest("GET", "/api/opening?san="+q, nil))
+		var out struct {
+			Opening *struct{ ECO, Name string }
+			Book    bool
+		}
+		json.Unmarshal(rec.Body.Bytes(), &out)
+		return rec.Code, out
+	}
+	if code, o := get(""); code != 200 || o.Opening != nil || o.Book {
+		t.Errorf("no moves: %d %+v", code, o)
+	}
+	if code, o := get("e4,e5,Nf3,Nc6,Bb5"); code != 200 || o.Opening == nil || !strings.Contains(o.Opening.Name, "Ruy Lopez") || !o.Book {
+		t.Errorf("Ruy Lopez: %d %+v", code, o)
+	}
+	// out of theory: the name stays, the book flag goes
+	if code, o := get("e4,e5,Nf3,Nc6,Bb5,a6,Ba4,Nf6,a3,h6,h3"); code != 200 || o.Opening == nil || o.Book {
+		t.Errorf("past theory: %d %+v", code, o)
+	}
+	if code, _ := get("e4,e5,Qxx9"); code != 400 {
+		t.Errorf("bad move: %d", code)
+	}
+	if code, _ := get(strings.Repeat("Nf3,Nf6,Ng1,Ng8,", 31)); code != http.StatusBadRequest {
+		t.Errorf("a game of 124 plies: %d", code)
+	}
+}

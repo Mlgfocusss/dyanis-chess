@@ -4,6 +4,7 @@
 //	GET  /api/analyses/{id}   status, progress and, when done, the report
 //	GET  /api/analyses        the signed-in user's reviews, newest first
 //	DELETE /api/analyses/{id} remove one of the user's reviews
+//	GET  /api/opening?san=e4,e5,Nf3   the opening a game has reached so far
 //	GET  /api/health          liveness probe for Docker
 //
 // Analyses are queued and run one at a time (every analysis already uses
@@ -28,6 +29,7 @@ import (
 	"time"
 
 	"dyanis-chess/backend/internal/analysis"
+	"dyanis-chess/backend/internal/eco"
 	"dyanis-chess/backend/internal/pgn"
 	"dyanis-chess/backend/internal/store"
 	"dyanis-chess/engine"
@@ -47,14 +49,17 @@ type Store interface {
 
 // Config tunes a Server. Zero values get the defaults noted.
 type Config struct {
-	Analyze      Analyzer // default analysis.Analyze
-	DefaultDepth int      // search depth when the request names none; default 14
-	MaxDepth     int      // largest depth a request may ask for; default 20
-	MaxPlies     int      // longest game accepted, in half-moves; default 400
-	MaxBodyBytes int64    // request size limit; default 512 KiB
-	QueueLen     int      // waiting analyses before 503; default 20
-	KeepJobs     int      // analyses remembered; default 200
-	Store        Store    // optional database for finished analyses
+	Analyze Analyzer // default analysis.Analyze
+	// EvalPosition judges one position for the "try a line" endpoint;
+	// default analysis.AnalyzePosition, a stub in tests.
+	EvalPosition func(*engine.Position, []uint64, analysis.Options) analysis.PositionEval
+	DefaultDepth int   // search depth when the request names none; default 14
+	MaxDepth     int   // largest depth a request may ask for; default 20
+	MaxPlies     int   // longest game accepted, in half-moves; default 400
+	MaxBodyBytes int64 // request size limit; default 512 KiB
+	QueueLen     int   // waiting analyses before 503; default 20
+	KeepJobs     int   // analyses remembered; default 200
+	Store        Store // optional database for finished analyses
 
 	// UserID names the signed-in user of a request, "" for nobody; the
 	// default treats everybody as anonymous.
@@ -64,6 +69,9 @@ type Config struct {
 func (c *Config) fill() {
 	if c.Analyze == nil {
 		c.Analyze = analysis.Analyze
+	}
+	if c.EvalPosition == nil {
+		c.EvalPosition = analysis.AnalyzePosition
 	}
 	if c.DefaultDepth <= 0 {
 		c.DefaultDepth = 14
@@ -147,6 +155,8 @@ type Listed struct {
 type Server struct {
 	cfg   Config
 	queue chan *Job
+	// evalSlots limits the position evaluations of the line endpoint.
+	evalSlots chan struct{}
 
 	mu    sync.Mutex
 	jobs  map[string]*Job
@@ -159,10 +169,11 @@ type Server struct {
 func New(cfg Config) *Server {
 	cfg.fill()
 	s := &Server{
-		cfg:   cfg,
-		queue: make(chan *Job, cfg.QueueLen),
-		jobs:  map[string]*Job{},
-		quit:  make(chan struct{}),
+		cfg:       cfg,
+		queue:     make(chan *Job, cfg.QueueLen),
+		evalSlots: make(chan struct{}, lineEvalSlots),
+		jobs:      map[string]*Job{},
+		quit:      make(chan struct{}),
 	}
 	s.wg.Add(1)
 	go s.worker()
@@ -182,6 +193,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/analyses/{id}", s.get)
 	mux.HandleFunc("GET /api/analyses", s.list)
 	mux.HandleFunc("DELETE /api/analyses/{id}", s.remove)
+	mux.HandleFunc("GET /api/opening", s.opening)
+	mux.HandleFunc("POST /api/line", s.line)
 	mux.HandleFunc("GET /api/health", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	})
@@ -551,4 +564,39 @@ func writeJSON(w http.ResponseWriter, code int, v any) {
 
 func writeError(w http.ResponseWriter, code int, msg string) {
 	writeJSON(w, code, map[string]string{"error": msg})
+}
+
+// opening answers GET /api/opening?san=e4,e5,Nf3: the name of the opening a game
+// from the starting position has reached (the last named position on its way,
+// as the review does), and whether the position is still theory. The browser
+// game against the engine asks it after every move.
+func (s *Server) opening(w http.ResponseWriter, r *http.Request) {
+	raw := r.URL.Query().Get("san")
+	var sans []string
+	if raw != "" {
+		sans = strings.Split(raw, ",")
+	}
+	if len(sans) > 120 {
+		writeError(w, http.StatusBadRequest, "слишком длинная партия")
+		return
+	}
+	book := eco.Default()
+	pos := engine.NewPosition()
+	var found *eco.Opening
+	inBook := true
+	for _, san := range sans {
+		m, err := pos.ParseSAN(strings.TrimSpace(san))
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "неверный ход: "+san)
+			return
+		}
+		pos.Play(m)
+		h := pos.Hash()
+		if o, ok := book.Lookup(h); ok {
+			o := o
+			found = &o
+		}
+		inBook = book.InBook(h)
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"opening": found, "book": inBook && len(sans) > 0})
 }

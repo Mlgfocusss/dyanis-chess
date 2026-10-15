@@ -5,7 +5,7 @@
 .nav {
   position: fixed;
   inset: 0 auto 0 0;
-  width: 248px;
+  width: 264px;
   display: flex;
   flex-direction: column;
   gap: 20px;
@@ -13,6 +13,7 @@
   background: var(--surface);
   border-right: 1px solid var(--border);
   z-index: 10;
+  overflow-y: auto;
 }
 
 .nav__brand { display: flex; align-items: center; gap: 10px; padding: 0 8px; }
@@ -24,6 +25,7 @@
 
 .nav__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
 .nav__soon-item { margin-top: 0; }
+.nav__mobile-only { display: none; }
 
 .nav__item {
   display: flex; align-items: center; gap: 12px; width: 100%; min-height: 44px; padding: 0 12px;
@@ -42,7 +44,7 @@
 .nav__list--bottom { margin-top: auto; padding-top: 10px; border-top: 1px solid var(--border); }
 .nav__foot { padding: 0 8px; color: var(--muted); font-size: 0.8rem; line-height: 1.4; }
 
-.main { margin-left: 248px; min-height: 100vh; }
+.main { margin-left: 264px; min-height: 100vh; }
 
 /* page scaffolding shared by the pages */
 .page { max-width: 1280px; margin: 0 auto; padding: 28px 32px 56px; }
@@ -50,18 +52,75 @@
 .page__title { font-size: 1.6rem; font-weight: 700; letter-spacing: -0.02em; }
 .page__sub { color: var(--text-2); margin-top: 4px; }
 
+/* a short window has no room for the footer note */
+@media (max-height: 860px) and (min-width: 861px) {
+  .nav__foot { display: none; }
+}
+
 @media (max-width: 860px) {
   .nav {
     inset: auto 0 0 0; width: auto; flex-direction: row; gap: 0; padding: 6px 8px;
     border-right: 0; border-top: 1px solid var(--border);
     padding-bottom: max(6px, env(safe-area-inset-bottom));
   }
-  .nav__brand, .nav__foot, .nav__soon-item { display: none; }
+  .nav__brand, .nav__foot, .nav__soon-item, .acard { display: none; }
+  .nav__list--bottom .nav__mobile-only { display: block; }
   .nav__list { flex-direction: row; flex: 2; justify-content: space-around; }
   .nav__list--bottom { flex: 1; margin-top: 0; padding-top: 0; border-top: 0; }
   .nav__list li { flex: 1; }
   .nav__item { flex-direction: column; gap: 2px; justify-content: center; min-height: 52px; padding: 4px; text-align: center; }
-  .nav__label { font-size: 0.72rem; }
+  .nav__label { font-size: 0.66rem; }
+  .nav__list, .nav__list li, .nav__item { min-width: 0; }
+  .nav__item { padding: 4px 2px; }
+  .nav__label { max-width: 100%; }
   .main { margin-left: 0; padding-bottom: 72px; }
   .page { padding: 18px 16px 40px; }
 }
+
+/* the "Играть" group: a button that opens a list of pages */
+.nav__group { position: relative; }
+.nav__chev { margin-left: auto; transition: transform 0.15s; }
+.nav__chev--open { transform: rotate(180deg); }
+.nav__sub { list-style: none; margin: 2px 0 4px; padding: 0 0 0 6px; display: flex; flex-direction: column; gap: 2px; }
+.nav__sub .nav__item { min-height: 40px; font-size: 0.9rem; gap: 10px; padding: 0 10px; }
+.nav__sub .nav__item .icon { width: 18px; height: 18px; }
+
+@media (max-width: 860px) {
+  /* on the bar the list opens upward as a popup */
+  .nav__group { position: static; }
+  .nav__sub {
+    position: fixed; left: 8px; right: 8px; bottom: calc(64px + env(safe-area-inset-bottom)); z-index: 30;
+    margin: 0; padding: 8px; background: var(--surface); border: 1px solid var(--border-strong);
+    border-radius: var(--radius); box-shadow: var(--shadow);
+  }
+  .nav__sub .nav__item { flex-direction: row; justify-content: flex-start; gap: 12px; min-height: 48px; text-align: left; padding: 0 12px; }
+  .nav__sub .nav__label { font-size: 0.95rem; }
+  .nav__sub .nav__soon-item { display: block; }
+  .nav__chev { display: none; }
+}
+.nav__sub .nav__soon { font-size: 0.6rem; padding: 0 5px; }
+
+/* Focus mode ("Доска в центре"): the menu and every panel are hidden, the board is centred and as big as the window allows. */
+.focus-exit {
+  position: fixed; top: 12px; right: 16px; z-index: 40; display: inline-flex; align-items: center; gap: 8px;
+  min-height: 40px; padding: 0 14px; border-radius: var(--radius-sm); background: var(--surface-2);
+  border: 1px solid var(--border-strong); color: var(--text-2); font-weight: 500; box-shadow: var(--shadow);
+}
+.focus-exit:hover { background: var(--surface-3); color: var(--text); }
+.shell--focus .nav { display: none; }
+.shell--focus .main { margin-left: 0; padding-bottom: 0; }
+.shell--focus .room__side,
+.shell--focus .play__side,
+.shell--focus .play__left,
+.shell--focus .play__head,
+.shell--focus .review__side,
+.shell--focus .review__hint--pad,
+.shell--focus .eval-chart { display: none !important; }
+.shell--focus .room { --board: min(calc(100vh - 205px), calc(100vw - 80px), 1100px); padding-top: 16px; }
+.shell--focus .play { --board: min(calc(100vh - 175px), calc(100vw - 80px), 1100px); padding-top: 16px; }
+.shell--focus .review { --board: min(calc(100vh - 215px), calc(100vw - 140px), 1100px); padding-top: 16px; }
+.shell--focus .room__grid,
+.shell--focus .play__grid,
+.shell--focus .review { grid-template-columns: minmax(0, 1fr) !important; }
+.shell--focus .play__board { grid-column: 1 !important; grid-row: 1 !important; justify-self: center; width: min(100%, var(--board)) !important; }
+.shell--focus .room__main { width: min(100%, var(--board)); }

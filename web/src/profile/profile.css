@@ -1,0 +1,24 @@
+/* Profile page: header card, tabs, tab bodies. */
+.profile { max-width: 1000px; }
+.profile__head { display: flex; align-items: center; gap: 20px; padding: 22px; margin-bottom: 16px; }
+.profile__who { flex: 1; min-width: 0; }
+.profile__name { font-size: 1.6rem; font-weight: 800; letter-spacing: -0.02em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.profile__meta { color: var(--muted); font-size: 0.92rem; margin-top: 2px; }
+.profile__edit { text-decoration: none; }
+.profile__tabs { margin-bottom: 18px; }
+.profile__soon { padding: 24px; }
+.profile__soon h2 { font-size: 1.1rem; margin-bottom: 6px; }
+.profile__soon p { color: var(--text-2); max-width: 60ch; }
+
+.profile__bots { padding: 18px 20px; display: flex; flex-direction: column; gap: 12px; margin-bottom: 14px; }
+.profile__bots header { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.profile__bots h2 { font-size: 1.1rem; }
+.profile__points { display: inline-flex; align-items: center; gap: 6px; color: var(--warn); font-weight: 600; }
+.profile__hint { color: var(--text-2); }
+.profile__hint a { color: var(--primary); }
+.profile__beaten { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; }
+.profile__beaten li { display: flex; align-items: center; gap: 10px; padding: 8px 10px; background: var(--surface-2); border-radius: var(--radius-sm); }
+.profile__botname { flex: 1; min-width: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.profile__botname small { color: var(--muted); font-weight: 500; margin-left: 4px; }
+.profile__botpts { color: var(--warn); font-weight: 600; }
+.profile__bots .btn { align-self: flex-start; text-decoration: none; }

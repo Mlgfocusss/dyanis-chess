@@ -35,6 +35,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -89,6 +90,7 @@ type Service struct {
 const (
 	sessionCookie = "dyanis_session"
 	stateCookie   = "dyanis_oauth_state"
+	nextCookie    = "dyanis_oauth_next" // where to land after Google: a page of this site
 	maxSettings   = 8 << 10
 )
 
@@ -164,13 +166,14 @@ type userJSON struct {
 	Email     string          `json:"email,omitempty"`
 	AvatarURL string          `json:"avatarUrl,omitempty"`
 	Settings  json.RawMessage `json:"settings,omitempty"`
+	CreatedAt time.Time       `json:"createdAt"`
 }
 
 func toJSON(u *store.User) *userJSON {
 	if u == nil {
 		return nil
 	}
-	return &userJSON{ID: u.ID, Kind: u.Kind, Name: u.Name, Email: u.Email, AvatarURL: u.AvatarURL, Settings: u.Settings}
+	return &userJSON{ID: u.ID, Kind: u.Kind, Name: u.Name, Email: u.Email, AvatarURL: u.AvatarURL, Settings: u.Settings, CreatedAt: u.CreatedAt}
 }
 
 func writeJSON(w http.ResponseWriter, code int, v any) {
@@ -258,6 +261,10 @@ func (s *Service) putSettings(w http.ResponseWriter, r *http.Request) {
 
 // ---------------------------------------------------------------- Google
 
+// nextPattern is what ?next= may hold: a hash route of this site such as
+// "#online/0123abcd", never a URL (that would be an open redirect).
+var nextPattern = regexp.MustCompile(`^#[A-Za-z0-9/_-]{1,80}$`)
+
 func (s *Service) googleLogin(w http.ResponseWriter, r *http.Request) {
 	if !s.googleEnabled() {
 		writeError(w, http.StatusServiceUnavailable, "вход через Google не настроен")
@@ -266,6 +273,9 @@ func (s *Service) googleLogin(w http.ResponseWriter, r *http.Request) {
 	state := randomToken()
 	// Lax so that the cookie comes back with Google's redirect (a top-level GET).
 	s.setCookie(w, r, stateCookie, state, "/api/auth/google", 10*60)
+	if next := r.URL.Query().Get("next"); nextPattern.MatchString(next) {
+		s.setCookie(w, r, nextCookie, next, "/api/auth/google", 10*60)
+	}
 	q := url.Values{
 		"client_id":     {s.cfg.Google.ClientID},
 		"redirect_uri":  {s.cfg.Google.RedirectURL},
@@ -278,8 +288,14 @@ func (s *Service) googleLogin(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Service) googleCallback(w http.ResponseWriter, r *http.Request) {
+	// Back to the page the person came from (a game invitation, say).
+	landing := "#account"
+	if c, err := r.Cookie(nextCookie); err == nil && nextPattern.MatchString(c.Value) {
+		landing = c.Value
+	}
+	s.setCookie(w, r, nextCookie, "", "/api/auth/google", -1)
 	fail := func(code string) {
-		http.Redirect(w, r, "/?auth_error="+code+"#account", http.StatusFound)
+		http.Redirect(w, r, "/?auth_error="+code+landing, http.StatusFound)
 	}
 	if !s.googleEnabled() {
 		fail("not_configured")
@@ -319,7 +335,7 @@ func (s *Service) googleCallback(w http.ResponseWriter, r *http.Request) {
 		fail("server")
 		return
 	}
-	http.Redirect(w, r, "/#account", http.StatusFound)
+	http.Redirect(w, r, "/"+landing, http.StatusFound)
 }
 
 type profile struct {

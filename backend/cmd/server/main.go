@@ -23,6 +23,8 @@ import (
 
 	"dyanis-chess/backend/internal/api"
 	"dyanis-chess/backend/internal/auth"
+	"dyanis-chess/backend/internal/play"
+	"dyanis-chess/backend/internal/puzzles"
 	"dyanis-chess/backend/internal/store"
 	"dyanis-chess/engine"
 )
@@ -49,6 +51,8 @@ func main() {
 
 	cfg := api.Config{DefaultDepth: *depth, MaxDepth: *maxDepth}
 	var accounts *auth.Service
+	var games *play.Hub
+	var puzzleAPI *puzzles.Service
 	if *dsn != "" {
 		ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 		db, err := store.Open(ctx, *dsn, 60*time.Second)
@@ -71,6 +75,12 @@ func main() {
 			},
 		})
 		cfg.UserID = accounts.UserID
+		games = play.New(play.Config{Store: db, User: accounts.UserFromRequest})
+		defer games.Close()
+		puzzleAPI = puzzles.New(puzzles.Config{Store: db, UserID: accounts.UserID})
+		if n, err := db.CountPuzzles(context.Background()); err == nil && n == 0 {
+			log.Printf("no puzzles yet: load them with backend/cmd/puzzleimport (see README.md)")
+		}
 		log.Printf("database connected, schema up to date")
 	} else {
 		log.Printf("no -dsn: results are kept in memory only, and there are no accounts")
@@ -84,6 +94,10 @@ func main() {
 		mux.Handle("/api/me", accounts.Handler())
 		mux.Handle("/api/me/", accounts.Handler())
 		mux.Handle("/api/auth/", accounts.Handler())
+		mux.Handle("/api/games", games.Handler())
+		mux.Handle("/api/games/", games.Handler())
+		mux.Handle("/api/bots", games.Handler())
+		mux.Handle("/api/puzzles/", puzzleAPI.Handler())
 	}
 	if *static != "" {
 		mux.Handle("/", spa(*static))

@@ -98,6 +98,35 @@ func (s *Store) MergeUsers(ctx context.Context, from, to string) error {
 	if _, err := tx.ExecContext(ctx, "UPDATE analyses SET user_id = ? WHERE user_id = ?", to, from); err != nil {
 		return err
 	}
+	for _, col := range []string{"white_id", "black_id"} {
+		if _, err := tx.ExecContext(ctx, "UPDATE games SET "+col+" = ? WHERE "+col+" = ?", to, from); err != nil {
+			return err
+		}
+	}
+	// Progress against bots is combined; a bot beaten on either account stays
+	// beaten, and its points are counted once.
+	if _, err := tx.ExecContext(ctx, `INSERT INTO bot_progress (user_id, bot_id, wins, draws, losses, points, first_win_at, updated_at)
+		SELECT ?, src.bot_id, src.wins, src.draws, src.losses, src.points, src.first_win_at, src.updated_at
+		FROM (SELECT bot_id, wins, draws, losses, points, first_win_at, updated_at FROM bot_progress WHERE user_id = ?) AS src
+		ON DUPLICATE KEY UPDATE wins = bot_progress.wins + src.wins, draws = bot_progress.draws + src.draws,
+			losses = bot_progress.losses + src.losses, points = GREATEST(bot_progress.points, src.points),
+			first_win_at = COALESCE(LEAST(bot_progress.first_win_at, src.first_win_at), bot_progress.first_win_at, src.first_win_at),
+			updated_at = src.updated_at`, to, from); err != nil {
+		return err
+	}
+	// Puzzle attempts all move over. The rating of the account with more
+	// attempts stays; the counts are added up.
+	if _, err := tx.ExecContext(ctx, "UPDATE puzzle_attempts SET user_id = ? WHERE user_id = ?", to, from); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, `UPDATE puzzle_ratings t JOIN puzzle_ratings f ON f.user_id = ? AND t.user_id = ?
+		SET t.rating = IF(f.attempts > t.attempts, f.rating, t.rating), t.attempts = t.attempts + f.attempts,
+			t.solved = t.solved + f.solved, t.updated_at = GREATEST(t.updated_at, f.updated_at)`, from, to); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, "UPDATE IGNORE puzzle_ratings SET user_id = ? WHERE user_id = ?", to, from); err != nil {
+		return err
+	}
 	if _, err := tx.ExecContext(ctx, "DELETE FROM users WHERE id = ?", from); err != nil {
 		return err
 	}

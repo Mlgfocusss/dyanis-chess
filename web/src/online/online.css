@@ -1,0 +1,101 @@
+/* Online games: lobby and game room. Tokens from index.css. */
+
+/* ---- lobby ---- */
+.lobby { max-width: 760px; }
+.lobby__card { padding: 22px; display: flex; flex-direction: column; gap: 14px; align-items: flex-start; }
+.lobby__h { font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin-top: 4px; }
+.lobby__group { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.lobby__gname { width: 84px; color: var(--text-2); font-weight: 500; }
+.lobby__opts { display: flex; gap: 8px; flex-wrap: wrap; }
+.chip {
+  min-height: 40px; padding: 0 16px; border-radius: var(--radius-sm); border: 1px solid var(--border-strong);
+  background: var(--surface-2); color: var(--text); font-weight: 500; font-variant-numeric: tabular-nums;
+}
+.chip:hover { background: var(--surface-3); }
+.chip--on, .chip--on:hover { background: var(--primary-soft); border-color: var(--primary); color: var(--primary); }
+.lobby__go { min-height: 48px; padding: 0 28px; font-size: 1rem; margin-top: 8px; }
+.lobby__note { color: var(--muted); font-size: 0.85rem; }
+.lobby__soon { color: var(--muted); font-size: 0.85rem; margin-top: 16px; }
+
+/* ---- game room ---- */
+.room {
+  --board: min(calc(100vh - 215px), 900px);
+  --panel: 360px;
+  padding: 20px 32px 40px;
+}
+.room--loading { color: var(--text-2); }
+.room__net { max-width: 1200px; margin: 0 auto 12px; }
+.room__grid { display: grid; grid-template-columns: minmax(0, 1fr) var(--panel); gap: 28px; align-items: start; }
+.room__main { min-width: 0; width: min(100%, var(--board)); justify-self: center; display: flex; flex-direction: column; gap: 8px; }
+.room__board { position: relative; }
+.room__side { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+
+.room__status { padding: 16px 18px; display: flex; flex-direction: column; gap: 4px; }
+.room__state { font-size: 1.1rem; font-weight: 700; }
+.room__meta { color: var(--muted); font-size: 0.85rem; }
+.room__notice { color: var(--danger); font-size: 0.9rem; font-weight: 500; }
+.room__actions, .room__offer { padding: 14px; display: flex; flex-direction: column; gap: 8px; }
+.room__offer { border-color: rgba(251, 191, 36, 0.5); }
+.room__row { display: flex; gap: 8px; }
+.room__row .btn { flex: 1 1 0; padding: 0 10px; }
+.room__moves { padding: 14px 16px; }
+.room__moves h2 { font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin-bottom: 8px; }
+
+/* player bars with the clock */
+.pbar { display: flex; align-items: center; gap: 12px; padding: 6px 4px; }
+.pbar__empty { width: 36px; height: 36px; border-radius: 50%; border: 2px dashed var(--border-strong); flex: none; }
+.pbar__who { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.pbar__name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pbar__you { margin-left: 8px; font-size: 0.68rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+.pbar__sub { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 0.8rem; }
+.pbar__dot { width: 8px; height: 8px; border-radius: 50%; background: var(--border-strong); }
+.pbar__dot--on { background: var(--primary); }
+.pbar__clock {
+  min-width: 96px; text-align: center; padding: 6px 14px; border-radius: var(--radius-sm);
+  background: var(--surface-2); font: 600 1.45rem/1.2 var(--mono); font-variant-numeric: tabular-nums; color: var(--text-2);
+}
+.pbar__clock--on { background: var(--primary-soft); color: var(--primary); }
+.pbar__clock--low { background: var(--danger-soft); color: var(--danger); }
+
+/* move list */
+.moves { max-height: 300px; overflow-y: auto; font-variant-numeric: tabular-nums; }
+.moves__empty { color: var(--muted); font-size: 0.9rem; }
+.moves__row { display: grid; grid-template-columns: 36px 1fr 1fr; padding: 3px 4px; border-radius: 4px; font-family: var(--mono); font-size: 0.92rem; }
+.moves__row:nth-child(odd) { background: rgba(148, 163, 184, 0.05); }
+.moves__no { color: var(--muted); }
+
+/* invitation / join card */
+.invite { padding: 18px; display: flex; flex-direction: column; gap: 12px; }
+.invite h2 { font-size: 1.05rem; font-weight: 700; }
+.invite__sub { color: var(--text-2); font-size: 0.92rem; }
+.invite__row { display: flex; gap: 8px; }
+.invite__row .field { flex: 1; min-width: 0; font-size: 0.85rem; }
+.invite__hint { color: var(--muted); font-size: 0.82rem; text-align: center; }
+.invite .btn { text-decoration: none; }
+
+@media (max-width: 1180px) {
+  .room { --board: 100%; padding: 12px 12px 40px; }
+  .room__grid { grid-template-columns: minmax(0, 1fr); }
+  .room__main { width: min(100%, calc(100vh - 160px)); margin: 0 auto; }
+  .pbar__clock { font-size: 1.2rem; min-width: 80px; }
+}
+
+.pbar__elo { color: var(--muted); font-weight: 500; }
+
+/* opening name, live */
+.room__opening { margin-top: 6px; display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px; font-weight: 500; font-size: 0.92rem; }
+.room__theory { margin-left: 4px; font-size: 0.68rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--primary); border: 1px solid var(--primary); border-radius: 999px; padding: 0 7px; }
+
+/* chat */
+.chat { padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+.chat h2 { font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.chat__lines { max-height: 220px; min-height: 60px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }
+.chat__empty, .chat__hint { color: var(--muted); font-size: 0.88rem; }
+.chat__line { margin: 0; font-size: 0.92rem; line-height: 1.4; overflow-wrap: anywhere; }
+.chat__who { font-weight: 600; margin-right: 6px; }
+.chat__line--white .chat__who { color: #e2e8f0; }
+.chat__line--black .chat__who { color: var(--info); }
+.chat__line--mine .chat__who { color: var(--primary); }
+.chat__time { color: var(--muted); font-size: 0.75rem; margin-right: 6px; }
+.chat__form { display: flex; gap: 8px; }
+.chat__form .field { flex: 1; min-width: 0; }

@@ -26,8 +26,14 @@
 .page__bar { margin-bottom: 16px; }
 
 /* ---- analysis layout ---- */
-.review { display: grid; grid-template-columns: minmax(0, 660px) minmax(320px, 1fr); gap: 28px; align-items: start; }
-.review__main { min-width: 0; }
+.review { --board: min(calc(100vh - 270px), 860px); display: grid; grid-template-columns: minmax(0, 1fr) 400px; gap: 28px; align-items: start; }
+.review__main { min-width: 0; width: min(100%, calc(var(--board) + 38px)); justify-self: center; }
+/* the review page itself uses the whole width, like the screens with a board */
+.page--stage { max-width: none; padding: 20px 32px 40px; }
+@media (max-width: 1180px) {
+  .review { --board: 100%; grid-template-columns: minmax(0, 1fr); }
+  .page--stage { padding: 12px; }
+}
 .review__side { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
 
 .review__players {
@@ -103,7 +109,7 @@
 .move-row__no { color: var(--muted); text-align: right; padding-right: 10px; font-size: 0.82rem; font-variant-numeric: tabular-nums; }
 .move-cell {
   display: flex; align-items: center; gap: 8px; background: none; border: 0; border-radius: 6px;
-  text-align: left; padding: 0 8px; min-height: 32px; color: var(--text);
+  text-align: left; padding: 0 8px; min-height: 38px; color: var(--text);
 }
 .move-cell:hover { background: var(--surface-2); }
 .move-cell--active, .move-cell--active:hover { background: var(--primary-soft); box-shadow: inset 3px 0 0 var(--primary); }
@@ -147,3 +153,57 @@
 
 .review-form__note { color: var(--muted); font-size: 0.88rem; margin-bottom: 12px; }
 .review-form__note a { color: var(--primary); }
+
+/* class badge drawn on a square of the board */
+.sq-badge { position: absolute; top: 1px; right: 1px; z-index: 6; line-height: 0; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5)); pointer-events: none; }
+.sq-badge .badge { box-shadow: 0 0 0 2px rgba(15, 23, 42, 0.55); }
+.review__why { display: block; color: var(--muted); font-size: 0.85rem; margin-top: 2px; }
+.review__back { align-self: flex-start; }
+.review__wait { padding: 20px; display: flex; flex-direction: column; gap: 14px; }
+.review__wait h2 { font-size: 1.15rem; }
+
+/* The review that replaces a game screen: same room, so the page does not jump. */
+.review--inline {
+  padding: 20px 32px 40px;
+  animation: review-in 0.25s ease-out;
+}
+.review--inline .review__players,
+.review--inline .review__nav { padding-left: 38px; margin-left: 0; }
+.review--inline .review__nav { padding-left: 0; margin-left: 38px; }
+.review__board--waiting { opacity: 0.85; }
+@keyframes review-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@media (max-width: 1180px) {
+  .review--inline { padding: 12px; }
+}
+.badge-img { display: inline-block; flex: none; vertical-align: middle; object-fit: contain; user-select: none; }
+
+/* Where the selected piece can go (components/Board.jsx): a dark dot on an empty
+   square, a ring on a piece that can be taken. Drawn over the square, never
+   in the way of the mouse. */
+.sq-dot, .sq-ring { position: absolute; inset: 0; z-index: 4; pointer-events: none; }
+.sq-dot { background: radial-gradient(circle at center, rgba(0, 0, 0, 0.28) 0, rgba(0, 0, 0, 0.28) 17%, transparent 18%); }
+.sq-ring { background: radial-gradient(circle at center, transparent 0, transparent 66%, rgba(0, 0, 0, 0.28) 67%, rgba(0, 0, 0, 0.28) 86%, transparent 87%); }
+
+/* copy buttons, the engine's line, the person's own branch */
+.review__nav .review__copy { display: inline-flex; align-items: center; gap: 6px; padding: 0 12px; min-width: 0; font-size: 0.85rem; font-weight: 600; }
+.review__hint--pad { margin: -4px 0 10px 36px; font-size: 0.85rem; }
+.review__thinking { color: var(--muted); font-size: 0.85rem; }
+.review__loss { color: var(--danger); font-weight: 600; }
+.review__pv { line-height: 2; }
+.pv-move, .branch-move {
+  display: inline-flex; align-items: center; gap: 4px; background: var(--surface-2); border: 1px solid var(--border); color: var(--text);
+  border-radius: 6px; padding: 1px 8px; margin: 0 2px 2px 0; font: 600 0.88rem/1.6 var(--mono);
+}
+.pv-move:hover, .branch-move:hover { background: var(--surface-3); border-color: var(--border-strong); }
+.pv-move__no { color: var(--muted); font-weight: 500; }
+.badge--wait { background: var(--surface-3); }
+.evalbar--dim { opacity: 0.55; }
+.review__branch { padding: 16px 18px; display: flex; flex-direction: column; gap: 12px; border-color: rgba(96, 165, 250, 0.45); }
+.review__branchhead { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.review__branchhead h3 { font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--info); }
+.review__branchmoves { display: flex; flex-wrap: wrap; align-items: center; }
+.branch-move--on, .branch-move--on:hover { background: var(--primary-soft); border-color: var(--primary); }
+.review__row { display: flex; gap: 8px; flex-wrap: wrap; }
+.review__row .btn { flex: 1 1 auto; }
+.review__copyrow { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+.review__copyrow .btn { flex: 1 1 auto; justify-content: center; }

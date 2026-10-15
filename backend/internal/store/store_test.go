@@ -251,3 +251,185 @@ func TestAnalysesOfAUser(t *testing.T) {
 		t.Errorf("review after its owner was deleted: %+v (%v)", got, err)
 	}
 }
+
+func TestGames(t *testing.T) {
+	s := openTest(t)
+	ctx := context.Background()
+	anna, boris := newUserID(t, s, KindGuest), newUserID(t, s, KindGuest)
+	id := fmt.Sprintf("g%015d", time.Now().UnixNano()%1_000_000_000_000_000)
+	t.Cleanup(func() { s.db.Exec("DELETE FROM games WHERE id = ?", id) })
+	now := time.Now().UTC().Truncate(time.Millisecond)
+
+	if _, err := s.LoadGame(ctx, id); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("missing game: %v", err)
+	}
+	g := &Game{ID: id, WhiteID: anna.ID, Status: "waiting", State: []byte(`{"moves":[]}`), CreatedAt: now, UpdatedAt: now}
+	if err := s.SaveGame(ctx, g); err != nil {
+		t.Fatal(err)
+	}
+	if list, _ := s.ListGames(ctx, anna.ID, 10); len(list) != 0 {
+		t.Errorf("a game nobody joined is listed: %d", len(list))
+	}
+
+	// Saving again updates the row (the server saves after every move).
+	g.BlackID, g.Status, g.UpdatedAt = boris.ID, "ended", now.Add(time.Minute)
+	g.Result, g.State = "1-0", []byte(`{"moves":[{"uci":"e2e4","san":"e4"}],"name":"Борис 🙂"}`)
+	if err := s.SaveGame(ctx, g); err != nil {
+		t.Fatal(err)
+	}
+	got, err := s.LoadGame(ctx, id)
+	if err != nil || got.WhiteID != anna.ID || got.BlackID != boris.ID || got.Status != "ended" || got.Result != "1-0" || !got.CreatedAt.Equal(now) {
+		t.Fatalf("LoadGame: %+v (%v)", got, err)
+	}
+	var doc struct{ Name string }
+	if json.Unmarshal(got.State, &doc) != nil || doc.Name != "Борис 🙂" {
+		t.Errorf("state: %s", got.State)
+	}
+	for _, u := range []*User{anna, boris} {
+		if list, err := s.ListGames(ctx, u.ID, 10); err != nil || len(list) != 1 || list[0].ID != id {
+			t.Errorf("list for %s: %v (%v)", u.ID, list, err)
+		}
+	}
+
+	// A merged account takes its games along; a deleted one leaves them anonymous.
+	if err := s.MergeUsers(ctx, anna.ID, boris.ID); err != nil {
+		t.Fatal(err)
+	}
+	got, _ = s.LoadGame(ctx, id)
+	if got.WhiteID != boris.ID || got.BlackID != boris.ID {
+		t.Errorf("after merge: white %s black %s", got.WhiteID, got.BlackID)
+	}
+	s.db.Exec("DELETE FROM users WHERE id = ?", boris.ID)
+	if got, err := s.LoadGame(ctx, id); err != nil || got.WhiteID != "" || got.BlackID != "" {
+		t.Errorf("after the user was deleted: %+v (%v)", got, err)
+	}
+}
+
+func TestBotProgress(t *testing.T) {
+	s := openTest(t)
+	ctx := context.Background()
+	anna, boris := newUserID(t, s, KindGuest), newUserID(t, s, KindGuest)
+
+	if got, err := s.BotProgress(ctx, anna.ID); err != nil || len(got) != 0 {
+		t.Fatalf("empty progress: %v (%v)", got, err)
+	}
+	// A loss, a draw, the first win (earns the points), a second win (earns nothing more).
+	steps := []struct {
+		outcome string
+		first   bool
+	}{{"loss", false}, {"draw", false}, {"win", true}, {"win", false}}
+	for _, st := range steps {
+		first, err := s.RecordBotResult(ctx, anna.ID, "timur", st.outcome, 20)
+		if err != nil || first != st.first {
+			t.Fatalf("%s: first=%v err=%v, want first=%v", st.outcome, first, err, st.first)
+		}
+	}
+	got, _ := s.BotProgress(ctx, anna.ID)
+	if len(got) != 1 || got[0].BotID != "timur" || got[0].Wins != 2 || got[0].Draws != 1 || got[0].Losses != 1 || got[0].Points != 20 || got[0].FirstWinAt.IsZero() {
+		t.Fatalf("progress: %+v", got)
+	}
+	if first, _ := s.RecordBotResult(ctx, anna.ID, "misha", "loss", 10); first {
+		t.Error("a loss was a first win")
+	}
+	if got, _ := s.BotProgress(ctx, anna.ID); len(got) != 2 || got[0].BotID != "misha" || got[0].Wins != 0 || got[0].Points != 0 || !got[0].FirstWinAt.IsZero() {
+		t.Errorf("a bot never beaten: %+v", got)
+	}
+
+	// Merging two accounts combines the records and counts points once.
+	s.RecordBotResult(ctx, boris.ID, "timur", "win", 20)
+	s.RecordBotResult(ctx, boris.ID, "anna", "win", 30)
+	if err := s.MergeUsers(ctx, boris.ID, anna.ID); err != nil {
+		t.Fatal(err)
+	}
+	got, _ = s.BotProgress(ctx, anna.ID)
+	byBot := map[string]BotRecord{}
+	for _, r := range got {
+		byBot[r.BotID] = r
+	}
+	if byBot["timur"].Wins != 3 || byBot["timur"].Points != 20 || byBot["anna"].Wins != 1 || byBot["anna"].Points != 30 {
+		t.Errorf("after merge: %+v", got)
+	}
+	if left, _ := s.BotProgress(ctx, boris.ID); len(left) != 0 {
+		t.Errorf("the merged-away user still has progress: %v", left)
+	}
+}
+
+func TestPuzzles(t *testing.T) {
+	s := openTest(t)
+	ctx := context.Background()
+	anna, boris := newUserID(t, s, KindGuest), newUserID(t, s, KindGuest)
+
+	// Ratings far from the real set, so the test does not meet imported puzzles.
+	const fen = "6k1/5ppp/8/8/8/8/5PPP/3R2K1 w - - 0 1"
+	a := Puzzle{ID: "tZaAa", FEN: fen, Moves: "g8f8 d1d8", Rating: 5001, Popularity: 90, Plays: 10, Themes: "mate mateIn1 backRankMate"}
+	b := Puzzle{ID: "tzaaa", FEN: fen, Moves: "g8f8 d1d8", Rating: 5002, Popularity: 90, Plays: 10, Themes: "mate"} // differs from a only by case
+	t.Cleanup(func() { s.db.Exec("DELETE FROM puzzles WHERE id IN ('tZaAa', 'tzaaa')") })
+	if n, err := s.ImportPuzzles(ctx, []Puzzle{a, b}); err != nil || n != 2 {
+		t.Fatalf("import: %d (%v)", n, err)
+	}
+	if n, err := s.ImportPuzzles(ctx, []Puzzle{a}); err != nil || n != 0 {
+		t.Fatalf("second import: %d (%v)", n, err)
+	}
+	got, err := s.PuzzleByID(ctx, "tZaAa")
+	if err != nil || *got != a {
+		t.Fatalf("PuzzleByID: %+v (%v)", got, err)
+	}
+	if _, err := s.PuzzleByID(ctx, "nothere"); !errors.Is(err, ErrNotFound) {
+		t.Errorf("missing puzzle: %v", err)
+	}
+
+	// Picking by rating window and by theme.
+	if p, err := s.PickPuzzle(ctx, anna.ID, "", 5001, 5001, true); err != nil || p.ID != "tZaAa" {
+		t.Errorf("pick by rating: %+v (%v)", p, err)
+	}
+	if p, err := s.PickPuzzle(ctx, anna.ID, "backRankMate", 5000, 5003, true); err != nil || p.ID != "tZaAa" {
+		t.Errorf("pick by theme: %+v (%v)", p, err)
+	}
+	if _, err := s.PickPuzzle(ctx, anna.ID, "backRankMate", 5002, 5003, true); !errors.Is(err, ErrNotFound) {
+		t.Errorf("a window without the theme: %v", err)
+	}
+	themes, err := s.PuzzleThemes(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	seen := map[string]bool{}
+	for _, th := range themes {
+		seen[th.Theme] = true
+	}
+	if !seen["mateIn1"] || !seen["backRankMate"] {
+		t.Errorf("themes: %v", themes)
+	}
+
+	// The first try counts, later ones do not; a person never rated starts at 1000.
+	if r, err := s.PuzzleRatingOf(ctx, anna.ID); err != nil || r.Rating != StartPuzzleRating || r.Attempts != 0 {
+		t.Fatalf("new person: %+v (%v)", r, err)
+	}
+	up := func(rating, attempts int) int { return rating + 20 }
+	at, err := s.RecordPuzzleAttempt(ctx, anna.ID, "tZaAa", true, up)
+	if err != nil || !at.Counted || at.Before != 1000 || at.After != 1020 || at.Record.Solved != 1 {
+		t.Fatalf("first attempt: %+v (%v)", at, err)
+	}
+	at, err = s.RecordPuzzleAttempt(ctx, anna.ID, "tZaAa", false, up)
+	if err != nil || at.Counted || at.After != 1020 || at.Record.Attempts != 1 {
+		t.Fatalf("repeat attempt: %+v (%v)", at, err)
+	}
+	if _, err := s.PickPuzzle(ctx, anna.ID, "", 5001, 5001, true); !errors.Is(err, ErrNotFound) {
+		t.Errorf("a tried puzzle was picked again: %v", err)
+	}
+	if p, err := s.PickPuzzle(ctx, anna.ID, "", 5001, 5001, false); err != nil || p.ID != "tZaAa" {
+		t.Errorf("tried puzzles allowed: %+v (%v)", p, err)
+	}
+
+	// Merging adds the records up and keeps the rating of the one with more attempts.
+	s.RecordPuzzleAttempt(ctx, boris.ID, "tzaaa", false, func(r, n int) int { return r - 10 })
+	s.RecordPuzzleAttempt(ctx, boris.ID, "other", false, func(r, n int) int { return r - 10 })
+	if err := s.MergeUsers(ctx, anna.ID, boris.ID); err != nil {
+		t.Fatal(err)
+	}
+	if r, _ := s.PuzzleRatingOf(ctx, boris.ID); r.Attempts != 3 || r.Solved != 1 || r.Rating != 980 {
+		t.Errorf("after merge: %+v", r)
+	}
+	if at, _ := s.RecordPuzzleAttempt(ctx, boris.ID, "tZaAa", true, up); at.Counted {
+		t.Error("the attempt of the merged-away account was forgotten")
+	}
+}

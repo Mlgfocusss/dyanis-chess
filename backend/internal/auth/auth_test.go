@@ -459,3 +459,37 @@ func TestCleanName(t *testing.T) {
 		}
 	}
 }
+
+func TestGoogleReturnsToTheInvitation(t *testing.T) {
+	db := newMemStore()
+	g := fakeGoogle(t, profile{Sub: "sub-9", Name: "Игорь"})
+	c := newClient(t, newService(t, db, g).Handler())
+
+	rec := c.do("GET", "/api/auth/google/login?next="+url.QueryEscape("#online/0123456789abcdef"), "")
+	state := ""
+	if loc, err := url.Parse(rec.Header().Get("Location")); err == nil {
+		state = loc.Query().Get("state")
+	}
+	if rec = callback(c, state, "good-code"); rec.Header().Get("Location") != "/#online/0123456789abcdef" {
+		t.Errorf("landed on %s", rec.Header().Get("Location"))
+	}
+	// The same for a refusal, so the person is not thrown out of the game page.
+	c2 := newClient(t, newService(t, db, g).Handler())
+	rec = c2.do("GET", "/api/auth/google/login?next="+url.QueryEscape("#online/abc"), "")
+	loc, _ := url.Parse(rec.Header().Get("Location"))
+	rec = c2.do("GET", "/api/auth/google/callback?state="+loc.Query().Get("state")+"&error=access_denied", "")
+	if got := rec.Header().Get("Location"); got != "/?auth_error=denied#online/abc" {
+		t.Errorf("refusal landed on %s", got)
+	}
+
+	// Anything that is not a hash route of this site is ignored (no open redirect).
+	for _, bad := range []string{"https://evil.example/", "//evil.example", "/x", "#a b", "#", "javascript:alert(1)"} {
+		c3 := newClient(t, newService(t, db, g).Handler())
+		rec := c3.do("GET", "/api/auth/google/login?next="+url.QueryEscape(bad), "")
+		loc, _ := url.Parse(rec.Header().Get("Location"))
+		rec = callback(c3, loc.Query().Get("state"), "good-code")
+		if got := rec.Header().Get("Location"); got != "/#account" {
+			t.Errorf("next=%q redirected to %s", bad, got)
+		}
+	}
+}

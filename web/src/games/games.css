@@ -31,3 +31,13 @@
 @media (max-width: 560px) {
   .games__acc { display: none; }
 }
+.games--embedded { max-width: none; }
+
+.games__section { margin-bottom: 28px; }
+.games__h { font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin-bottom: 10px; }
+.games__result--win { background: var(--primary-soft); color: var(--primary); }
+.games__result--loss { background: var(--danger-soft); color: var(--danger); }
+.games__result--live { background: rgba(96, 165, 250, 0.16); color: var(--info); }
+.games__result--draw { color: var(--warn); }
+.games__result { min-width: 92px; }
+.games__review { flex: none; margin-right: 8px; min-height: 36px; }

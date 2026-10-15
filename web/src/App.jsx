@@ -1,8 +1,14 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Board from "./components/Board.jsx";
+import Captured from "./components/Captured.jsx";
+import Icon from "./ui/Icon.jsx";
 import { useMoveSound, useSettings } from "./settings/SettingsContext.jsx";
 import MoveLog from "./components/MoveLog.jsx";
 import Segmented from "./ui/Segmented.jsx";
+import GameSummary from "./play/GameSummary.jsx";
+import { START_FEN, buildPgn, describeResult, sanMoves } from "./play/game.js";
+import { useAuth } from "./auth/AuthContext.jsx";
+import ReviewInline from "./review/ReviewInline.jsx";
 import { playSound } from "./sound/sound.js";
 import * as engine from "./engine/dyanisEngine.js";
 import "./App.css";
@@ -16,10 +22,12 @@ const SLOW_DEPTH = 12;
 
 const clampDepth = (n) => Math.min(MAX_DEPTH, Math.max(MIN_DEPTH, Math.round(n)));
 const SIDE_NAME = { white: "белые", black: "чёрные" };
+const BOT_NAME = "Dyanis Bot";
 
 export default function App() {
   const playMoveSound = useMoveSound();
   const { settings, save } = useSettings();
+  const { user } = useAuth();
   const [state, setState] = useState(null);
   const [error, setError] = useState(null);
   const [thinking, setThinking] = useState(false);
@@ -31,6 +39,11 @@ export default function App() {
   // "ongoing", so the page treats a resignation as the end of the game itself.
   const [resigned, setResigned] = useState(null);
   const [confirmResign, setConfirmResign] = useState(false);
+  // The position the game began from (null: the normal start); needed to write its PGN.
+  const [startFen, setStartFen] = useState(null);
+  const [opening, setOpening] = useState({ opening: null, book: false }); // the opening reached so far
+  const [showSummary, setShowSummary] = useState(false);
+  const [reviewPgn, setReviewPgn] = useState(null); // set: the analysis replaces the game screen
 
   // Search strength controls. depth is always the max-depth ceiling;
   // when useMovetime is on, the engine uses iterative deepening with
@@ -160,8 +173,21 @@ export default function App() {
     stopSearch();
     const s = engine.newGame();
     setState(s);
+    setStartFen(null);
     resetGameView();
     triggerEngineIfNeeded(s);
+  }
+
+  // Same position, colours swapped.
+  function handleRematch() {
+    const side = playerSide === "white" ? "black" : "white";
+    stopSearch();
+    const s = engine.newGame();
+    setPlayerSide(side);
+    setState(s);
+    setStartFen(null);
+    resetGameView();
+    triggerEngineIfNeeded(s, side);
   }
 
   function handleResign() {
@@ -187,6 +213,7 @@ export default function App() {
       return;
     }
     setState(s);
+    setStartFen(fen);
     resetGameView();
     triggerEngineIfNeeded(s);
   }
@@ -245,6 +272,58 @@ export default function App() {
     refreshBook();
   }
 
+  // The opening is named live, by the server's ECO reference, after every move
+  // of a game from the normal start (a custom position has no opening).
+  const logText = state?.log || "";
+  useEffect(() => {
+    if (startFen) {
+      setOpening({ opening: null, book: false });
+      return undefined;
+    }
+    const sans = sanMoves(logText);
+    if (sans.length === 0 || sans.length > 120) {
+      setOpening({ opening: null, book: false });
+      return undefined;
+    }
+    let alive = true;
+    const t = setTimeout(() => {
+      fetch("/api/opening?san=" + encodeURIComponent(sans.join(",")))
+        .then((r) => (r.ok ? r.json() : null))
+        .then((o) => alive && o && setOpening({ opening: o.opening, book: !!o.book }))
+        .catch(() => {}); // no server (the page also works offline): no opening line
+    }, 120);
+    return () => {
+      alive = false;
+      clearTimeout(t);
+    };
+  }, [logText, startFen]);
+
+  const info = useMemo(
+    () =>
+      state ? describeResult({ status: state.status, sideToMove: state.sideToMove, resigned, playerSide }) : null,
+    [state, resigned, playerSide]
+  );
+  // The card opens when a game ends and goes away when it is taken back.
+  const ended = info?.result ?? null;
+  const endedReason = info?.reason ?? null;
+  useEffect(() => {
+    setShowSummary(ended !== null);
+  }, [ended, endedReason, state?.fen]);
+
+  // The review opens in place of the game, so the page does not jump.
+  function handleReview() {
+    setReviewPgn(
+      buildPgn({
+        sans: sanMoves(state.log),
+        startFen: startFen || START_FEN,
+        result: info.result,
+        white: playerSide === "white" ? playerName : BOT_NAME,
+        black: playerSide === "black" ? playerName : BOT_NAME,
+      })
+    );
+    setShowSummary(false);
+  }
+
   if (!state) {
     return (
       <div className="page page--loading">
@@ -253,8 +332,16 @@ export default function App() {
     );
   }
 
+  if (reviewPgn) {
+    return (
+      <ReviewInline pgn={reviewPgn} finalFen={state.fen} orientation={playerSide} onClose={() => setReviewPgn(null)} />
+    );
+  }
+
   const gameOn = state.status === "ongoing" && !resigned;
   const center = settings.playLayout === "center";
+  const playerName = user?.name || "Вы";
+  const moveCount = sanMoves(state.log).length;
   const winner = resigned ? (resigned === "white" ? "black" : "white") : null;
 
   const statusBlock = (
@@ -277,7 +364,18 @@ export default function App() {
         <p className="status__flag status__flag--warn">Ничья — троекратное повторение позиции</p>
       )}
       {thinking && <p className="status__flag status__flag--thinking">движок думает… (страница не зависает)</p>}
+      {opening.opening && (
+        <p className="status__opening">
+          <span className="review__eco">{opening.opening.eco}</span> {opening.opening.name}
+          {opening.book && <span className="status__theory">теория</span>}
+        </p>
+      )}
       {engineNote && <p className="status__note">{engineNote}</p>}
+      {info && !showSummary && (
+        <button className="btn btn--block status__summary" onClick={() => setShowSummary(true)}>
+          Итоги партии
+        </button>
+      )}
     </div>
   );
 
@@ -401,7 +499,7 @@ export default function App() {
     <div className={`play play--${center ? "center" : "side"}`}>
       <header className="play__head">
         <div>
-          <h1 className="page__title">Игра с ботом</h1>
+          <h1 className="page__title">Игра против движка</h1>
           <p className="page__sub">Движок работает прямо в браузере (Go, скомпилированный в WebAssembly), сервер не нужен.</p>
         </div>
         <Segmented
@@ -419,6 +517,18 @@ export default function App() {
 
       <div className="play__grid">
         <div className="play__board">
+          <div className="pbar">
+            <span className="play__ico">
+              <Icon name="bot" size={20} />
+            </span>
+            <div className="pbar__who">
+              <span className="pbar__name">{BOT_NAME}</span>
+              <span className="pbar__sub">
+                {playerSide === "white" ? "Чёрные" : "Белые"}
+                <Captured fen={state.fen} side={playerSide === "white" ? "black" : "white"} />
+              </span>
+            </div>
+          </div>
           <Board
             state={state}
             orientation={playerSide}
@@ -426,6 +536,32 @@ export default function App() {
             lastMove={lastMove}
             onPlayerMove={handlePlayerMove}
           />
+          <div className="pbar">
+            <span className="play__ico">
+              <Icon name="user" size={20} />
+            </span>
+            <div className="pbar__who">
+              <span className="pbar__name">{playerName}</span>
+              <span className="pbar__sub">
+                {playerSide === "white" ? "Белые" : "Чёрные"}
+                <Captured fen={state.fen} side={playerSide} />
+              </span>
+            </div>
+          </div>
+          {info && showSummary && (
+            <GameSummary
+              info={info}
+              white={playerSide === "white" ? playerName : BOT_NAME}
+              black={playerSide === "black" ? playerName : BOT_NAME}
+              you={playerSide}
+              moves={moveCount}
+              signedIn={!!user}
+              onReview={handleReview}
+              onNew={handleNewGame}
+              onRematch={handleRematch}
+              onClose={() => setShowSummary(false)}
+            />
+          )}
         </div>
 
         {center && (

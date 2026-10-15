@@ -135,9 +135,9 @@ func printReport(w io.Writer, g *pgn.Game, rep *analysis.Report, took time.Durat
 	}
 	fmt.Fprintln(w)
 	for c, name := range []string{"White", "Black"} {
-		fmt.Fprintf(w, "%-5s accuracy %5.1f   book %d  best %d  excellent %d  good %d  inaccuracies %d  mistakes %d  blunders %d\n",
+		fmt.Fprintf(w, "%-5s accuracy %5.1f   book %d  brilliant %d  great %d  best %d  excellent %d  good %d  inaccuracies %d  mistakes %d  blunders %d\n",
 			name, rep.Accuracy[c],
-			rep.Counts[c][analysis.Book], rep.Counts[c][analysis.Best], rep.Counts[c][analysis.Excellent], rep.Counts[c][analysis.Good],
+			rep.Counts[c][analysis.Book], rep.Counts[c][analysis.Brilliant], rep.Counts[c][analysis.Great], rep.Counts[c][analysis.Best], rep.Counts[c][analysis.Excellent], rep.Counts[c][analysis.Good],
 			rep.Counts[c][analysis.Inaccuracy], rep.Counts[c][analysis.Mistake], rep.Counts[c][analysis.Blunder])
 	}
 	if len(rep.Key) > 0 {

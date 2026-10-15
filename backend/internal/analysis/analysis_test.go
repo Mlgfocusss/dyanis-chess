@@ -145,31 +145,70 @@ func TestAnalyzePositionRepetitionHistory(t *testing.T) {
 	}
 }
 
-func TestPlayerAccuracyPunishesDecisiveErrors(t *testing.T) {
-	game := func(losses ...float64) float64 {
-		var a []float64
-		for _, l := range losses {
-			a = append(a, MoveAccuracy(l))
-		}
-		return playerAccuracy(a)
+// accuracyOfGame scores a 30-move game of one player in which every
+// move loses nothing except the ones listed in drops (move index -> win
+// probability points lost). winPcts follows from the drops: the win
+// probability only changes at a drop.
+func accuracyOfGame(drops map[int]float64) float64 {
+	const moves = 30
+	wp := []float64{50}
+	var accs []float64
+	cur := 50.0
+	for i := 0; i < moves; i++ {
+		cur -= drops[i]
+		wp = append(wp, cur)
+		accs = append(accs, MoveAccuracy(drops[i]))
 	}
-	clean := make([]float64, 50)
-	queen := append([]float64{40}, make([]float64, 49)...)
-	slips := append([]float64{5, 5, 5, 5, 5}, make([]float64, 45)...)
+	return playerAccuracy(accs, volatilityWeights(wp))
+}
 
-	if got := game(clean...); got < 99.9 {
-		t.Errorf("perfect game = %.1f", got)
+func TestPlayerAccuracyShareOfTheGame(t *testing.T) {
+	clean := accuracyOfGame(nil)
+	slips := accuracyOfGame(map[int]float64{3: 6, 9: 6, 15: 6, 21: 6, 27: 6})
+	blunder := accuracyOfGame(map[int]float64{14: 30})
+	if clean < 99.9 {
+		t.Errorf("perfect game = %.1f", clean)
 	}
-	// One queen blunder followed by 49 perfect moves is still a bad game.
-	if got := game(queen...); got > 50 {
-		t.Errorf("queen blunder + perfect play = %.1f, want a bad score (< 50)", got)
+	// One decisive blunder takes a share of the accuracy, not all of it.
+	if blunder < 65 || blunder > 90 {
+		t.Errorf("one blunder in 30 moves = %.1f, want 65..90", blunder)
 	}
-	// Five small slips are a good game.
-	if got := game(slips...); got < 90 {
-		t.Errorf("five small slips = %.1f, want >= 90", got)
+	// Several small slips cost less than one decisive blunder.
+	if slips < 85 || slips >= clean || slips <= blunder {
+		t.Errorf("five small slips = %.1f (blunder game %.1f, clean %.1f)", slips, blunder, clean)
 	}
-	if game(queen...) >= game(slips...) {
-		t.Error("a decisive blunder must score below several small slips")
+	// Two blunders cost more than one.
+	if two := accuracyOfGame(map[int]float64{8: 30, 20: 30}); two >= blunder {
+		t.Errorf("two blunders %.1f, one %.1f", two, blunder)
+	}
+}
+
+func TestVolatilityWeights(t *testing.T) {
+	if volatilityWeights([]float64{50}) != nil {
+		t.Error("a game without moves has no weights")
+	}
+	flat := volatilityWeights([]float64{50, 50, 50, 50, 50})
+	if len(flat) != 4 {
+		t.Fatalf("%d weights for 4 moves", len(flat))
+	}
+	for _, w := range flat {
+		if w != 0.5 { // the lower clamp
+			t.Errorf("flat game weight %v, want 0.5", w)
+		}
+	}
+	wp := make([]float64, 41)
+	for i := range wp {
+		wp[i] = 50
+		if i >= 20 {
+			wp[i] = 5
+		}
+	}
+	ws := volatilityWeights(wp)
+	if len(ws) != 40 {
+		t.Fatalf("%d weights for 40 moves", len(ws))
+	}
+	if ws[19] <= ws[2] || ws[19] > 12 {
+		t.Errorf("weight at the swing %.2f, in a quiet stretch %.2f", ws[19], ws[2])
 	}
 }
 
@@ -300,5 +339,26 @@ func TestCustomStartHasNoBook(t *testing.T) {
 	rep, err := Analyze(g, Options{Depth: 3})
 	if err != nil || rep.BookPlies != 0 || rep.Opening != nil {
 		t.Errorf("err %v bookPlies %d opening %v", err, rep.BookPlies, rep.Opening)
+	}
+}
+
+// Whichever mating move is played, it is the best move: the engine may
+// prefer the other mate, and a mate must never come out as merely "excellent".
+func TestMateIsAlwaysBest(t *testing.T) {
+	for _, mv := range []string{"Rd8#", "Re8#"} {
+		g, err := pgn.ParseOne(`[SetUp "1"]
+[FEN "6k1/5ppp/8/8/8/8/5PPP/3RR1K1 w - - 0 1"]
+
+1. ` + mv + ` 1-0`)
+		if err != nil {
+			t.Fatal(err)
+		}
+		rep, err := Analyze(g, Options{Depth: 6, Workers: 1, NoBook: true})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if m := rep.Moves[0]; m.Class != Best || m.Loss != 0 || m.Accuracy < 99.9 {
+			t.Errorf("%s: %+v, want best", mv, m)
+		}
 	}
 }

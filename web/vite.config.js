@@ -16,10 +16,10 @@ export default defineConfig({
   server: {
     headers: isolation,
     // The Go server (cmd/server) answers /api; run it on its default port.
-    proxy: { "/api": "http://127.0.0.1:8080" },
+    proxy: { "/api": { target: "http://127.0.0.1:8080", ws: true } },
   },
   preview: {
     headers: isolation,
-    proxy: { "/api": "http://127.0.0.1:8080" },
+    proxy: { "/api": { target: "http://127.0.0.1:8080", ws: true } },
   },
 });

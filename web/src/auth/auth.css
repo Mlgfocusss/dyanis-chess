@@ -25,3 +25,15 @@
 /* the account entry in the menu */
 .nav__avatar { margin: -2px; }
 .nav__label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* sign-in offer / signed-in user at the bottom of the menu */
+.acard { margin-top: 4px; padding: 14px; display: flex; flex-direction: column; gap: 8px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface-2); }
+.acard__title { font-weight: 700; }
+.acard__text { color: var(--text-2); font-size: 0.82rem; line-height: 1.4; }
+.acard .btn { min-height: 38px; text-decoration: none; font-size: 0.9rem; padding: 0 10px; }
+.acard__error { color: var(--danger); font-size: 0.8rem; }
+.acard--user { flex-direction: row; align-items: center; gap: 10px; padding: 10px 12px; color: inherit; text-decoration: none; }
+.acard--user:hover { background: var(--surface-3); }
+.acard__who { display: flex; flex-direction: column; min-width: 0; }
+.acard__name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.acard__kind { color: var(--muted); font-size: 0.78rem; }

@@ -1,8 +1,9 @@
-import { useMemo } from "react";
+import { createContext, forwardRef, useContext, useMemo } from "react";
 import { Chessboard } from "react-chessboard";
 import { useElementWidth } from "../hooks/useElementWidth.js";
 import { useSettings, ANIMATION_MS } from "../settings/SettingsContext.jsx";
 import { getBoardTheme, getPieceSet } from "../themes/index.js";
+import ClassBadge from "../review/ClassBadge.jsx";
 
 const FILES = ["a", "b", "c", "d", "e", "f", "g", "h"];
 const GUTTER = 20; // width of the coordinate strip when coordinates sit outside
@@ -62,11 +63,34 @@ export function buildBoardProps(settings) {
   };
 }
 
+// What is drawn over single squares: a move-quality badge (top right corner)
+// and the dots that mark where the selected piece can go (a dot on an empty
+// square, a ring around a piece that can be taken). The square renderer is one
+// fixed component and reads what to draw from this context, so
+// react-chessboard does not rebuild its squares with every move.
+const OverlayCtx = createContext(null);
+const OverlaySquare = forwardRef(function OverlaySquare({ children, square, style }, ref) {
+  const o = useContext(OverlayCtx);
+  const b = o?.badge;
+  const dot = o?.dots?.[square];
+  return (
+    <div ref={ref} style={{ ...style, position: "relative" }}>
+      {children}
+      {dot && <span className={`sq-${dot}`} />}
+      {b && b.square === square && (
+        <span className="sq-badge">
+          <ClassBadge cls={b.cls} size={b.size} />
+        </span>
+      )}
+    </div>
+  );
+});
+
 // The chessboard of the whole site: fills its container, wears the user's
 // look and draws coordinates outside the board when asked to. Pass
 // `settings` to override the saved ones (settings page preview); every
-// other prop goes to react-chessboard.
-export default function ThemedBoard({ settings: override, orientation = "white", ...rest }) {
+// other prop goes to react-chessboard. dots: { square: "dot" | "ring" }.
+export default function ThemedBoard({ settings: override, orientation = "white", badge, dots, ...rest }) {
   const saved = useSettings().settings;
   const settings = override || saved;
   const [ref, width] = useElementWidth();
@@ -78,8 +102,21 @@ export default function ThemedBoard({ settings: override, orientation = "white",
   const outside = settings.coordinates === "outside";
   const boardWidth = Math.max(120, width - (outside ? GUTTER : 0));
 
+  // badge: undefined = this board has none; null = none now; {square, cls} = draw it.
+  const overlay = useMemo(
+    () => ({ badge: badge ? { ...badge, size: Math.max(22, Math.round((boardWidth / 8) * 0.44)) } : null, dots }),
+    [badge, dots, boardWidth]
+  );
   const board = (
-    <Chessboard boardWidth={boardWidth} boardOrientation={orientation} {...themeProps} {...rest} />
+    <OverlayCtx.Provider value={overlay}>
+      <Chessboard
+        boardWidth={boardWidth}
+        boardOrientation={orientation}
+        {...themeProps}
+        {...(badge !== undefined || dots !== undefined ? { customSquare: OverlaySquare } : {})}
+        {...rest}
+      />
+    </OverlayCtx.Provider>
   );
 
   if (!outside) {

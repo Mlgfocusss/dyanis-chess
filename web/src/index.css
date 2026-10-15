@@ -116,3 +116,13 @@ select.field { width: auto; }
 }
 
 .icon { width: 20px; height: 20px; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+/* Captured pieces and the material lead next to a player's name (components/Captured.jsx). */
+.captured { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 0 6px; margin-left: 10px; line-height: 1; vertical-align: middle; }
+.captured__group { display: inline-flex; }
+.captured__piece { font-size: 1.05rem; width: 0.62em; overflow: visible; font-family: "Segoe UI Symbol", "DejaVu Sans", "Noto Sans Symbols 2", sans-serif; }
+.captured__group--white .captured__piece { color: #e2e8f0; text-shadow: 0 0 1px #0f172a, 0 0 2px #0f172a; }
+.captured__group--black .captured__piece { color: #64748b; text-shadow: 0 0 1px #e2e8f0, 0 0 1px #e2e8f0, 0 0 2px #e2e8f0; }
+.captured__lead { color: var(--text-2); font-size: 0.82rem; font-weight: 700; font-variant-numeric: tabular-nums; margin-left: 2px; }
+.captured__img { width: 18px; height: 18px; margin-right: -6px; object-fit: contain; user-select: none; }
+.captured__group .captured__img:last-child { margin-right: 0; }

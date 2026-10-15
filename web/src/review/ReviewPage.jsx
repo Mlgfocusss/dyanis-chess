@@ -1,11 +1,10 @@
-import { useEffect, useRef, useState } from "react";
-import { createAnalysis, getAnalysis } from "./api.js";
+import { useEffect, useState } from "react";
+import { useAnalysis } from "./useAnalysis.js";
 import ReviewView from "./ReviewView.jsx";
 import Icon from "../ui/Icon.jsx";
 import { useAuth } from "../auth/AuthContext.jsx";
 import "./review.css";
 
-const POLL_MS = 400;
 const SAMPLE = `[White "Анна"]
 [Black "Борис"]
 
@@ -23,51 +22,21 @@ export default function ReviewPage() {
   const { status: authStatus, user } = useAuth();
   const [pgn, setPgn] = useState("");
   const [depth, setDepth] = useState(14);
-  const [job, setJob] = useState(null); // last state from the server
-  const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
-  const timer = useRef(null);
+  const { job, error, busy, start, attach, reset } = useAnalysis();
 
   useEffect(() => {
     const id = idFromHash();
-    if (id) {
-      setBusy(true);
-      poll(id);
-    }
-    return () => clearTimeout(timer.current);
+    if (id) attach(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function start() {
-    setError("");
-    setJob(null);
-    setBusy(true);
-    try {
-      const id = await createAnalysis({ pgn, depth });
-      poll(id);
-    } catch (e) {
-      setError(e.message);
-      setBusy(false);
-    }
-  }
+  // A finished review gets its own address, so a reload or a shared link finds it.
+  useEffect(() => {
+    if (job?.status === "done") window.history.replaceState(null, "", `#review/${job.id}`);
+  }, [job]);
 
-  async function poll(id) {
-    try {
-      const j = await getAnalysis(id);
-      setJob(j);
-      if (j.status === "done") {
-        window.history.replaceState(null, "", `#review/${id}`);
-        return setBusy(false);
-      }
-      if (j.status === "error") {
-        setError(j.error || "Разбор не удался");
-        return setBusy(false);
-      }
-      timer.current = setTimeout(() => poll(id), POLL_MS);
-    } catch (e) {
-      setError(e.message);
-      setBusy(false);
-    }
+  function startReview() {
+    start({ pgn, depth });
   }
 
   function onFile(e) {
@@ -81,7 +50,7 @@ export default function ReviewPage() {
   const pct = job && job.total ? Math.round((100 * job.done) / job.total) : 0;
 
   return (
-    <div className="page">
+    <div className={"page" + (done ? " page--stage" : "")}>
       {!done && (
         <section className="review-form">
           <header className="page__head">
@@ -101,7 +70,7 @@ export default function ReviewPage() {
             disabled={busy}
           />
           <div className="review-form__row">
-            <button type="button" className="btn btn--primary" onClick={start} disabled={busy || !pgn.trim()}>
+            <button type="button" className="btn btn--primary" onClick={startReview} disabled={busy || !pgn.trim()}>
               {busy ? "Идёт разбор…" : "Разобрать"}
             </button>
             <label className="btn btn--ghost">
@@ -133,7 +102,7 @@ export default function ReviewPage() {
           )}
           {authStatus === "ready" && !user && (
             <p className="review-form__note">
-              Вы не вошли, поэтому партия не попадёт в «Мои партии» (по ссылке она всё равно откроется).{" "}
+              Вы не вошли, поэтому партия не попадёт в ваш профиль (по ссылке она всё равно откроется).{" "}
               <a href="#account">Войти</a>
             </p>
           )}
@@ -148,8 +117,7 @@ export default function ReviewPage() {
               type="button"
               className="btn btn--ghost"
               onClick={() => {
-                setJob(null);
-                setError("");
+                reset();
                 window.history.replaceState(null, "", "#review");
               }}
             >

@@ -40,3 +40,15 @@ export async function deleteAnalysis(id) {
   const res = await fetch(`/api/analyses/${encodeURIComponent(id)}`, { method: "DELETE" });
   if (!res.ok) await readJSON(res); // throws with the server's message
 }
+
+// Plays moves (UCI or SAN) from a position on the server, which knows the rules:
+// { steps: [{uci, san, fen}], fen, legal: [uci], status, eval? }. With eval the
+// engine also judges the last position (depth 0 = server default).
+export async function fetchLine({ fen, moves = [], eval: wantEval = false, depth = 0 }) {
+  const res = await fetch("/api/line", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ fen, moves, eval: wantEval, depth }),
+  });
+  return readJSON(res);
+}

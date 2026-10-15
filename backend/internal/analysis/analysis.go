@@ -29,6 +29,13 @@ import (
 type Class string
 
 const (
+	// Brilliant and Great are Best moves that were also something more: a
+	// sound sacrifice, or the only move (see special.go).
+	Brilliant Class = "brilliant"
+	Great     Class = "great"
+	// Miss is an inaccuracy or mistake that let slip what the opponent's own
+	// mistake had offered (see special.go).
+	Miss       Class = "miss"
 	Best       Class = "best"       // the engine's own choice (or the only legal move)
 	Excellent  Class = "excellent"  // costs under 2 points of win probability
 	Good       Class = "good"       // under 5
@@ -101,6 +108,9 @@ type Options struct {
 	Book *eco.Book
 	// NoBook turns opening recognition off.
 	NoBook bool
+	// NoSpecial turns off the Brilliant and Great classes (they cost
+	// extra searches: every alternative of a Best move is looked at).
+	NoSpecial bool
 	// Progress, if set, is called after each position is evaluated,
 	// never concurrently and with increasing done.
 	Progress func(done, total int)
@@ -149,6 +159,16 @@ type PositionEval struct {
 	// Terminal is set (and nothing was searched) when the game is over
 	// in this position: "checkmate", "stalemate", "draw by ...".
 	Terminal string `json:"terminal,omitempty"`
+
+	// Working data of the judging step (see special.go), not part of the
+	// report: material balance (White minus Black, pawns) here and after each
+	// ply of the best line, which of those plies captured, and the result of
+	// the only-move test of the move played from this position.
+	bal       int
+	pvBal     []int
+	pvCap     []bool
+	gap       float64
+	playedPct float64
 }
 
 // MoveReport is the review of one half-move.
@@ -214,38 +234,87 @@ func WinPercent(cp int, k float64) float64 {
 }
 
 // accuracySteepness is how fast a move's accuracy falls with the
-// win-probability points it lost. The shape (an exponential through
-// 100 at no loss) is the one lichess publishes; the steepness is ours,
-// about twice lichess's 0.04354, so that a decisive error costs a move
-// almost all of its score. Accuracy is a model of this project, not a
-// copy of any site's figure.
-const accuracySteepness = 0.08
+// win-probability points it lost. The curve is the one Lichess publishes
+// (an exponential through 100 at no loss, steepness 0.04354), made a quarter
+// steeper because chess.com's figures run lower: on the reference game of
+// testdata (chess.com says 82 / 92) 0.055 gives 87 / 96, Lichess's own steepness
+// 89 / 97. One decisive error costs that move most of its score but only its
+// share of the game's: see playerAccuracy.
+const accuracySteepness = 0.055
 
 // MoveAccuracy maps the win-probability points a move lost to a 0..100
-// score: 100 for a move that lost nothing, about 90 for 1 point, 50
-// for 8, near 0 from about 40 points (a queen blunder from an equal
-// position).
+// score: 100 for a move that lost nothing, about 84 for 3 points, 56 for
+// 10, 31 for 20 (a clear blunder), near 0 from about 50.
 func MoveAccuracy(loss float64) float64 {
 	a := 103.1668*math.Exp(-accuracySteepness*loss) - 3.1669
 	return math.Max(0, math.Min(100, a))
 }
 
-// playerAccuracy combines the per-move accuracies of one player into
-// the game figure with a harmonic mean. Unlike the plain average, the
-// harmonic mean is dominated by the worst moves: one queen blunder
-// among fifty good moves drags the game down to the 30s instead of
-// being averaged away to 98, and a handful of small slips barely move
-// it. Individual moves are floored at 1 so that a single catastrophic
-// move lowers the score a lot but cannot make it exactly 0.
-func playerAccuracy(accs []float64) float64 {
+// volatilityWeights gives each move a weight: how much the win
+// probability swung around it (the standard deviation over a sliding window
+// of positions, clamped to 0.5..12). Errors in sharp, decisive stretches
+// count for more than slips in a quiet position, as in the Lichess
+// formula. winPcts is White's win probability in every position of the game
+// (one more than there are moves).
+func volatilityWeights(winPcts []float64) []float64 {
+	n := len(winPcts) - 1
+	if n <= 0 {
+		return nil
+	}
+	size := min(max(len(winPcts)/10, 2), 8)
+	weight := func(w []float64) float64 {
+		var mean float64
+		for _, x := range w {
+			mean += x
+		}
+		mean /= float64(len(w))
+		var v float64
+		for _, x := range w {
+			v += (x - mean) * (x - mean)
+		}
+		return math.Min(12, math.Max(0.5, math.Sqrt(v/float64(len(w)))))
+	}
+	var ws []float64
+	first := min(size, len(winPcts))
+	for k := 0; k < first-2; k++ { // the opening moves share the first window
+		ws = append(ws, weight(winPcts[:first]))
+	}
+	if len(winPcts) < size {
+		ws = append(ws, weight(winPcts))
+	}
+	for s := 0; s+size <= len(winPcts); s++ {
+		ws = append(ws, weight(winPcts[s:s+size]))
+	}
+	for len(ws) < n {
+		ws = append(ws, ws[len(ws)-1])
+	}
+	return ws[:n]
+}
+
+// playerAccuracy combines the per-move accuracies of one player into the
+// game figure the way Lichess does: the mean of the volatility-weighted
+// average and the harmonic mean. The weighted average lets errors in decisive
+// moments count more, the harmonic mean keeps the worst moves from being
+// averaged away, and neither lets one blunder wipe the whole game out: a
+// queen hung in a 40-move game still leaves a score in the 70s or 80s.
+// weights runs parallel to accs; nil weighs every move equally. A move
+// is floored at 1 in the harmonic mean so that no single move can make the
+// score 0.
+func playerAccuracy(accs, weights []float64) float64 {
 	if len(accs) == 0 {
 		return 0
 	}
-	var inv float64
-	for _, a := range accs {
+	var sum, wsum, inv float64
+	for i, a := range accs {
+		w := 1.0
+		if i < len(weights) {
+			w = weights[i]
+		}
+		sum += a * w
+		wsum += w
 		inv += 1 / math.Max(a, 1)
 	}
-	return float64(len(accs)) / inv
+	return (sum/wsum + float64(len(accs))/inv) / 2
 }
 
 // Analyze reviews g. It returns an error only if the game's own moves
@@ -261,12 +330,16 @@ func Analyze(g *pgn.Game, opt Options) (*Report, error) {
 	// Replay: one board snapshot and one hash history per position.
 	n := len(g.Moves)
 	boards := make([]*engine.Position, n+1)
+	// spare is a second set of the same boards, touched by nothing but
+	// Copy: the search of position i uses boards[i] (and writes caches in
+	// it), while the only-move test of position i+1 needs to look at it too.
+	spare := make([]*engine.Position, n+1)
 	hashes := make([]uint64, n+1)
 	cur := start.Copy()
-	boards[0], hashes[0] = cur.Copy(), cur.Hash()
+	boards[0], spare[0], hashes[0] = cur.Copy(), cur.Copy(), cur.Hash()
 	for i, m := range g.Moves {
 		cur.Play(m.Move)
-		boards[i+1], hashes[i+1] = cur.Copy(), cur.Hash()
+		boards[i+1], spare[i+1], hashes[i+1] = cur.Copy(), cur.Copy(), cur.Hash()
 	}
 
 	rep := &Report{
@@ -282,6 +355,18 @@ func Analyze(g *pgn.Game, opt Options) (*Report, error) {
 		rep.Options.MoveTimeMs = 0
 	}
 
+	// Opening theory: which plies are book, and what the opening is called.
+	// (Known before the search so that theory moves are not examined.)
+	var book *eco.Book
+	if !opt.NoBook && (g.StartFEN == "" || g.StartFEN == engine.StartFEN) {
+		book = opt.Book
+		if book == nil {
+			book = eco.Default()
+		}
+	}
+	named, bookPlies := markBook(book, hashes)
+	rep.BookPlies = bookPlies
+
 	// Evaluate positions concurrently.
 	jobs := make(chan int)
 	var wg sync.WaitGroup
@@ -293,6 +378,9 @@ func Analyze(g *pgn.Game, opt Options) (*Report, error) {
 			defer wg.Done()
 			for i := range jobs {
 				rep.Evals[i] = evalPosition(boards[i], hashes[:i+1], i, &opt)
+				if i < n && !opt.NoSpecial && i+1 > bookPlies {
+					testOnlyMove(&rep.Evals[i], spare, hashes, g.Moves, i, &opt)
+				}
 				if opt.Progress != nil {
 					mu.Lock()
 					done++
@@ -308,19 +396,13 @@ func Analyze(g *pgn.Game, opt Options) (*Report, error) {
 	close(jobs)
 	wg.Wait()
 
-	// Opening theory: which plies are book, and what the opening is called.
-	var book *eco.Book
-	if !opt.NoBook && (g.StartFEN == "" || g.StartFEN == engine.StartFEN) {
-		book = opt.Book
-		if book == nil {
-			book = eco.Default()
-		}
-	}
-	named, bookPlies := markBook(book, hashes)
-	rep.BookPlies = bookPlies
-
 	// Judge the moves.
-	var accs [2][]float64
+	winPcts := make([]float64, len(rep.Evals))
+	for i, e := range rep.Evals {
+		winPcts[i] = e.WinPct
+	}
+	weights := volatilityWeights(winPcts)
+	var accs, accWeights [2][]float64
 	var played [2]int // moves per player, book ones included
 	rep.Counts = [2]map[Class]int{{}, {}}
 	for i, m := range g.Moves {
@@ -349,15 +431,33 @@ func Analyze(g *pgn.Game, opt Options) (*Report, error) {
 		if m.Clock >= 0 {
 			mr.ClockMs = m.Clock.Milliseconds()
 		}
+		mates := givesMate(after)
 		switch {
 		case before.Terminal != "":
 			mr.Class = Best
+		case mates:
+			// Checkmate cannot be improved on, whatever line the engine
+			// preferred (another mate, or a mate it saw as a few plies faster).
+			mr.Class = Best
+			mr.Loss = 0
 		case mr.Forced || before.BestUCI == uci:
 			mr.Class = Best
 			mr.Loss = 0
 		default:
 			mr.Class = opt.Thresholds.classify(loss)
 			mr.BestSAN, mr.BestUCI = before.BestSAN, before.BestUCI
+		}
+		if !opt.NoSpecial && !mr.Forced && !mates && before.Terminal == "" && i+1 > bookPlies {
+			sign := 1 - 2*color // +1 White, -1 Black
+			promotion := len(uci) == 5
+			switch {
+			case (mr.Class == Best || mr.Class == Excellent) && isBrilliant(before, after, sign, moverBefore, moverAfter, promotion):
+				mr.Class = Brilliant
+			case mr.Class == Best && isGreat(before.gap, before.playedPct, moverBefore, prevLoss(rep.Moves, i)):
+				mr.Class = Great
+			case isMiss(mr.Class, prevLoss(rep.Moves, i), moverBefore):
+				mr.Class = Miss
+			}
 		}
 		mr.Accuracy = MoveAccuracy(mr.Loss)
 		if o, ok := named[i+1]; ok {
@@ -377,15 +477,22 @@ func Analyze(g *pgn.Game, opt Options) (*Report, error) {
 		rep.Moves[i] = mr
 		rep.Counts[color][mr.Class]++
 		accs[color] = append(accs[color], mr.Accuracy)
+		accWeights[color] = append(accWeights[color], weights[i])
 	}
 	for c := 0; c < 2; c++ {
-		rep.Accuracy[c] = playerAccuracy(accs[c])
+		rep.Accuracy[c] = playerAccuracy(accs[c], accWeights[c])
 		if len(accs[c]) == 0 && played[c] > 0 {
 			rep.Accuracy[c] = 100 // every move was theory
 		}
 	}
 	rep.Key = keyMoments(rep.Moves, 5, opt.Thresholds.Inaccuracy)
 	return rep, nil
+}
+
+// givesMate reports whether the position is checkmate: the move that led to
+// it was the best a move can be.
+func givesMate(after PositionEval) bool {
+	return after.Terminal != "" && absInt(after.Score) >= engine.MateScore
 }
 
 // markBook finds how long the game stayed in opening theory. hashes[i] is
@@ -447,6 +554,7 @@ func AnalyzePosition(b *engine.Position, history []uint64, opt Options) Position
 
 func evalPosition(b *engine.Position, history []uint64, ply int, opt *Options) PositionEval {
 	ev := PositionEval{Ply: ply, FEN: b.FEN()}
+	ev.bal, _ = material(ev.FEN)
 	white := b.SideToMove() == engine.White
 
 	if out := b.Outcome(history); out.Over {
@@ -489,6 +597,7 @@ func evalPosition(b *engine.Position, history []uint64, ply int, opt *Options) P
 	ev.BestUCI = res.Best.String()
 	ev.BestSAN = b.SAN(res.Best)
 	ev.PV = pvToSAN(b, res.PV, res.Best)
+	ev.pvBal, ev.pvCap = pvTrace(b, res.PV)
 	return ev
 }
 
@@ -528,4 +637,44 @@ func absInt(x int) int {
 // String renders a short human-readable summary line for a class count.
 func (r *Report) String() string {
 	return fmt.Sprintf("accuracy white %.1f black %.1f", r.Accuracy[0], r.Accuracy[1])
+}
+
+// testOnlyMove runs the only-move test for the move played from position i,
+// when it is worth running: the move is the engine's own choice, the position
+// is not decided, the mover is not just answering a check or recapturing, and
+// there is a real choice of moves. The result is left in ev.
+func testOnlyMove(ev *PositionEval, boards []*engine.Position, hashes []uint64, moves []pgn.Move, i int, opt *Options) {
+	played := moves[i].Move
+	if ev.Terminal != "" || ev.BestUCI != played.String() {
+		return
+	}
+	// The mover's chance of winning before the move: skip decided positions.
+	pct := ev.WinPct
+	if boards[i].SideToMove() == engine.Black {
+		pct = 100 - pct
+	}
+	if pct > GreatMaxBefore || pct < GreatMinBefore {
+		return
+	}
+	if i > 0 {
+		prev := moves[i-1].Move
+		if san := boards[i-1].Copy().SAN(prev); len(san) > 0 && (san[len(san)-1] == '+' || san[len(san)-1] == '#') {
+			return // answering a check
+		}
+		_, before := material(boards[i-1].Copy().FEN())
+		_, now := material(boards[i].Copy().FEN())
+		if now < before && prev.String()[2:4] == played.String()[2:4] {
+			return // a recapture
+		}
+	}
+	ev.playedPct, ev.gap = onlyMoveGap(boards[i].Copy(), hashes[:i+1], played, opt)
+}
+
+// prevLoss is the win probability the opponent's previous move cost them
+// (0 at the first move).
+func prevLoss(moves []MoveReport, i int) float64 {
+	if i == 0 {
+		return 0
+	}
+	return moves[i-1].Loss
 }

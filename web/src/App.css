@@ -5,7 +5,7 @@
    under the heading (so it fits the screen without scrolling) and the side
    panels hold everything else. --board is the board's edge. */
 .play {
-  --board: min(calc(100vh - 150px), 900px);
+  --board: min(calc(100vh - 250px), 900px);
   --panel: 360px;
   padding: 20px 32px 40px;
 }
@@ -13,7 +13,7 @@
 
 .play__grid { display: grid; gap: 28px; align-items: start; }
 .board-wrap { width: 100%; }
-.play__board { min-width: 0; width: min(100%, var(--board)); }
+.play__board { position: relative; min-width: 0; width: min(100%, var(--board)); }
 
 /* Board beside the panel: the panel is pushed to the right edge, the board
    sits centred in the space that remains. */
@@ -22,7 +22,7 @@
 .play--side .play__side { grid-column: 2; grid-row: 1; }
 
 /* Board in the middle of the page: game record on the left, controls on the right. */
-.play--center { --board: clamp(360px, min(calc(100vh - 150px), calc(100vw - 248px - 64px - 2 * 300px - 56px)), 900px); }
+.play--center { --board: clamp(360px, min(calc(100vh - 250px), calc(100vw - 264px - 64px - 2 * 300px - 56px)), 900px); }
 .play--center .play__grid { grid-template-columns: minmax(300px, 1fr) var(--board) minmax(300px, 1fr); }
 .play--center .play__board { grid-column: 2; grid-row: 1; width: 100%; }
 .play--center .play__left { grid-column: 1; grid-row: 1; justify-self: start; }
@@ -95,4 +95,14 @@
   .play--side .play__board, .play--center .play__board { grid-column: 1; grid-row: 1; justify-self: center; width: min(100%, calc(100vh - 140px)); }
   .play--side .play__side, .play--center .play__side { grid-column: 1; grid-row: 2; max-width: none; justify-self: stretch; }
   .play--center .play__left { grid-column: 1; grid-row: 3; max-width: none; justify-self: stretch; }
+}
+.status__summary { margin-top: 12px; }
+
+.status__opening { margin-top: 8px; font-size: 0.9rem; font-weight: 500; display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px; }
+.status__theory { margin-left: 4px; font-size: 0.68rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--primary); border: 1px solid var(--primary); border-radius: 999px; padding: 0 7px; }
+
+/* the player strips above and below the board: name and captured pieces (same look as the game room) */
+.play__ico {
+  display: inline-grid; place-items: center; width: 36px; height: 36px; flex: none; border-radius: 50%;
+  background: var(--surface-2); color: var(--text-2);
 }

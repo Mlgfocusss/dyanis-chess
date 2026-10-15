@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "../auth/AuthContext.jsx";
 import { deleteAnalysis, listAnalyses } from "../review/api.js";
 import Icon from "../ui/Icon.jsx";
+import OnlineGames from "./OnlineGames.jsx";
 import "./games.css";
 
 function formatDate(iso) {
@@ -56,8 +57,9 @@ function Row({ item, onDelete, busy }) {
   );
 }
 
-// "Мои партии": the reviews started while signed in, newest first.
-export default function GamesPage() {
+// The "Партии" tab of the profile: the reviews started while signed in, newest first.
+// embedded: shown as a tab of the profile, which has its own heading.
+export default function GamesPage({ embedded = false }) {
   const { status, user } = useAuth();
   const [items, setItems] = useState(null);
   const [error, setError] = useState("");
@@ -97,14 +99,16 @@ export default function GamesPage() {
     }
   }
 
-  if (status === "loading") return <div className="page" />;
+  if (status === "loading") return embedded ? null : <div className="page" />;
 
   return (
-    <div className="page games">
-      <header className="page__head">
-        <h1 className="page__title">Мои партии</h1>
-        <p className="page__sub">Разборы, которые вы запускали, будучи в аккаунте.</p>
-      </header>
+    <div className={embedded ? "games games--embedded" : "page games"}>
+      {!embedded && (
+        <header className="page__head">
+          <h1 className="page__title">Мои партии</h1>
+          <p className="page__sub">Разборы, которые вы запускали, будучи в аккаунте.</p>
+        </header>
+      )}
 
       {status === "unavailable" && (
         <div className="banner banner--error">Список недоступен: сервер запущен без базы данных.</div>
@@ -118,6 +122,9 @@ export default function GamesPage() {
           </a>
         </section>
       )}
+
+      {embedded && user && <OnlineGames />}
+      {embedded && user && <h2 className="games__h">Разборы</h2>}
 
       {error && <div className="banner banner--error">{error}</div>}
 

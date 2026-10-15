@@ -1,0 +1,38 @@
+/* "Задачи". The page uses the layout of the game room (.room, online/online.css);
+   this file adds only what is special to puzzles. Tokens from index.css. */
+.puzzles--loading { color: var(--text-2); }
+.puzzles__top { padding-left: 0; }
+.puzzles__ico {
+  display: inline-grid; place-items: center; width: 36px; height: 36px; flex: none; border-radius: 50%;
+  background: var(--primary-soft); color: var(--primary);
+}
+.puzzles__rating {
+  padding: 6px 14px; border-radius: var(--radius-sm); background: var(--surface-2);
+  font: 600 1.2rem/1.2 var(--mono); font-variant-numeric: tabular-nums; color: var(--text-2);
+}
+
+.puzzles__state--ok { border-color: rgba(52, 211, 153, 0.5); }
+.puzzles__state--ok .room__state { color: var(--primary); }
+.puzzles__state--bad { border-color: rgba(248, 113, 113, 0.5); }
+.puzzles__state--bad .room__state { color: var(--danger); }
+.puzzles__state--warn { border-color: rgba(251, 191, 36, 0.5); }
+.puzzles__state--warn .room__state { color: var(--warn); }
+
+.puzzles__delta { font: 700 1.6rem/1.2 var(--mono); display: flex; align-items: baseline; gap: 10px; }
+.puzzles__delta span { font: 500 0.85rem var(--font); color: var(--muted); }
+.puzzles__delta--up { color: var(--primary); }
+.puzzles__delta--down { color: var(--danger); }
+.puzzles__delta--same { color: var(--text-2); }
+
+.puzzles__themes { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.puzzles__chip {
+  padding: 3px 10px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--border);
+  color: var(--text-2); font-size: 0.8rem;
+}
+
+.puzzles__you { padding: 14px 16px; }
+.puzzles__you h2, .puzzles__filter label {
+  font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted);
+}
+.puzzles__big { font: 700 2.2rem/1.2 var(--mono); font-variant-numeric: tabular-nums; margin: 4px 0; }
+.puzzles__filter { padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; }
