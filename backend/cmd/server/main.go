@@ -106,10 +106,10 @@ func main() {
 		// explorer wants a token; the environment, not a flag, so that it stays out of process lists.
 		explorerAPI = explorer.New(explorer.Config{Token: os.Getenv("LICHESS_TOKEN"), UserID: accounts.UserID})
 		if os.Getenv("LICHESS_TOKEN") == "" {
-			log.Printf("no LICHESS_TOKEN: the repository builder shows no Lichess statistics (see README.md)")
+			log.Printf("no LICHESS_TOKEN: the repository builder shows no Lichess statistics (see DEVELOPERS.md)")
 		}
 		if n, err := db.CountPuzzles(context.Background()); err == nil && n == 0 {
-			log.Printf("no puzzles yet: load them with backend/cmd/puzzleimport (see README.md)")
+			log.Printf("no puzzles yet: load them with backend/cmd/puzzleimport (see DEVELOPERS.md)")
 		}
 		log.Printf("database connected, schema up to date")
 	} else {
