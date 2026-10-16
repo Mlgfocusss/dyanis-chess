@@ -7,6 +7,7 @@ import { TIME_CONTROLS, tcToRequest } from "../online/clock.js";
 import Icon from "../ui/Icon.jsx";
 import Segmented from "../ui/Segmented.jsx";
 import BotAvatar from "./BotAvatar.jsx";
+import { ensureNoGameRunning } from "../online/api.js";
 import { createBotGame, useBots } from "./api.js";
 import "./bots.css";
 
@@ -86,6 +87,7 @@ function BotPicker() {
     setError("");
     try {
       if (!user) await guest();
+      await ensureNoGameRunning(settings);
       const tc = clock === NO_CLOCK ? { timeMs: 0, incMs: 0 } : tcToRequest(clock.split("+").map(Number));
       const gameId = await createBotGame({ bot: bot.id, color, ...tc });
       window.location.hash = `bots/${gameId}`;

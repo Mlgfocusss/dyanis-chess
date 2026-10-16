@@ -413,6 +413,85 @@ func TestPuzzles(t *testing.T) {
 	if err != nil || at.Counted || at.After != 1020 || at.Record.Attempts != 1 {
 		t.Fatalf("repeat attempt: %+v (%v)", at, err)
 	}
+	// The puzzle of the day is practice: its first try of a day is kept, the rating is not touched.
+	if tried, _, err := s.DailyPuzzleResult(ctx, anna.ID, "2026-10-16"); err != nil || tried {
+		t.Errorf("a day never played: %v (%v)", tried, err)
+	}
+	for _, solved := range []bool{true, false} { // the second write of the day changes nothing
+		if err := s.RecordDailyPuzzle(ctx, anna.ID, "2026-10-16", "tZaAa", solved); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if tried, solved, err := s.DailyPuzzleResult(ctx, anna.ID, "2026-10-16"); err != nil || !tried || !solved {
+		t.Errorf("first try of the day: %v %v (%v)", tried, solved, err)
+	}
+	if tried, _, _ := s.DailyPuzzleResult(ctx, boris.ID, "2026-10-16"); tried {
+		t.Error("a result of anna shows for boris")
+	}
+
+	// The tactics storm keeps every run and shows the best by mode.
+	for _, run := range []struct {
+		mode  string
+		score int
+	}{{"3min", 11}, {"3min", 17}, {"3min", 9}, {"5min", 20}} {
+		if err := s.RecordRush(ctx, anna.ID, run.mode, run.score); err != nil {
+			t.Fatal(err)
+		}
+	}
+	bests, err := s.RushBests(ctx, anna.ID)
+	if err != nil || bests["3min"] != (RushBest{Best: 17, Runs: 3}) || bests["5min"] != (RushBest{Best: 20, Runs: 1}) {
+		t.Errorf("rush bests: %+v (%v)", bests, err)
+	}
+	if bests, _ := s.RushBests(ctx, boris.ID); len(bests) != 0 {
+		t.Errorf("a record of anna shows for boris: %+v", bests)
+	}
+
+	// Glicko-2 ratings: one row per person and category, replaced by each save.
+	if _, err := s.Rating(ctx, anna.ID, "blitz"); !errors.Is(err, ErrNotFound) {
+		t.Errorf("a rating never made: %v", err)
+	}
+	at0 := time.Date(2026, 10, 17, 12, 0, 0, 0, time.UTC)
+	if err := s.SaveRating(ctx, &RatingRow{UserID: anna.ID, Category: "blitz", Rating: 1234.5, RD: 180.25, Volatility: 0.06, Games: 1, Wins: 1, UpdatedAt: at0}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SaveRating(ctx, &RatingRow{UserID: anna.ID, Category: "blitz", Rating: 1250.75, RD: 160, Volatility: 0.0599, Games: 2, Wins: 1, Losses: 1, UpdatedAt: at0.Add(time.Hour)}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SaveRating(ctx, &RatingRow{UserID: anna.ID, Category: "duel", Rating: 1200, RD: 350, Volatility: 0.06, UpdatedAt: at0}); err != nil {
+		t.Fatal(err)
+	}
+	rr, err := s.Rating(ctx, anna.ID, "blitz")
+	if err != nil || rr.Rating != 1250.75 || rr.RD != 160 || rr.Games != 2 || rr.Losses != 1 || !rr.UpdatedAt.Equal(at0.Add(time.Hour)) {
+		t.Errorf("rating: %+v (%v)", rr, err)
+	}
+	if all, err := s.Ratings(ctx, anna.ID); err != nil || len(all) != 2 || all[0].Category != "blitz" || all[1].Category != "duel" {
+		t.Errorf("ratings: %v (%v)", all, err)
+	}
+	if all, _ := s.Ratings(ctx, boris.ID); len(all) != 0 {
+		t.Errorf("a rating of anna shows for boris: %v", all)
+	}
+	// a finished duel is written once
+	duel := &DuelRow{ID: "d000000000000001", AID: anna.ID, BID: boris.ID, AScore: 7, BScore: 5, AMistakes: 1, BMistakes: 2, Result: "a", CreatedAt: at0}
+	for i := 0; i < 2; i++ {
+		if err := s.SaveDuel(ctx, duel); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if r, _ := s.PuzzleRatingOf(ctx, anna.ID); r.Attempts != 1 || r.Rating != 1020 { // only the one rated try above
+		t.Errorf("practice moved the rating: %+v", r)
+	}
+	s.RecordDailyPuzzle(ctx, boris.ID, "2026-10-17", "tzaaa", false)
+	s.RecordDailyPuzzle(ctx, boris.ID, "2026-10-16", "tZaAa", false)
+	s.RecordDailyPuzzle(ctx, anna.ID, "2026-10-15", "tZaAa", true)
+	// The puzzle of the day: the seed picks by id order among the matching ones.
+	for seed, want := range map[uint64]string{0: "tZaAa", 1: "tzaaa", 2: "tZaAa", 7: "tzaaa"} {
+		if p, err := s.DailyPuzzle(ctx, 5001, 5002, 90, seed); err != nil || p.ID != want {
+			t.Errorf("daily seed %d: %+v, want %s (%v)", seed, p, want, err)
+		}
+	}
+	if _, err := s.DailyPuzzle(ctx, 5001, 5002, 91, 0); !errors.Is(err, ErrNotFound) {
+		t.Errorf("daily puzzle with too high a popularity bar: %v", err)
+	}
 	if _, err := s.PickPuzzle(ctx, anna.ID, "", 5001, 5001, true); !errors.Is(err, ErrNotFound) {
 		t.Errorf("a tried puzzle was picked again: %v", err)
 	}
@@ -429,7 +508,140 @@ func TestPuzzles(t *testing.T) {
 	if r, _ := s.PuzzleRatingOf(ctx, boris.ID); r.Attempts != 3 || r.Solved != 1 || r.Rating != 980 {
 		t.Errorf("after merge: %+v", r)
 	}
+	if tried, solved, _ := s.DailyPuzzleResult(ctx, boris.ID, "2026-10-16"); !tried || solved {
+		t.Errorf("daily result of a day both played: the target's must stay (tried %v, solved %v)", tried, solved)
+	}
+	if tried, _, _ := s.DailyPuzzleResult(ctx, boris.ID, "2026-10-17"); !tried {
+		t.Error("a daily result of the target was lost in the merge")
+	}
+	if tried, solved, _ := s.DailyPuzzleResult(ctx, boris.ID, "2026-10-15"); !tried || !solved {
+		t.Error("a daily result of the merged-away account was lost")
+	}
 	if at, _ := s.RecordPuzzleAttempt(ctx, boris.ID, "tZaAa", true, up); at.Counted {
 		t.Error("the attempt of the merged-away account was forgotten")
+	}
+}
+
+func TestRepertoires(t *testing.T) {
+	s := openTest(t)
+	ctx := context.Background()
+	now := time.Now().UTC()
+	anna, boris := newUserID(t, s, KindGuest), newUserID(t, s, KindGuest)
+
+	rep, err := s.CreateRepertoire(ctx, anna.ID, "Итальянка", "white")
+	if err != nil || rep.ID == 0 {
+		t.Fatal(rep, err)
+	}
+	if _, err := s.Repertoire(ctx, boris.ID, rep.ID); !errors.Is(err, ErrNotFound) {
+		t.Errorf("somebody else's repertoire: %v", err)
+	}
+
+	// 1.e4 (mine) e5 2.Nf3 (mine); the same edge twice is one row
+	add := func(parent int64, uci, san string, ply int, mine bool) RepMove {
+		t.Helper()
+		m, created, err := s.AddRepMove(ctx, RepMove{RepertoireID: rep.ID, ParentID: parent, UCI: uci, SAN: san, FEN: "fen " + uci, Ply: ply, Mine: mine})
+		if err != nil || !created || m.ID == 0 {
+			t.Fatalf("add %s: %+v created=%v err=%v", uci, m, created, err)
+		}
+		return m
+	}
+	m1 := add(0, "e2e4", "e4", 1, true)
+	m2 := add(m1.ID, "e7e5", "e5", 2, false)
+	m3 := add(m2.ID, "g1f3", "Nf3", 3, true)
+	// a batch: one move under an existing move, one under a move of the batch
+	before, _ := s.RepMoves(ctx, rep.ID)
+	if err := s.AddRepMovesBulk(ctx, rep.ID, []NewRepMove{
+		{ParentID: m3.ID, ParentIndex: -1, UCI: "b8c6", SAN: "Nc6", FEN: "fen b8c6", Ply: 4},
+		{ParentIndex: 0, UCI: "f1c4", SAN: "Bc4", FEN: "fen f1c4", Ply: 5, Mine: true},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	all, _ := s.RepMoves(ctx, rep.ID)
+	if len(all) != len(before)+2 {
+		t.Fatalf("bulk add: %d moves, was %d", len(all), len(before))
+	}
+	nc6, bc4 := all[len(all)-2], all[len(all)-1]
+	if nc6.ParentID != m3.ID || bc4.ParentID != nc6.ID || !bc4.Mine || nc6.Mine {
+		t.Errorf("bulk parents: %+v %+v", nc6, bc4)
+	}
+	if err := s.AddRepMovesBulk(ctx, rep.ID, []NewRepMove{{ParentIndex: 3, UCI: "a2a3", SAN: "a3", FEN: "x", Ply: 1}}); err == nil {
+		t.Error("a parent that comes later in the batch was accepted")
+	}
+	if err := s.AddRepMovesBulk(ctx, rep.ID, make([]NewRepMove, MaxRepMoves)); !errors.Is(err, ErrLimit) {
+		t.Errorf("over the limit: %v", err)
+	}
+	if after, _ := s.RepMoves(ctx, rep.ID); len(after) != len(all) {
+		t.Errorf("a refused batch left %d moves behind", len(after)-len(all))
+	}
+	if _, err := s.DeleteRepMove(ctx, rep.ID, nc6.ID); err != nil { // the two bulk moves go, as they were added to the tree
+		t.Fatal(err)
+	}
+	again, created, err := s.AddRepMove(ctx, RepMove{RepertoireID: rep.ID, ParentID: 0, UCI: "e2e4", SAN: "e4", FEN: "x", Ply: 1, Mine: true})
+	if err != nil || created || again.ID != m1.ID {
+		t.Errorf("duplicate edge: %+v created=%v err=%v", again, created, err)
+	}
+
+	list, err := s.ListRepertoires(ctx, anna.ID, now)
+	if err != nil || len(list) != 1 || list[0].Counts != (RepertoireCounts{Moves: 3, Mine: 2, New: 2}) {
+		t.Fatalf("list: %+v (%v)", list, err)
+	}
+	if other, _ := s.ListRepertoires(ctx, boris.ID, now); len(other) != 0 {
+		t.Errorf("boris sees %v", other)
+	}
+
+	// a card: first answer asks again tomorrow, becomes due after that
+	c, err := s.ReviewRepMove(ctx, rep.ID, m1.ID, func(box, lapses int) Card {
+		return Card{Box: box + 1, DueAt: now.Add(-time.Minute), Lapses: lapses}
+	})
+	if err != nil || c.Box != 1 {
+		t.Fatalf("review: %+v (%v)", c, err)
+	}
+	if _, err := s.ReviewRepMove(ctx, rep.ID, m2.ID, func(b, l int) Card { return Card{} }); !errors.Is(err, ErrNotFound) {
+		t.Errorf("the opponent's move is not a card: %v", err)
+	}
+	list, _ = s.ListRepertoires(ctx, anna.ID, now)
+	if got := list[0].Counts; got != (RepertoireCounts{Moves: 3, Mine: 2, New: 1, Due: 1}) {
+		t.Errorf("after one review: %+v", got)
+	}
+	moves, _ := s.RepMoves(ctx, rep.ID)
+	if len(moves) != 3 || moves[0].ID != m1.ID || moves[2].ID != m3.ID || !moves[0].DueAt.Valid || moves[0].Reviews != 1 {
+		t.Errorf("moves: %+v", moves)
+	}
+
+	// merging two accounts moves the repertoires
+	if err := s.MergeUsers(ctx, anna.ID, boris.ID); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := s.Repertoire(ctx, boris.ID, rep.ID); err != nil || got.Name != "Итальянка" {
+		t.Errorf("after the merge: %+v (%v)", got, err)
+	}
+
+	// deleting a move takes the lines after it
+	n, err := s.DeleteRepMove(ctx, rep.ID, m2.ID)
+	if err != nil || n != 2 {
+		t.Errorf("delete subtree: %d (%v)", n, err)
+	}
+	if _, err := s.DeleteRepMove(ctx, rep.ID, m2.ID); !errors.Is(err, ErrNotFound) {
+		t.Errorf("delete again: %v", err)
+	}
+	if left, _ := s.RepMoves(ctx, rep.ID); len(left) != 1 {
+		t.Errorf("left: %+v", left)
+	}
+
+	// rename, then delete the whole repertoire
+	if err := s.RenameRepertoire(ctx, boris.ID, rep.ID, "Новое"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.RenameRepertoire(ctx, boris.ID, rep.ID, "Новое"); err != nil { // the same name changes no rows
+		t.Errorf("rename to the same name: %v", err)
+	}
+	if err := s.DeleteRepertoire(ctx, boris.ID, rep.ID); err != nil {
+		t.Fatal(err)
+	}
+	if left, _ := s.RepMoves(ctx, rep.ID); len(left) != 0 {
+		t.Errorf("moves of a deleted repertoire: %+v", left)
+	}
+	if err := s.DeleteRepertoire(ctx, boris.ID, rep.ID); !errors.Is(err, ErrNotFound) {
+		t.Errorf("delete again: %v", err)
 	}
 }

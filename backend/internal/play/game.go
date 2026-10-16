@@ -81,6 +81,8 @@ type Player struct {
 	// seat is played by one, and Elo its rating; the ID then starts with "bot:".
 	Bot string `json:"bot,omitempty"`
 	Elo int    `json:"elo,omitempty"`
+	// Prov says that Elo is a rating of a person still rough (few games): shown with "?".
+	Prov bool `json:"prov,omitempty"`
 }
 
 // ChatMsg is one line of the chat between the two players.
@@ -211,6 +213,9 @@ type Game struct {
 	lastSay map[Side]time.Time
 
 	recorded    bool // the result has been given to the bot progress
+	rated       bool // counts for both people's rating (set at the start, only between two people)
+	rateDone    bool // the rating update has been started (or there is none to do)
+	change      *RatingChanges
 	botBusy     bool // a bot is working out its move
 	botReplying bool // a bot is answering a draw offer or a rematch wish
 }
@@ -503,6 +508,7 @@ func (g *Game) Rematch(userID, newID string) (*Game, error) {
 	n.creator = g.creator
 	n.created = g.now()
 	n.white, n.black = g.black, g.white
+	n.rated = g.rated
 	n.start()
 	g.rematchID = newID
 	g.changed()
@@ -621,26 +627,28 @@ type Presence struct {
 
 // View is the game as a client sees it.
 type View struct {
-	ID          string       `json:"id"`
-	Status      string       `json:"status"`
-	Result      string       `json:"result,omitempty"`
-	Termination string       `json:"termination,omitempty"`
-	White       *Player      `json:"white"`
-	Black       *Player      `json:"black"`
-	TC          TimeControl  `json:"tc"`
-	FEN         string       `json:"fen"`
-	Turn        Side         `json:"turn"`
-	Moves       []MoveRec    `json:"moves"`
-	Legal       []string     `json:"legal,omitempty"` // for the side to move only, and only to that player
-	Clock       *Clock       `json:"clock,omitempty"`
-	FirstMoveBy int64        `json:"firstMoveBy,omitempty"` // unix ms deadline while nobody has moved twice
-	DrawOffer   Side         `json:"drawOffer,omitempty"`
-	Rematch     *Rematch     `json:"rematch,omitempty"`
-	Presence    Presence     `json:"presence"`
-	Opening     *eco.Opening `json:"opening,omitempty"` // the opening played so far, live
-	Book        bool         `json:"book,omitempty"`    // the position is still theory
-	Chat        []ChatMsg    `json:"chat,omitempty"`
-	Created     int64        `json:"created"`
+	ID           string         `json:"id"`
+	Status       string         `json:"status"`
+	Result       string         `json:"result,omitempty"`
+	Termination  string         `json:"termination,omitempty"`
+	White        *Player        `json:"white"`
+	Black        *Player        `json:"black"`
+	TC           TimeControl    `json:"tc"`
+	FEN          string         `json:"fen"`
+	Turn         Side           `json:"turn"`
+	Moves        []MoveRec      `json:"moves"`
+	Legal        []string       `json:"legal,omitempty"` // for the side to move only, and only to that player
+	Clock        *Clock         `json:"clock,omitempty"`
+	FirstMoveBy  int64          `json:"firstMoveBy,omitempty"` // unix ms deadline while nobody has moved twice
+	DrawOffer    Side           `json:"drawOffer,omitempty"`
+	Rematch      *Rematch       `json:"rematch,omitempty"`
+	Presence     Presence       `json:"presence"`
+	Opening      *eco.Opening   `json:"opening,omitempty"` // the opening played so far, live
+	Book         bool           `json:"book,omitempty"`    // the position is still theory
+	Chat         []ChatMsg      `json:"chat,omitempty"`
+	Created      int64          `json:"created"`
+	Rated        bool           `json:"rated,omitempty"`
+	RatingChange *RatingChanges `json:"ratingChange,omitempty"`
 }
 
 // Rematch is the state of the "play again" wish.
@@ -665,6 +673,7 @@ func (g *Game) viewLocked() *View {
 		White: g.white, Black: g.black, TC: g.tc, FEN: g.pos.FEN(), Turn: g.turn,
 		Moves: append([]MoveRec{}, g.moves...), DrawOffer: g.drawOffer, Created: g.created.UnixMilli(),
 		Opening: g.opening, Book: g.inBook, Chat: g.chat,
+		Rated: g.rated, RatingChange: g.change,
 	}
 	if g.timed() {
 		c := &Clock{WhiteMs: g.remaining(White, now), BlackMs: g.remaining(Black, now), ServerNow: now.UnixMilli()}
@@ -770,24 +779,26 @@ func (g *Game) removeConn(c *conn) {
 
 // saved is the part of a game that is written to the database.
 type saved struct {
-	Status       string      `json:"status"`
-	Result       string      `json:"result,omitempty"`
-	Termination  string      `json:"termination,omitempty"`
-	TC           TimeControl `json:"tc"`
-	Creator      string      `json:"creator"`
-	White        *Player     `json:"white,omitempty"`
-	Black        *Player     `json:"black,omitempty"`
-	Moves        []MoveRec   `json:"moves"`
-	WhiteMs      int64       `json:"whiteMs"`
-	BlackMs      int64       `json:"blackMs"`
-	TurnAtMs     int64       `json:"turnAtMs"`
-	CreatedMs    int64       `json:"createdMs"`
-	StartedMs    int64       `json:"startedMs,omitempty"`
-	EndedMs      int64       `json:"endedMs,omitempty"`
-	DrawOffer    Side        `json:"drawOffer,omitempty"`
-	RematchOffer Side        `json:"rematchOffer,omitempty"`
-	RematchID    string      `json:"rematchId,omitempty"`
-	Chat         []ChatMsg   `json:"chat,omitempty"`
+	Status       string         `json:"status"`
+	Result       string         `json:"result,omitempty"`
+	Termination  string         `json:"termination,omitempty"`
+	TC           TimeControl    `json:"tc"`
+	Creator      string         `json:"creator"`
+	White        *Player        `json:"white,omitempty"`
+	Black        *Player        `json:"black,omitempty"`
+	Moves        []MoveRec      `json:"moves"`
+	WhiteMs      int64          `json:"whiteMs"`
+	BlackMs      int64          `json:"blackMs"`
+	TurnAtMs     int64          `json:"turnAtMs"`
+	CreatedMs    int64          `json:"createdMs"`
+	StartedMs    int64          `json:"startedMs,omitempty"`
+	EndedMs      int64          `json:"endedMs,omitempty"`
+	DrawOffer    Side           `json:"drawOffer,omitempty"`
+	RematchOffer Side           `json:"rematchOffer,omitempty"`
+	RematchID    string         `json:"rematchId,omitempty"`
+	Chat         []ChatMsg      `json:"chat,omitempty"`
+	Rated        bool           `json:"rated,omitempty"`
+	RatingChange *RatingChanges `json:"ratingChange,omitempty"`
 }
 
 func (g *Game) stateLocked() []byte {
@@ -796,6 +807,7 @@ func (g *Game) stateLocked() []byte {
 		White: g.white, Black: g.black, Moves: g.moves, WhiteMs: g.ms[White], BlackMs: g.ms[Black],
 		TurnAtMs: g.turnAt.UnixMilli(), CreatedMs: g.created.UnixMilli(),
 		DrawOffer: g.drawOffer, RematchOffer: g.rematchOffer, RematchID: g.rematchID, Chat: g.chat,
+		Rated: g.rated, RatingChange: g.change,
 	}
 	if !g.started.IsZero() {
 		s.StartedMs = g.started.UnixMilli()
@@ -827,6 +839,8 @@ func restore(id string, now func() time.Time, state []byte) (*Game, error) {
 	}
 	g.drawOffer, g.rematchOffer, g.rematchID = s.DrawOffer, s.RematchOffer, s.RematchID
 	g.recorded = g.status == StatusEnded || g.status == StatusAborted
+	g.rated, g.change = s.Rated, s.RatingChange
+	g.rateDone = g.recorded // a game that ended before a restart is not rated again
 	for i, m := range s.Moves {
 		mv, ok := findMove(g.pos, m.UCI)
 		if !ok {

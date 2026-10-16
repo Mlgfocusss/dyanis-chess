@@ -40,6 +40,7 @@ const maxBotGames = 8
 // after is installed in every game; it runs with the game's lock held after
 // every change and must not block.
 func (h *Hub) after(g *Game) {
+	h.afterRating(g)
 	bs, bot := g.botSeat()
 	if bot == nil {
 		return

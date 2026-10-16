@@ -3,7 +3,7 @@ import { ChessboardDnDProvider, SparePiece } from "react-chessboard";
 import Icon from "../ui/Icon.jsx";
 import Segmented from "../ui/Segmented.jsx";
 import ThemedBoard from "../components/ThemedBoard.jsx";
-import { DEFAULTS, useSettings } from "./SettingsContext.jsx";
+import { defaultsOf, useSettings } from "./SettingsContext.jsx";
 import { playSound } from "../sound/sound.js";
 import {
   backgroundCss,
@@ -15,6 +15,8 @@ import {
   presets,
   soundThemes,
 } from "../themes/index.js";
+import GameplayPanel from "./GameplayPanel.jsx";
+import { Row, SaveBar, Switch } from "./controls.jsx";
 import "./settings.css";
 
 // A position with every kind of piece, for the preview board.
@@ -29,7 +31,7 @@ const TABS = [
 
 const SECTIONS = [
   { id: "board", label: "Доска и фигуры", icon: "board" },
-  { id: "play", label: "Игровой процесс", icon: "bot", soon: true },
+  { id: "play", label: "Игровой процесс", icon: "bot" },
   { id: "interface", label: "Интерфейс", icon: "review", soon: true },
   { id: "profile", label: "Профиль", icon: "online", soon: true },
   { id: "account", label: "Учётная запись", icon: "coach", soon: true },
@@ -39,6 +41,12 @@ export default function SettingsPage() {
   const { settings, save } = useSettings();
   const [draft, setDraft] = useState(settings);
   const [tab, setTab] = useState("boards");
+  // "#settings/play" opens the gameplay page
+  const [section, setSection] = useState(() => (window.location.hash.split("/")[1] === "play" ? "play" : "board"));
+  function openSection(id) {
+    setSection(id);
+    window.history.replaceState(null, "", id === "play" ? "#settings/play" : "#settings");
+  }
   const [justSaved, setJustSaved] = useState(false);
 
   const dirty = useMemo(() => JSON.stringify(draft) !== JSON.stringify(settings), [draft, settings]);
@@ -69,8 +77,9 @@ export default function SettingsPage() {
               key={s.id}
               type="button"
               disabled={s.soon}
-              className={`settings__menuitem${s.id === "board" ? " settings__menuitem--active" : ""}`}
-              aria-current={s.id === "board" ? "page" : undefined}
+              className={`settings__menuitem${s.id === section ? " settings__menuitem--active" : ""}`}
+              aria-current={s.id === section ? "page" : undefined}
+              onClick={() => openSection(s.id)}
             >
               <Icon name={s.icon} />
               <span>{s.label}</span>
@@ -79,6 +88,14 @@ export default function SettingsPage() {
           ))}
         </nav>
 
+        {section === "play" ? (
+          <section className="settings__body card">
+            <GameplayPanel draft={draft} set={set} dirty={dirty} justSaved={justSaved} onSave={onSave} onCancel={onCancel} />
+            <button type="button" className="settings__reset" onClick={() => set(defaultsOf(true))}>
+              Вернуть стандартные настройки игрового процесса
+            </button>
+          </section>
+        ) : (
         <ChessboardDnDProvider>
           <section className="settings__body card">
             <h2 className="settings__h">Доска и фигуры</h2>
@@ -219,11 +236,12 @@ export default function SettingsPage() {
             </Row>
 
             <SaveBar dirty={dirty} justSaved={justSaved} onSave={onSave} onCancel={onCancel} />
-            <button type="button" className="settings__reset" onClick={() => set({ ...DEFAULTS })}>
-              Вернуть стандартные настройки
+            <button type="button" className="settings__reset" onClick={() => set(defaultsOf(false))}>
+              Вернуть стандартные настройки доски
             </button>
           </section>
         </ChessboardDnDProvider>
+        )}
       </div>
     </div>
   );
@@ -416,50 +434,3 @@ function Hint({ children }) {
   return <p className="picker__hint">{children}</p>;
 }
 
-function Row({ title, hint, control, children }) {
-  return (
-    <div className="srow">
-      <div className="srow__head">
-        <div>
-          <h3 className="srow__title">{title}</h3>
-          {hint && <p className="srow__hint">{hint}</p>}
-        </div>
-        {control}
-      </div>
-      {children && <div className="srow__body">{children}</div>}
-    </div>
-  );
-}
-
-function Switch({ checked, onChange, label }) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      aria-label={label}
-      className={`switch${checked ? " switch--on" : ""}`}
-      onClick={() => onChange(!checked)}
-    >
-      <span className="switch__knob" />
-    </button>
-  );
-}
-
-function SaveBar({ dirty, justSaved, onSave, onCancel }) {
-  return (
-    <div className="savebar">
-      <button type="button" className="btn" onClick={onCancel} disabled={!dirty}>
-        Отмена
-      </button>
-      <button type="button" className="btn btn--primary" onClick={onSave} disabled={!dirty}>
-        Сохранить
-      </button>
-      {justSaved && !dirty && (
-        <span className="savebar__ok" role="status">
-          Сохранено
-        </span>
-      )}
-    </div>
-  );
-}

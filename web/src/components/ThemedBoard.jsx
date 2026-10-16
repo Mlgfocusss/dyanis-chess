@@ -4,6 +4,8 @@ import { useElementWidth } from "../hooks/useElementWidth.js";
 import { useSettings, ANIMATION_MS } from "../settings/SettingsContext.jsx";
 import { getBoardTheme, getPieceSet } from "../themes/index.js";
 import ClassBadge from "../review/ClassBadge.jsx";
+import PromotionPicker from "./PromotionPicker.jsx";
+import { pickerRunsUp } from "./promotion.js";
 
 const FILES = ["a", "b", "c", "d", "e", "f", "g", "h"];
 const GUTTER = 20; // width of the coordinate strip when coordinates sit outside
@@ -63,9 +65,10 @@ export function buildBoardProps(settings) {
   };
 }
 
-// What is drawn over single squares: a move-quality badge (top right corner)
-// and the dots that mark where the selected piece can go (a dot on an empty
-// square, a ring around a piece that can be taken). The square renderer is one
+// What is drawn over single squares: a move-quality badge (top right corner),
+// the dots that mark where the selected piece can go (a dot on an empty
+// square, a ring around a piece that can be taken) and the choice of the piece
+// for a promotion (on the square the pawn goes to). The square renderer is one
 // fixed component and reads what to draw from this context, so
 // react-chessboard does not rebuild its squares with every move.
 const OverlayCtx = createContext(null);
@@ -73,9 +76,11 @@ const OverlaySquare = forwardRef(function OverlaySquare({ children, square, styl
   const o = useContext(OverlayCtx);
   const b = o?.badge;
   const dot = o?.dots?.[square];
+  const promo = o?.promotion?.square === square ? o.promotion : null;
   return (
-    <div ref={ref} style={{ ...style, position: "relative" }}>
+    <div ref={ref} style={{ ...style, position: "relative", ...(promo ? { zIndex: 30 } : {}) }}>
       {children}
+      {promo && <PromotionPicker {...promo} />}
       {dot && <span className={`sq-${dot}`} />}
       {b && b.square === square && (
         <span className="sq-badge">
@@ -90,7 +95,8 @@ const OverlaySquare = forwardRef(function OverlaySquare({ children, square, styl
 // look and draws coordinates outside the board when asked to. Pass
 // `settings` to override the saved ones (settings page preview); every
 // other prop goes to react-chessboard. dots: { square: "dot" | "ring" }.
-export default function ThemedBoard({ settings: override, orientation = "white", badge, dots, ...rest }) {
+// promotion: { square, letters, side, onPick } opens the choice of the piece on that square.
+export default function ThemedBoard({ settings: override, orientation = "white", badge, dots, promotion, ...rest }) {
   const saved = useSettings().settings;
   const settings = override || saved;
   const [ref, width] = useElementWidth();
@@ -104,8 +110,19 @@ export default function ThemedBoard({ settings: override, orientation = "white",
 
   // badge: undefined = this board has none; null = none now; {square, cls} = draw it.
   const overlay = useMemo(
-    () => ({ badge: badge ? { ...badge, size: Math.max(22, Math.round((boardWidth / 8) * 0.44)) } : null, dots }),
-    [badge, dots, boardWidth]
+    () => ({
+      badge: badge ? { ...badge, size: Math.max(22, Math.round((boardWidth / 8) * 0.44)) } : null,
+      dots,
+      promotion: promotion
+        ? {
+            ...promotion,
+            size: Math.round(boardWidth / 8),
+            up: pickerRunsUp(promotion.square, orientation),
+            set: getPieceSet(settings.pieceSet),
+          }
+        : null,
+    }),
+    [badge, dots, promotion, boardWidth, orientation, settings.pieceSet]
   );
   const board = (
     <OverlayCtx.Provider value={overlay}>
@@ -113,7 +130,7 @@ export default function ThemedBoard({ settings: override, orientation = "white",
         boardWidth={boardWidth}
         boardOrientation={orientation}
         {...themeProps}
-        {...(badge !== undefined || dots !== undefined ? { customSquare: OverlaySquare } : {})}
+        {...(badge !== undefined || dots !== undefined || promotion !== undefined ? { customSquare: OverlaySquare } : {})}
         {...rest}
       />
     </OverlayCtx.Provider>

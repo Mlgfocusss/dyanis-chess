@@ -236,7 +236,7 @@ export default function ReviewView({ job, inline = false, orientation: startSide
           <Captured fen={curFen} side={topSide} />
         </div>
         <div className="review__boardrow">
-          <EvalBar winPct={ev.winPct} label={formatEval(ev)} flipped={orientation === "black"} dim={thinking} />
+          {settings.showEval && <EvalBar winPct={ev.winPct} label={formatEval(ev)} flipped={orientation === "black"} dim={thinking} />}
           <div className="review__board">
             <Board
               key={boardKey}
@@ -284,7 +284,7 @@ export default function ReviewView({ job, inline = false, orientation: startSide
         </div>
         {!branch && <p className="review__hint review__hint--pad">Можно ходить фигурами на доске: так вы проверите свою идею в этой позиции.</p>}
 
-        <EvalChart evals={evals} ply={branch ? branch.base : ply} keyPlies={keyPlies} onSelect={go} />
+        {settings.showEval && <EvalChart evals={evals} ply={branch ? branch.base : ply} keyPlies={keyPlies} onSelect={go} />}
       </div>
 
       <aside className="review__side">
@@ -302,7 +302,7 @@ export default function ReviewView({ job, inline = false, orientation: startSide
             <span className="review__hint">{branch ? "Позиция из партии, с которой начинается ваша ветка" : "Начальная позиция"}</span>
           )}
           <div className="review__line">
-            <b>{formatEval(ev)}</b>
+            {settings.showEval && <b>{formatEval(ev)}</b>}
             {thinking && <span className="review__thinking"> оцениваю…</span>}
             {ev.terminal ? (
               <span> {terminalText(ev.terminal)}</span>

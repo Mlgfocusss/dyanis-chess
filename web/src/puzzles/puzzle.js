@@ -39,6 +39,13 @@ export function squaresOf(uci) {
   return uci ? { from: uci.slice(0, 2), to: uci.slice(2, 4) } : null;
 }
 
+// "2026-10-16" as "16 октября" (the puzzle of the day changes at midnight UTC).
+export function dayLabel(date) {
+  const d = new Date(`${date}T00:00:00Z`);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleDateString("ru-RU", { day: "numeric", month: "long", timeZone: "UTC" });
+}
+
 // "+18" / "-12" / "0" for a change of rating.
 export function signed(n) {
   return n > 0 ? `+${n}` : n < 0 ? `−${-n}` : "0";

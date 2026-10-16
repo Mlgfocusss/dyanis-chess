@@ -127,6 +127,14 @@ func (s *Store) MergeUsers(ctx context.Context, from, to string) error {
 	if _, err := tx.ExecContext(ctx, "UPDATE IGNORE puzzle_ratings SET user_id = ? WHERE user_id = ?", to, from); err != nil {
 		return err
 	}
+	// Results of the puzzle of the day: on a day both accounts played, the target's stays.
+	if _, err := tx.ExecContext(ctx, "UPDATE IGNORE daily_puzzle_results SET user_id = ? WHERE user_id = ?", to, from); err != nil {
+		return err
+	}
+	// Repertoires (with their moves) move over as they are.
+	if _, err := tx.ExecContext(ctx, "UPDATE repertoires SET user_id = ? WHERE user_id = ?", to, from); err != nil {
+		return err
+	}
 	if _, err := tx.ExecContext(ctx, "DELETE FROM users WHERE id = ?", from); err != nil {
 		return err
 	}

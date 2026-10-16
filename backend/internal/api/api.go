@@ -195,6 +195,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("DELETE /api/analyses/{id}", s.remove)
 	mux.HandleFunc("GET /api/opening", s.opening)
 	mux.HandleFunc("POST /api/line", s.line)
+	mux.HandleFunc("POST /api/continuations", s.continuations)
 	mux.HandleFunc("GET /api/health", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	})

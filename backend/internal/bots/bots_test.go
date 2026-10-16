@@ -186,3 +186,26 @@ func TestChooseStopsWhenTheContextIsDone(t *testing.T) {
 		t.Error("expected the wait for a free slot to give up")
 	}
 }
+
+// The first bot has not been taught checkmate: a mate in one is just one more move to it.
+func TestTheFirstBotDoesNotKnowMate(t *testing.T) {
+	pos, _ := engine.ParseFEN("r1bqkb1r/pppp1ppp/2n2n2/4p2Q/2B1P3/8/PPPP1PPP/RNB1K1NR w KQkq - 4 4")
+	b, _ := Get("misha")
+	if !b.Params.NoMate {
+		t.Fatal("misha should be blind to mate")
+	}
+	rng := rand.New(rand.NewSource(3))
+	hits := 0
+	for i := 0; i < 60; i++ {
+		mv, err := b.Choose(context.Background(), pos, nil, 0, 0, rng)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if mv.String() == "h5f7" {
+			hits++
+		}
+	}
+	if hits > 15 {
+		t.Errorf("misha found Qxf7# %d times out of 60: it still sees the mate", hits)
+	}
+}

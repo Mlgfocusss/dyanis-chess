@@ -5,11 +5,11 @@
    under the heading (so it fits the screen without scrolling) and the side
    panels hold everything else. --board is the board's edge. */
 .play {
-  --board: min(calc(100vh - 250px), 900px);
+  --board: min(calc(100vh - 204px), 1400px);
   --panel: 360px;
-  padding: 20px 32px 40px;
+  padding: 12px 32px 12px;
 }
-.play__head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; margin-bottom: 18px; }
+.play__head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; margin-bottom: 8px; }
 
 .play__grid { display: grid; gap: 28px; align-items: start; }
 .board-wrap { width: 100%; }
@@ -22,7 +22,7 @@
 .play--side .play__side { grid-column: 2; grid-row: 1; }
 
 /* Board in the middle of the page: game record on the left, controls on the right. */
-.play--center { --board: clamp(360px, min(calc(100vh - 250px), calc(100vw - 264px - 64px - 2 * 300px - 56px)), 900px); }
+.play--center { --board: clamp(360px, min(calc(100vh - 204px), calc(100vw - 264px - 64px - 2 * 300px - 56px)), 1400px); }
 .play--center .play__grid { grid-template-columns: minmax(300px, 1fr) var(--board) minmax(300px, 1fr); }
 .play--center .play__board { grid-column: 2; grid-row: 1; width: 100%; }
 .play--center .play__left { grid-column: 1; grid-row: 1; justify-self: start; }

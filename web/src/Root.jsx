@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import App from "./App.jsx";
 import ReviewPage from "./review/ReviewPage.jsx";
 import SettingsPage from "./settings/SettingsPage.jsx";
@@ -7,14 +7,18 @@ import ProfilePage from "./profile/ProfilePage.jsx";
 import OnlinePage from "./online/OnlinePage.jsx";
 import BotsPage from "./bots/BotsPage.jsx";
 import PuzzlesPage from "./puzzles/PuzzlesPage.jsx";
+import RushPage from "./puzzles/RushPage.jsx";
+import DuelPage from "./puzzles/DuelPage.jsx";
+import OpeningsPage from "./openings/OpeningsPage.jsx";
 import AccountCard from "./auth/AccountCard.jsx";
 import { AuthProvider, useAuth } from "./auth/AuthContext.jsx";
-import { SettingsProvider } from "./settings/SettingsContext.jsx";
+import { SettingsProvider, useSettings } from "./settings/SettingsContext.jsx";
 import Icon from "./ui/Icon.jsx";
 import "./Root.css";
 
 // The menu, in order of how often it is wanted: play first (with the three
-// kinds of opponent), then puzzles, openings and lessons, then the review.
+// kinds of opponent), then puzzles (rated ones, by theme, the puzzle of the
+// day), openings and lessons, then the review.
 // Items marked soon are on the roadmap (WEB-PLAN.md) and shown disabled so the
 // shape of the product is visible. The profile sits at the bottom left, in the
 // account card (see auth/AccountCard.jsx).
@@ -29,16 +33,32 @@ const NAV = [
       { id: "play", label: "Играть против движка", icon: "bot" },
     ],
   },
-  { id: "puzzles", label: "Задачи", icon: "puzzles" },
-  { id: "openings", label: "Дебюты", icon: "openings", soon: true },
+  {
+    id: "puzzles-menu",
+    label: "Задачи",
+    icon: "puzzles",
+    children: [
+      { id: "puzzles", label: "Рейтинговые", icon: "puzzles" },
+      { id: "puzzles-themes", label: "По темам", icon: "list" },
+      { id: "puzzles-daily", label: "Задача дня", icon: "trophy" },
+      { id: "puzzles-rush", label: "Тактический штурм", icon: "bolt" },
+      { id: "puzzles-duel", label: "Тактическая дуэль", icon: "duel" },
+    ],
+  },
+  { id: "openings", label: "Дебюты", icon: "openings" },
   { id: "lessons", label: "Уроки", icon: "lessons", soon: true },
   { id: "review", label: "Разбор партии", icon: "review" },
   { id: "coach", label: "Тренер", icon: "coach", soon: true },
 ];
 const SETTINGS_ITEM = { id: "settings", label: "Настройки", icon: "sliders" };
-// Hides the menu and the panels so that only the board is left (see Root.css, .shell--focus).
-const FOCUS_ITEM = { id: "focus", label: "Доска в центре", icon: "expand" };
-const PAGES = ["review", "online", "bots", "play", "puzzles", "profile", "account", "settings"];
+const PAGES = ["review", "online", "bots", "play", "puzzles", "openings", "profile", "account", "settings"];
+// The puzzle pages share one page and differ in the hash: [page, hash] of a menu item.
+const SUB_PAGES = {
+  "puzzles-themes": ["puzzles", "puzzles/themes"],
+  "puzzles-daily": ["puzzles", "puzzles/daily"],
+  "puzzles-rush": ["puzzles", "puzzles/rush"],
+  "puzzles-duel": ["puzzles", "puzzles/duel"],
+};
 // Old addresses that moved.
 const ALIASES = { games: "profile" };
 
@@ -51,7 +71,20 @@ function initialPage() {
   return PAGES.includes(h) ? h : "review";
 }
 
-function Item({ it, active, onClick, open }) {
+// The menu item a page lights up: the puzzle tabs have their own.
+function menuId(page) {
+  if (page !== "puzzles") return page;
+  const part = window.location.hash.slice(1).split("/")[1];
+  return part === "themes" || part === "daily" || part === "rush" || part === "duel" ? `puzzles-${part}` : "puzzles";
+}
+
+// "rush" and "duel" are pages of their own inside the puzzle section (the address #puzzles/rush).
+function puzzleSection() {
+  const part = window.location.hash.slice(1).split("/")[1];
+  return part === "rush" || part === "duel" ? part : "";
+}
+
+function Item({ it, active, onClick, open, ...rest }) {
   return (
     <button
       type="button"
@@ -60,16 +93,30 @@ function Item({ it, active, onClick, open }) {
       disabled={it.soon}
       aria-current={active && !it.children ? "page" : undefined}
       aria-expanded={it.children ? !!open : undefined}
+      aria-haspopup={it.children ? "menu" : undefined}
+      {...rest}
     >
       <Icon name={it.icon} />
       <span className="nav__label">{it.label}</span>
       {it.soon && <span className="nav__soon">скоро</span>}
-      {it.children && <Icon name="chevron" size={16} className={"nav__chev" + (open ? " nav__chev--open" : "")} />}
+      {it.children && <Icon name="chevron" size={16} className="nav__chev" />}
     </button>
   );
 }
 
-function NavList({ items, page, select, className = "", open, setOpen }) {
+// A group of the menu is one button; its pages come out in a popup beside it while the pointer is
+// on the button or the popup (on a touch screen: after a tap). flyout is { id, top, by } or null.
+function NavList({ items, page, select, className = "", flyout, setFlyout }) {
+  const timer = useRef(null);
+  const show = (id, el, by) => {
+    clearTimeout(timer.current);
+    setFlyout((f) => (f && f.id === id && by === "hover" ? f : { id, top: Math.round(el.getBoundingClientRect().top), by }));
+  };
+  const hideSoon = () => {
+    clearTimeout(timer.current);
+    timer.current = setTimeout(() => setFlyout(null), 160);
+  };
+  useEffect(() => () => clearTimeout(timer.current), []);
   return (
     <ul className={"nav__list " + className}>
       {items.map((it) => {
@@ -81,16 +128,22 @@ function NavList({ items, page, select, className = "", open, setOpen }) {
             </li>
           );
         }
-        // A group: one button that opens a list of pages. It looks active while one of them is shown.
+        // It looks active while one of its pages is shown.
         const inside = it.children.some((c) => c.id === page);
+        const open = flyout?.id === it.id;
         return (
-          <li key={it.id} className="nav__group">
-            <Item it={it} active={inside} open={open} onClick={() => setOpen(!open)} />
+          <li key={it.id} className="nav__group" onMouseLeave={hideSoon} onMouseEnter={(e) => show(it.id, e.currentTarget, "hover")} data-flyout-group>
+            <Item
+              it={it}
+              active={inside}
+              open={open}
+              onClick={(e) => (open && flyout.by === "click" ? setFlyout(null) : show(it.id, e.currentTarget.parentElement, "click"))}
+            />
             {open && (
-              <ul className="nav__sub">
+              <ul className="nav__sub" role="menu" style={{ "--fly-top": flyout.top + "px" }}>
                 {it.children.map((c) => (
-                  <li key={c.id} className={c.soon ? "nav__soon-item" : undefined}>
-                    <Item it={c} active={page === c.id} onClick={() => select(c.id)} />
+                  <li key={c.id} className={c.soon ? "nav__soon-item" : undefined} role="none">
+                    <Item it={c} active={page === c.id} onClick={() => select(c.id)} role="menuitem" />
                   </li>
                 ))}
               </ul>
@@ -106,63 +159,78 @@ function NavList({ items, page, select, className = "", open, setOpen }) {
 // while a game is on (#online/<id>, #bots/<id>), not in their lobbies.
 function pageHasBoard(page) {
   if (page === "review" || page === "play" || page === "puzzles") return true;
+  if (page === "openings") return !!window.location.hash.slice(1).split("/")[1];
   if (page === "online" || page === "bots") return !!window.location.hash.slice(1).split("/")[1];
   return false;
 }
 
 function Shell() {
   const { user, authError } = useAuth();
+  const { settings, save } = useSettings();
   // A failed Google sign-in lands on the account page, where the reason is shown.
   const [page, setPage] = useState(() => (authError ? "account" : initialPage()));
 
-  // The play menu is open while one of its pages is shown, and can be opened by hand.
-  const [playOpen, setPlayOpen] = useState(() => ["online", "bots", "play"].includes(initialPage()));
-  const [focus, setFocus] = useState(false);
+  const [flyout, setFlyout] = useState(null); // the group whose pages are shown in a popup
   const [, redraw] = useState(0); // the hash alone can change what the page offers (a game opens)
+  const focus = settings.focusBoard;
+  const setFocus = (v) => save({ ...settings, focusBoard: v });
   function select(id) {
-    if (id === "focus") {
-      setFocus(true);
-      return;
-    }
-    setFocus(false);
-    setPage(id);
-    window.location.hash = id;
-    if (window.matchMedia("(max-width: 860px)").matches) setPlayOpen(false); // on the bar the list is a popup
+    setFlyout(null);
+    const [pg, hash] = SUB_PAGES[id] || [id, id];
+    setPage(pg);
+    window.location.hash = hash;
   }
 
   // Links such as <a href="#review/<id>"> change the hash without our help.
   useEffect(() => {
     const onHash = () => {
-      const p = initialPage();
-      setPage(p);
-      setFocus(false);
+      setPage(initialPage());
+      setFlyout(null);
       redraw((n) => n + 1);
-      if (p === "online" || p === "bots" || p === "play") setPlayOpen(true);
     };
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
 
-  // The desktop menu has the profile / sign-in card at the bottom; the narrow
-  // menu (a bar) gets this item instead.
+  // A press outside the menu closes the popup (on a touch screen there is no pointer leaving it).
+  useEffect(() => {
+    if (!flyout) return undefined;
+    const onDown = (e) => {
+      if (!e.target.closest("[data-flyout-group]")) setFlyout(null);
+    };
+    document.addEventListener("pointerdown", onDown);
+    return () => document.removeEventListener("pointerdown", onDown);
+  }, [flyout]);
+
+  const canFocus = pageHasBoard(page);
+  const focused = focus && canFocus;
   // Escape leaves the focus mode.
   useEffect(() => {
-    if (!focus) return undefined;
+    if (!focused) return undefined;
     const onKey = (e) => e.key === "Escape" && setFocus(false);
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [focus]);
-  const canFocus = pageHasBoard(page);
+    // setFocus only reads the settings at the moment of the key
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focused, settings]);
 
   const accountItem = user
     ? { id: "profile", label: "Профиль", icon: "user", mobileOnly: true }
     : { id: "account", label: "Войти", icon: "user", mobileOnly: true };
 
   return (
-    <div className={`shell${focus && canFocus ? " shell--focus" : ""}`}>
-      {focus && canFocus && (
-        <button type="button" className="focus-exit" onClick={() => setFocus(false)} title="Вернуть меню и панели (Esc)">
-          <Icon name="shrink" size={18} /> Выйти из режима доски
+    <div className={`shell${focused ? " shell--focus" : ""}`}>
+      {canFocus && (
+        <button
+          type="button"
+          className="focus-toggle"
+          onClick={() => setFocus(!focus)}
+          title={focus ? "Вернуть меню и панели (Esc)" : "Доска в центре: оставить только доску"}
+          aria-label={focus ? "Выйти из режима «Доска в центре»" : "Включить режим «Доска в центре»"}
+          aria-pressed={focus}
+        >
+          <Icon name={focus ? "shrink" : "expand"} size={20} />
+          <span className="focus-toggle__text">{focus ? "Показать меню" : "Доска в центре"}</span>
         </button>
       )}
       <nav className="nav" aria-label="Основное меню">
@@ -173,8 +241,8 @@ function Shell() {
           <span className="nav__name">Dyanis Chess</span>
         </div>
 
-        <NavList items={NAV} page={page} select={select} open={playOpen} setOpen={setPlayOpen} />
-        <NavList items={canFocus ? [FOCUS_ITEM, accountItem, SETTINGS_ITEM] : [accountItem, SETTINGS_ITEM]} page={page} select={select} className="nav__list--bottom" />
+        <NavList items={NAV} page={menuId(page)} select={select} flyout={flyout} setFlyout={setFlyout} />
+        <NavList items={[accountItem, SETTINGS_ITEM]} page={page} select={select} flyout={flyout} setFlyout={setFlyout} className="nav__list--bottom" />
         <AccountCard />
 
         <p className="nav__foot">
@@ -190,7 +258,8 @@ function Shell() {
         {page === "online" && <OnlinePage />}
         {page === "bots" && <BotsPage />}
         {page === "play" && <App />}
-        {page === "puzzles" && <PuzzlesPage />}
+        {page === "puzzles" && (puzzleSection() === "rush" ? <RushPage /> : puzzleSection() === "duel" ? <DuelPage /> : <PuzzlesPage />)}
+        {page === "openings" && <OpeningsPage />}
         {page === "account" && <AccountPage />}
         {page === "settings" && <SettingsPage />}
       </main>

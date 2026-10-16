@@ -1,0 +1,168 @@
+/* "Дебюты": the repertoire list, the builder and the trainer. The builder and the
+   trainer use the layout of the game room (.room, online/online.css). Tokens from index.css. */
+.openings--loading { color: var(--text-2); }
+.openings__empty, .openings__note { color: var(--muted); font-size: 0.9rem; }
+
+/* list */
+.replist { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; margin-bottom: 24px; }
+.repcard { padding: 18px 20px; display: flex; flex-direction: column; gap: 10px; }
+.repcard__head { display: flex; align-items: center; gap: 12px; }
+.repcard__head h2 { font-size: 1.1rem; font-weight: 700; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.repcard__del { background: none; border: 0; color: var(--muted); padding: 6px; border-radius: 6px; }
+.repcard__del:hover { color: var(--danger); background: var(--danger-soft); }
+.repcard__color { display: inline-block; width: 22px; height: 22px; flex: none; border-radius: 50%; border: 2px solid var(--border-strong); }
+.repcard__color--white { background: #f1f5f9; }
+.repcard__color--black { background: #0b1220; }
+.repcard__stats, .repcard__todo { color: var(--text-2); font-size: 0.9rem; }
+.repcard__todo { color: var(--text); font-weight: 500; }
+.repcard__actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
+.repcard__actions .btn { text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
+.repbar { height: 8px; border-radius: 4px; background: var(--surface-3); overflow: hidden; }
+.repbar__fill { height: 100%; background: var(--primary); transition: width 0.3s; }
+.repnew { padding: 20px; display: flex; flex-direction: column; gap: 12px; max-width: 520px; }
+.repnew h2 { font-size: 1.05rem; font-weight: 700; }
+
+/* import from PGN */
+.banner--ok { background: var(--primary-soft); border-color: rgba(52, 211, 153, 0.5); color: var(--text); }
+.banner--ok a { color: var(--primary); margin-left: 6px; }
+.pgnimport { padding: 18px 20px; display: flex; flex-direction: column; gap: 12px; max-width: 620px; }
+.pgnimport h2 { font-size: 1.05rem; font-weight: 700; }
+.pgnimport__file { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.pgnimport__name { color: var(--muted); font-size: 0.9rem; overflow-wrap: anywhere; }
+.pgnimport__text { font: 0.85rem/1.5 var(--mono); resize: vertical; min-height: 120px; }
+.pgnimport__actions { display: flex; gap: 8px; }
+.room__side .pgnimport { max-width: none; }
+.repcard__actions .btn--ghost { margin-left: auto; }
+
+/* builder and trainer */
+.openings__head { padding: 16px 18px; display: flex; flex-direction: column; gap: 8px; }
+.openings__back { color: var(--text-2); font-size: 0.88rem; display: inline-flex; align-items: center; gap: 6px; text-decoration: none; align-self: flex-start; }
+.openings__back:hover { color: var(--text); }
+.openings__title { font-size: 1.25rem; font-weight: 700; cursor: text; overflow-wrap: anywhere; }
+.openings__head .btn { text-decoration: none; display: inline-flex; align-items: center; gap: 6px; justify-content: center; }
+.openings__pos { padding: 16px 18px; display: flex; flex-direction: column; gap: 10px; }
+.openings__line { font: 0.9rem/1.5 var(--mono); color: var(--text-2); overflow-wrap: anywhere; }
+.openings__label { color: var(--muted); font-size: 0.85rem; margin-right: 4px; }
+.openings__children { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.openings__verdict { color: var(--text-2); font-size: 0.92rem; }
+.openings__verdict b { color: var(--text); font-family: var(--mono); }
+.openings__msg { color: var(--warn); font-size: 0.92rem; font-weight: 500; }
+.openings__msg--ok { color: var(--primary); }
+.openings__nav { display: flex; gap: 8px; margin-top: 10px; }
+.openings__nav button {
+  display: grid; place-items: center; min-width: 44px; height: 44px; border-radius: var(--radius-sm);
+  background: var(--surface-2); border: 1px solid var(--border); color: var(--text);
+}
+.openings__nav button:hover:not(:disabled) { background: var(--surface-3); }
+
+/* a move as a chip, coloured by how well it is learned */
+.repchip {
+  display: inline-flex; align-items: center; gap: 4px; background: var(--surface-2); border: 1px solid var(--border); color: var(--text);
+  border-radius: 6px; padding: 2px 9px; font: 600 0.9rem/1.6 var(--mono);
+}
+.repchip:hover { background: var(--surface-3); }
+.repchip--opponent { color: var(--text-2); font-weight: 500; }
+.repchip--new { border-color: rgba(96, 165, 250, 0.6); }
+.repchip--due { border-color: rgba(251, 191, 36, 0.8); background: rgba(251, 191, 36, 0.12); }
+.repchip--learning { border-color: rgba(163, 230, 53, 0.45); }
+.repchip--learned { border-color: rgba(52, 211, 153, 0.8); background: var(--primary-soft); }
+.repchip--on, .repchip--on:hover { box-shadow: 0 0 0 2px var(--info); }
+
+.openings__gaps, .openings__tree { padding: 16px 18px; display: flex; flex-direction: column; gap: 8px; }
+.openings__gaps h2, .openings__tree h2 { font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.gap { text-align: left; background: var(--surface-2); border: 1px solid rgba(251, 191, 36, 0.4); color: var(--text); border-radius: 6px; padding: 6px 10px; font: 0.88rem/1.4 var(--mono); }
+.gap:hover { background: var(--surface-3); }
+
+.openings__tree { max-height: 420px; overflow-y: auto; }
+.reptree { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 3px; }
+.reptree--nested { margin: 3px 0 0 14px; padding-left: 10px; border-left: 1px solid var(--border-strong); }
+.reptree__no { color: var(--muted); font-weight: 500; font-size: 0.8rem; }
+
+@media (max-width: 1180px) {
+  .openings .room__main { width: min(100%, calc(100vh - 160px)); margin: 0 auto; }
+}
+
+/* the list of suggested moves of the builder (Suggestions.jsx) */
+.openings__added { padding: 14px 18px; display: flex; flex-direction: column; gap: 10px; border-color: rgba(52, 211, 153, 0.5); }
+.openings__added p { line-height: 1.5; }
+.openings__added p .icon { vertical-align: -3px; margin-right: 4px; color: var(--primary); }
+.openings__added .room__row { flex-wrap: wrap; }
+.openings__added .room__row .btn { flex: 1 1 auto; padding: 0 12px; }
+.openings__added .btn { text-decoration: none; display: inline-flex; align-items: center; gap: 6px; justify-content: center; }
+.sugg { display: flex; flex-direction: column; gap: 10px; }
+.sugg__eval { display: flex; flex-direction: column; gap: 6px; }
+.sugg__bar { height: 8px; border-radius: 4px; background: #1e293b; overflow: hidden; }
+.sugg__barfill { height: 100%; background: #f1f5f9; transition: width 0.25s; }
+.sugg__evtext { color: var(--text-2); font-size: 0.9rem; }
+.sugg__evtext b { color: var(--text); font-family: var(--mono); }
+.sugg__title { font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.sugg__wait { text-transform: none; letter-spacing: 0; font-weight: 400; }
+.sugg__rows { display: flex; flex-direction: column; gap: 4px; }
+.sug {
+  display: grid; grid-template-columns: 46px minmax(0, 1fr) auto auto; gap: 10px; align-items: center; text-align: left; width: 100%;
+  background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px 10px; color: var(--text);
+}
+.sug:hover, .sug:focus-visible { background: var(--surface-3); border-color: var(--border-strong); }
+.sug--repo { border-color: rgba(52, 211, 153, 0.55); }
+.sug--weak { opacity: 0.7; }
+.sug--rare .sug__san { color: var(--text-2); }
+.sug__san { font: 700 1rem var(--mono); }
+.sug__mid { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.sug__pop { display: block; height: 4px; border-radius: 2px; background: var(--surface-3); overflow: hidden; }
+.sug__popfill { display: block; height: 100%; background: var(--info); }
+.sug__tags { display: flex; gap: 6px; align-items: center; font-size: 0.74rem; color: var(--muted); min-width: 0; white-space: nowrap; }
+.sug__tag { border: 1px solid var(--border-strong); border-radius: 999px; padding: 0 7px; line-height: 1.5; flex: none; }
+.sug__tag--repo { color: var(--primary); border-color: rgba(52, 211, 153, 0.6); }
+.sug__tag--engine { color: var(--info); border-color: rgba(96, 165, 250, 0.6); }
+.sug__tag--muted { color: var(--muted); }
+.sug__open { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1 1 auto; }
+.sug__ev { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; font-size: 0.82rem; min-width: 56px; }
+.sug__ev b { font-family: var(--mono); }
+.sug__pending { color: var(--muted); }
+.sug__loss { font-weight: 700; color: var(--text-2); }
+.sug__loss--warn { color: var(--warn); }
+.sug__loss--bad { color: var(--danger); }
+.sug__act { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 6px; background: var(--surface-3); color: var(--text-2); font-weight: 700; }
+.sug:hover .sug__act { background: var(--primary-soft); color: var(--primary); }
+.sugg__more { align-self: flex-start; }
+.sugg__error { color: var(--danger); }
+.sugg__note { color: var(--muted); font-size: 0.78rem; line-height: 1.4; }
+
+/* how a move that is not the learned one was judged (Trainer.jsx) */
+.openings__msg--fine { color: var(--info); }
+.openings__msg--inaccurate { color: var(--warn); }
+.openings__msg--blunder { color: var(--danger); font-weight: 600; }
+
+/* statistics of real games in the rows (Suggestions.jsx) */
+.sugg__head { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+.sugg__rating { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 0.8rem; }
+.sugg__rating select { width: auto; min-height: 32px; padding: 0 8px; font-size: 0.82rem; }
+.sugg__total { font-size: 0.82rem; }
+.sug__games { font-size: 0.8rem; color: var(--text-2); }
+.sug__games b { color: var(--text); font-family: var(--mono); }
+.sug__res { display: flex; height: 5px; border-radius: 3px; overflow: hidden; background: var(--surface-3); }
+.sug__w { background: #e2e8f0; }
+.sug__d { background: #64748b; }
+.sug__b { background: #0b1220; box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.3); }
+
+/* the games of the person against a repository (GamesReview.jsx) */
+.gamesrev { max-width: 980px; }
+.gamesrev__counts { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 16px; }
+.gamesrev__count { border: 1px solid var(--border-strong); border-radius: 999px; padding: 2px 12px; font-size: 0.85rem; color: var(--text-2); }
+.gamesrev__count--you-deviated { color: var(--warn); border-color: rgba(251, 191, 36, 0.6); }
+.gamesrev__count--opponent-deviated { color: var(--info); border-color: rgba(96, 165, 250, 0.6); }
+.gamesrev__count--in-book { color: var(--primary); border-color: rgba(52, 211, 153, 0.6); }
+.gamesrev__list { display: flex; flex-direction: column; gap: 12px; }
+.gamesrev__game { padding: 16px 18px; display: flex; flex-direction: column; gap: 8px; }
+.gamesrev__game--you-deviated { border-color: rgba(251, 191, 36, 0.5); }
+.gamesrev__game--opponent-deviated { border-color: rgba(96, 165, 250, 0.45); }
+.gamesrev__game--in-book { border-color: rgba(52, 211, 153, 0.45); }
+.gamesrev__head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.gamesrev__result { font-weight: 700; }
+.gamesrev__result--win { color: var(--primary); }
+.gamesrev__result--loss { color: var(--danger); }
+.gamesrev__who { color: var(--text); }
+.gamesrev__when { margin-left: auto; color: var(--muted); font-size: 0.85rem; }
+.gamesrev__text { font-weight: 500; line-height: 1.5; }
+.gamesrev .room__row { flex-wrap: wrap; }
+.gamesrev .room__row .btn { flex: 0 1 auto; padding: 0 14px; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; justify-content: center; }

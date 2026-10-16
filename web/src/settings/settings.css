@@ -118,3 +118,15 @@
   .settings__menuitem { white-space: nowrap; }
   .settings__body { padding: 20px 16px 24px; }
 }
+
+.settings__group {
+  margin: 30px 0 4px; padding-top: 18px; border-top: 1px solid var(--border); font-size: 1.05rem; font-weight: 700; letter-spacing: -0.01em;
+}
+.settings__group:first-of-type { border-top: 0; padding-top: 0; margin-top: 18px; }
+.srow--soon { opacity: 0.55; }
+.srow--soon .srow__title { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.limits { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.limits__label { color: var(--text-2); font-size: 0.9rem; }
+.limit { display: inline-flex; align-items: center; gap: 6px; }
+.limit__sign { font: 600 1.1rem var(--mono); color: var(--text-2); }
+.limit__input { width: 96px; min-height: 40px; text-align: center; }

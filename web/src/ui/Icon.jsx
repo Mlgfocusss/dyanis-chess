@@ -87,6 +87,8 @@ const PATHS = {
       <path d="M6 12v5c3 2.5 9 2.5 12 0v-5" />
     </>
   ),
+  bolt: <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />,
+  duel: <path d="M14.5 17.5 3 6V3h3l11.5 11.5M13 19l6-6M16 16l4 4M19 21l2-2M14.5 6.5 18 3h3v3l-3.5 3.5M5 14l4 4M7 17l-3 3M3 19l2 2" />,
   chevron: <path d="m6 9 6 6 6-6" />,
   flag: <path d="M4 22V4M4 4h13l-2 4 2 4H4" />,
   close: <path d="M18 6 6 18M6 6l12 12" />,

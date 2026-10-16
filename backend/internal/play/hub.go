@@ -16,6 +16,7 @@ import (
 	"github.com/coder/websocket"
 
 	"dyanis-chess/backend/internal/bots"
+	"dyanis-chess/backend/internal/ratings"
 	"dyanis-chess/backend/internal/store"
 )
 
@@ -44,6 +45,8 @@ type Config struct {
 	BotThink func(b *bots.Bot, rng *mrand.Rand) time.Duration
 	// Bot finds a bot by id; bots.Get unless a test supplies its own.
 	Bot func(id string) (*bots.Bot, bool)
+	// Ratings keeps the Glicko-2 ratings of rated games between people; nil: every game is casual.
+	Ratings Ratings
 	// AllowedOrigins are extra origin patterns the WebSocket accepts (the
 	// request's own host is always accepted).
 	AllowedOrigins []string
@@ -324,7 +327,8 @@ type createRequest struct {
 	Color  string `json:"color"` // "white", "black" or "random"
 	TimeMs int64  `json:"timeMs"`
 	IncMs  int64  `json:"incMs"`
-	Bot    string `json:"bot,omitempty"` // play against this bot instead of inviting a person
+	Bot    string `json:"bot,omitempty"`   // play against this bot instead of inviting a person
+	Rated  bool   `json:"rated,omitempty"` // counts for the rating of both people (needs a clock, not with a bot)
 }
 
 func (h *Hub) create(w http.ResponseWriter, r *http.Request) {
@@ -388,7 +392,16 @@ func (h *Hub) create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	g := newGame(newID(), h.cfg.Now, tc, playerOf(u), side)
+	if req.Rated && (tc.BaseMs == 0 || h.cfg.Ratings == nil) {
+		writeError(w, http.StatusBadRequest, errNotRatable.Error())
+		return
+	}
+	me := playerOf(u)
+	if req.Rated {
+		h.stamp(r.Context(), &me, ratings.CategoryFor(tc.BaseMs, tc.IncMs))
+	}
+	g := newGame(newID(), h.cfg.Now, tc, me, side)
+	g.rated = req.Rated
 	h.register(g)
 	g.mu.Lock()
 	g.changed() // saves it
@@ -434,7 +447,11 @@ func (h *Hub) join(w http.ResponseWriter, r *http.Request) {
 	if g == nil {
 		return
 	}
-	if err := g.Join(playerOf(u)); err != nil {
+	me := playerOf(u)
+	if g.isRated() {
+		h.stamp(r.Context(), &me, g.category())
+	}
+	if err := g.Join(me); err != nil {
 		writeError(w, http.StatusConflict, err.Error())
 		return
 	}
@@ -628,6 +645,9 @@ func (h *Hub) rematch(g *Game, uid string) error {
 	n, err := g.Rematch(uid, newID())
 	if err != nil || n == nil {
 		return err
+	}
+	if n.rated { // the ratings moved in the game just finished
+		n.white, n.black = h.refreshed(n.white, n.category()), h.refreshed(n.black, n.category())
 	}
 	h.register(n)
 	n.mu.Lock()

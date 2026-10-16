@@ -14,15 +14,19 @@ import Captured from "../components/Captured.jsx";
 import Chat from "./Chat.jsx";
 import { fetchPgn, inviteUrl, joinGame } from "./api.js";
 import { describeTC, formatClock } from "./clock.js";
+import { changeLine, ratingText } from "./rating.js";
+import { LOW_MS, beepDue } from "./lowtime.js";
+import { colourLetter, premoveToPlay } from "../components/boardrules.js";
 import { useClocks, useGame } from "./useGame.js";
 import "./online.css";
 
+const MAX_PREMOVES = 30; // how many premoves may wait
 const SIDE_NAME = { white: "белые", black: "чёрные" };
 const SIDE_GEN = { white: "белых", black: "чёрных" }; // "ход белых"
 const SIDE_INS = { white: "белыми", black: "чёрными" }; // "играете белыми"
 
-function PlayerBar({ player, side, ms, running, present, you, fen }) {
-  const low = running && ms !== null && ms < 20000;
+function PlayerBar({ player, side, ms, running, present, you, fen, warn }) {
+  const low = warn && running && ms !== null && ms < LOW_MS;
   return (
     <div className={`pbar${running ? " pbar--turn" : ""}`}>
       {player?.bot ? (
@@ -35,7 +39,7 @@ function PlayerBar({ player, side, ms, running, present, you, fen }) {
       <div className="pbar__who">
         <span className="pbar__name">
           {player ? player.name : "Ждём соперника…"}
-          {player?.elo ? <span className="pbar__elo"> ({player.elo})</span> : null}
+          {player?.elo ? <span className="pbar__elo"> ({ratingText(player.elo, player.prov)})</span> : null}
           {you && <span className="pbar__you">вы</span>}
         </span>
         <span className="pbar__sub">
@@ -155,6 +159,8 @@ export default function GameRoom({ id, backHash = "online", backLabel = "Нов�
   const clocks = useClocks(snap);
   const [showSummary, setShowSummary] = useState(true);
   const [confirmResign, setConfirmResign] = useState(false);
+  const [confirmDraw, setConfirmDraw] = useState(false);
+  const [pre, setPre] = useState([]); // premoves (uci) waiting their turn, played one by one
   const [reviewBusy, setReviewBusy] = useState(false);
   const [reviewError, setReviewError] = useState("");
   const [reviewPgn, setReviewPgn] = useState(null); // set: the analysis replaces the game screen
@@ -198,7 +204,57 @@ export default function GameRoom({ id, backHash = "online", backLabel = "Нов�
   // The summary opens again whenever a game ends (also after a rematch).
   const ended = game?.status === "ended";
   useEffect(() => setShowSummary(true), [ended, id]);
-  useEffect(() => setConfirmResign(false), [game?.status, moves.length]);
+  useEffect(() => {
+    setConfirmResign(false);
+    setConfirmDraw(false);
+  }, [game?.status, moves.length]);
+
+  // The first premove is played as soon as it is the person's turn, if it is legal then; the others
+  // wait for their turns. One that is not legal drops the whole queue (the later ones were chosen
+  // on a position that did not come about).
+  useEffect(() => {
+    if (!pre.length) return;
+    if (game?.status !== "playing") {
+      setPre([]);
+      return;
+    }
+    if (game.turn === you) {
+      const play = premoveToPlay(game.legal || [], pre[0]);
+      if (play) {
+        setPre(pre.slice(1));
+        send("move", { uci: play });
+      } else {
+        setPre([]);
+      }
+    }
+  }, [game?.status, game?.turn, moves.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // The warning of the clock: a beep at ten seconds and in each of the last three.
+  const myIdx = you === "white" ? 0 : you === "black" ? 1 : -1;
+  const mySec = clocks && myIdx >= 0 ? Math.ceil(clocks[myIdx] / 1000) : null;
+  const lastSec = useRef(null);
+  useEffect(() => {
+    const prev = lastSec.current;
+    lastSec.current = mySec;
+    if (prev === null || mySec === null) return;
+    if (settings.timeWarning && settings.sound && game?.status === "playing" && game.turn === you && beepDue(prev, mySec)) {
+      playSound("lowtime", settings.soundTheme);
+    }
+  }, [mySec]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // "Show the review after the game": it opens by itself once, when a game the person played has ended.
+  const autoOpened = useRef("");
+  useEffect(() => {
+    if (!settings.autoReview || game?.status !== "ended" || !you || moves.length < 2 || autoOpened.current === id) return;
+    autoOpened.current = id;
+    fetchPgn(id).then(
+      (pgn) => {
+        setReviewPgn(pgn);
+        setShowSummary(false);
+      },
+      () => {}
+    );
+  }, [settings.autoReview, game?.status, you, moves.length, id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Both agreed to a rematch: go to the new game.
   const nextId = game?.rematch?.id;
@@ -238,7 +294,7 @@ export default function GameRoom({ id, backHash = "online", backLabel = "Нов�
   const myTurn = playing && you && game.turn === you;
   // Someone about to join sees the board from the side they would play.
   const joinsAsBlack = !you && game.status === "waiting" && !!game.white;
-  const orientation = you === "black" || joinsAsBlack ? "black" : "white";
+  const orientation = settings.whiteBottom ? "white" : you === "black" || joinsAsBlack ? "black" : "white";
   const top = orientation === "white" ? "black" : "white";
   const bottom = orientation === "white" ? "white" : "black";
   const lastUci = moves.length ? moves[moves.length - 1].uci : "";
@@ -254,6 +310,7 @@ export default function GameRoom({ id, backHash = "online", backLabel = "Нов�
       present={present(side)}
       you={you === side}
       fen={game.fen}
+      warn={settings.timeWarning}
     />
   );
 
@@ -287,6 +344,12 @@ export default function GameRoom({ id, backHash = "online", backLabel = "Нов�
           ? `Бот побеждён! +${botMeta?.points ?? 0} очков`
           : "Победа засчитана. Очки за этого бота вы уже получали.";
     }
+  }
+  // What a rated game did to the rating of the person who played it.
+  if (!botSeat && ended && game.rated && you) {
+    const line = changeLine(game.ratingChange?.[you]);
+    if (line) reward = `Рейтинг. ${line}`;
+    else reward = game.ratingChange ? "Партия слишком короткая: рейтинг не изменился." : "Считаю рейтинг…";
   }
   // The bot's line: a greeting at the start, a remark at the end.
   let botLine = "";
@@ -330,6 +393,14 @@ export default function GameRoom({ id, backHash = "online", backLabel = "Нов�
               disabled={!myTurn}
               lastMove={lastMove}
               onPlayerMove={onPlayerMove}
+              confirmMove={settings.confirmMove && myTurn}
+              premove={{
+                enabled: settings.premoves && playing && !!you,
+                side: colourLetter(you),
+                queue: pre,
+                onSet: (uci) => setPre((q) => [...q, uci].slice(0, MAX_PREMOVES)),
+                onClear: () => setPre([]),
+              }}
             />
             {ended && showSummary && info && (
               <GameSummary
@@ -369,7 +440,7 @@ export default function GameRoom({ id, backHash = "online", backLabel = "Нов�
           <section className="card room__status">
             <p className="room__state">{statusLine}</p>
             <p className="room__meta">
-              Партия {describeTC(game.tc)}
+              {game.rated ? "Рейтинговая партия" : "Партия"} {describeTC(game.tc)}
               {game.presence.watching > 0 ? ` · смотрят: ${game.presence.watching}` : ""}
             </p>
             {game.opening && (
@@ -413,7 +484,23 @@ export default function GameRoom({ id, backHash = "online", backLabel = "Нов�
 
           {playing && you && (
             <section className="card room__actions">
-              {confirmResign ? (
+              {confirmDraw ? (
+                <div className="room__row">
+                  <button
+                    type="button"
+                    className="btn btn--primary"
+                    onClick={() => {
+                      setConfirmDraw(false);
+                      send("draw");
+                    }}
+                  >
+                    Да, предложить ничью
+                  </button>
+                  <button type="button" className="btn btn--ghost" onClick={() => setConfirmDraw(false)}>
+                    Нет
+                  </button>
+                </div>
+              ) : confirmResign ? (
                 <div className="room__row">
                   <button type="button" className="btn btn--danger" onClick={() => send("resign")}>
                     Да, сдаться
@@ -424,7 +511,7 @@ export default function GameRoom({ id, backHash = "online", backLabel = "Нов�
                 </div>
               ) : (
                 <div className="room__row">
-                  <button type="button" className="btn btn--danger-ghost" onClick={() => setConfirmResign(true)}>
+                  <button type="button" className="btn btn--danger-ghost" onClick={() => (settings.confirmGiveUp ? setConfirmResign(true) : send("resign"))}>
                     <Icon name="flag" size={16} /> Сдаться
                   </button>
                   {drawFromMe ? (
@@ -432,7 +519,7 @@ export default function GameRoom({ id, backHash = "online", backLabel = "Нов�
                       Отозвать ничью
                     </button>
                   ) : (
-                    <button type="button" className="btn" onClick={() => send("draw")} disabled={moves.length < 2}>
+                    <button type="button" className="btn" onClick={() => (settings.confirmGiveUp ? setConfirmDraw(true) : send("draw"))} disabled={moves.length < 2}>
                       Ничья
                     </button>
                   )}

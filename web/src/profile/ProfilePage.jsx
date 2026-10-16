@@ -4,6 +4,8 @@ import Avatar from "../auth/Avatar.jsx";
 import GamesPage from "../games/GamesPage.jsx";
 import BotAvatar from "../bots/BotAvatar.jsx";
 import { useBots } from "../bots/api.js";
+import { fetchRatings } from "../online/api.js";
+import { ratingText } from "../online/rating.js";
 import Icon from "../ui/Icon.jsx";
 import "./profile.css";
 
@@ -24,6 +26,42 @@ function memberSince(iso) {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime()) || d.getFullYear() < 2000) return "";
   return d.toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" });
+}
+
+// Glicko-2 ratings of games against people, one per kind of game.
+function RatingsOverview() {
+  const [list, setList] = useState(null);
+  useEffect(() => {
+    fetchRatings().then(setList, () => setList([]));
+  }, []);
+  if (!list || list.length === 0) return null;
+  return (
+    <section className="card profile__ratings">
+      <header>
+        <h2>Рейтинги</h2>
+        <span className="profile__hint">Партии с людьми, Glicko-2. «?» значит, что рейтинг ещё примерный.</span>
+      </header>
+      <ul className="profile__rlist">
+        {list.map((r) => (
+          <li key={r.category} className="profile__rating">
+            <span className="profile__rname">{r.name}</span>
+            <b className="profile__rvalue">{r.games ? ratingText(r.rating, r.provisional) : "—"}</b>
+            <span className="profile__rsub">
+              {r.games ? `партий ${r.games}: ${r.wins} / ${r.draws} / ${r.losses}` : "ещё не играли"}
+            </span>
+          </li>
+        ))}
+      </ul>
+      <div className="room__row">
+        <a className="btn btn--ghost" href="#online">
+          Играть онлайн
+        </a>
+        <a className="btn btn--ghost" href="#puzzles/duel">
+          Тактическая дуэль
+        </a>
+      </div>
+    </section>
+  );
 }
 
 // The overview: for now, how the person has done against the bots.
@@ -118,7 +156,12 @@ export default function ProfilePage() {
       </div>
 
       {tab === "games" && <GamesPage embedded />}
-      {tab === "overview" && <BotsOverview userId={user.id} />}
+      {tab === "overview" && (
+        <>
+          <RatingsOverview />
+          <BotsOverview userId={user.id} />
+        </>
+      )}
       {tab === "stats" && (
         <section className="card profile__soon">
           <h2>Статистика</h2>

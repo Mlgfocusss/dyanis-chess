@@ -1,10 +1,13 @@
 import { useEffect, useRef } from "react";
 import ClassBadge from "./ClassBadge.jsx";
+import { scrollWithin } from "../ui/scroll.js";
+import { useSettings } from "../settings/SettingsContext.jsx";
 
 function Cell({ move, active, onSelect }) {
   const ref = useRef(null);
+  const { settings } = useSettings();
   useEffect(() => {
-    if (active) ref.current?.scrollIntoView({ block: "nearest" });
+    if (active) scrollWithin(ref.current); // only the list, never the page
   }, [active]);
   if (!move) return <span className="move-cell move-cell--empty" />;
   return (
@@ -14,7 +17,7 @@ function Cell({ move, active, onSelect }) {
       className={`move-cell${active ? " move-cell--active" : ""}`}
       onClick={() => onSelect(move.ply)}
     >
-      <ClassBadge cls={move.class} />
+      {settings.moveIcons && <ClassBadge cls={move.class} />}
       <span className="move-cell__san">{move.san}</span>
     </button>
   );

@@ -10,9 +10,9 @@ import { soundKindForSan } from "../sound/kinds.js";
 // the server as well (User.settings), so the choice follows them to another
 // device: at sign-in the server's copy wins; a user who has none yet gets
 // this browser's settings uploaded.
-import { ANIMATION_MS, DEFAULTS, sanitize } from "./model.js";
+import { ANIMATION_MS, DEFAULTS, defaultsOf, sanitize } from "./model.js";
 
-export { ANIMATION_MS, DEFAULTS, sanitize };
+export { ANIMATION_MS, DEFAULTS, defaultsOf, sanitize };
 
 const KEY = "dyanis.settings.v1";
 

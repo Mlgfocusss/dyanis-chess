@@ -33,6 +33,7 @@ services:
       PUBLIC_URL: ${PUBLIC_URL:-http://localhost:8080}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      LICHESS_TOKEN: ${LICHESS_TOKEN:-}
     depends_on:
       db:
         condition: service_healthy

@@ -42,6 +42,9 @@ type Params struct {
 	Random float64
 	// MoveTime is the search time of a full search (Depth 0).
 	MoveTime time.Duration
+	// NoMate makes the bot blind to checkmate, like a child who has not been taught it: a move
+	// that mates is no better than any other, and a mate it walks into does not frighten it.
+	NoMate bool
 }
 
 // Bot is one opponent.
@@ -121,7 +124,7 @@ func (b *Bot) choose(pos *engine.Position, history []uint64, moves []engine.Move
 		h := append(history[:len(history):len(history)], child.Hash())
 		var s float64
 		if out := child.Outcome(h); out.Over {
-			if out.Checkmate {
+			if out.Checkmate && !p.NoMate {
 				s = mateCP
 			}
 		} else {
@@ -130,6 +133,9 @@ func (b *Bot) choose(pos *engine.Position, history []uint64, moves []engine.Move
 				return engine.Move{}, err
 			}
 			s = -float64(res.Score)
+			if p.NoMate && math.Abs(s) >= engine.MateScore-1000 {
+				s = 0 // a forced mate is just a number it cannot read
+			}
 			s = math.Max(-mateCP, math.Min(mateCP, s))
 			s += openingPrior(pos, m)
 		}

@@ -37,6 +37,19 @@ type Book struct {
 	// theory holds every position on any reference line, named or not:
 	// a line named at ply 9 passes through unnamed positions at plies 7 and 8.
 	theory map[uint64]struct{}
+	// through counts the reference lines that pass through each position: a
+	// rough measure of how much theory there is behind it (the main first moves
+	// have hundreds of lines, a rare one a handful).
+	through map[uint64]int
+}
+
+// Lines is the number of reference lines that pass through the position
+// (0 when it is not in the book).
+func (b *Book) Lines(hash uint64) int {
+	if b == nil {
+		return 0
+	}
+	return b.through[hash]
 }
 
 // Lookup returns the opening whose reference line ends in the position
@@ -80,7 +93,7 @@ var (
 // caught by this package's tests, not a runtime condition.
 func Default() *Book {
 	defaultOnce.Do(func() {
-		b := &Book{byHash: make(map[uint64]Opening, 4000), theory: make(map[uint64]struct{}, 12000)}
+		b := &Book{byHash: make(map[uint64]Opening, 4000), theory: make(map[uint64]struct{}, 12000), through: make(map[uint64]int, 12000)}
 		for _, letter := range []string{"a", "b", "c", "d", "e"} {
 			data, err := dataFS.ReadFile("data/" + letter + ".tsv")
 			if err != nil {
@@ -98,7 +111,7 @@ func Default() *Book {
 // Parse builds a book from TSV text in the lichess format
 // ("eco<TAB>name<TAB>pgn", first line a header).
 func Parse(tsv string) (*Book, error) {
-	b := &Book{byHash: make(map[uint64]Opening), theory: make(map[uint64]struct{})}
+	b := &Book{byHash: make(map[uint64]Opening), theory: make(map[uint64]struct{}), through: make(map[uint64]int)}
 	if err := b.load(tsv); err != nil {
 		return nil, err
 	}
@@ -131,9 +144,15 @@ func (b *Book) load(tsv string) error {
 		if err != nil {
 			return fmt.Errorf("line %d: %v", n, err)
 		}
+		seen := map[uint64]bool{}
 		for _, m := range g.Moves {
 			pos.Play(m.Move)
-			b.theory[pos.Hash()] = struct{}{}
+			h := pos.Hash()
+			b.theory[h] = struct{}{}
+			if !seen[h] { // a line that repeats a position counts once
+				seen[h] = true
+				b.through[h]++
+			}
 		}
 		o := Opening{ECO: f[0], Name: f[1], Plies: len(g.Moves)}
 		h := pos.Hash()

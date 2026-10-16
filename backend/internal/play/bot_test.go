@@ -298,7 +298,7 @@ func TestBeatingABotEarnsPointsOnce(t *testing.T) {
 		var created struct{ ID string }
 		json.Unmarshal(b, &created)
 		anna := dial(t, srv, "anna", created.ID)
-		strong, _ := bots.Get("viktor")
+		strong, _ := bots.Get("igor")
 		rng := mrand.New(mrand.NewSource(11))
 		deadline := time.Now().Add(60 * time.Second)
 		for time.Now().Before(deadline) {

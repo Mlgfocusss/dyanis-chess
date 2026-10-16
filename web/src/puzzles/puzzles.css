@@ -35,4 +35,41 @@
   font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted);
 }
 .puzzles__big { font: 700 2.2rem/1.2 var(--mono); font-variant-numeric: tabular-nums; margin: 4px 0; }
+.puzzles__tabs { margin-bottom: 0; flex-wrap: nowrap; }
+.puzzles__tabs .tabs__tab { padding: 0 11px; white-space: nowrap; }
+.puzzles__big--text { font: 700 1.4rem/1.3 var(--font); }
+.puzzles__daily { padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+.puzzles__daily h2 {
+  font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted);
+}
+.puzzles__daily .puzzles__big { margin: 0; }
 .puzzles__filter { padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; }
+
+/* the tactics storm */
+.rush__clock {
+  margin-left: auto; padding: 6px 14px; border-radius: var(--radius-sm); background: var(--surface-2);
+  font: 700 1.5rem/1.2 var(--mono); font-variant-numeric: tabular-nums; color: var(--text);
+}
+.rush__clock--low { color: var(--danger); }
+
+/* the puzzle duel */
+.duel__tabs { max-width: 420px; margin-bottom: 16px; }
+.duel__rules { margin: 0; padding-left: 20px; color: var(--text-2); display: flex; flex-direction: column; gap: 6px; max-width: 70ch; }
+.duelroom__score {
+  margin-left: auto; padding: 6px 16px; border-radius: var(--radius-sm); background: var(--primary-soft); color: var(--primary);
+  font: 700 1.6rem/1.2 var(--mono); font-variant-numeric: tabular-nums;
+}
+.duelroom__score--opp { background: var(--surface-2); color: var(--text); }
+.duelroom__cover {
+  position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+  background: rgba(8, 12, 20, 0.78); color: var(--text-2); border-radius: var(--radius-sm); z-index: 5;
+}
+.duelroom__count { font: 800 6rem/1 var(--mono); color: var(--text); }
+.duelroom__timer { display: flex; align-items: center; gap: 10px; font: 700 1.8rem/1.2 var(--mono); font-variant-numeric: tabular-nums; }
+.room__board { position: relative; }
+
+.puzzles__timer {
+  margin-left: auto; padding: 6px 14px; border-radius: var(--radius-sm); background: var(--surface-2);
+  font: 600 1.2rem/1.2 var(--mono); font-variant-numeric: tabular-nums; color: var(--text-2);
+}
+.puzzles__timer + .puzzles__rating { margin-left: 8px; }

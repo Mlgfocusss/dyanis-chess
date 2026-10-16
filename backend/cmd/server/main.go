@@ -23,8 +23,12 @@ import (
 
 	"dyanis-chess/backend/internal/api"
 	"dyanis-chess/backend/internal/auth"
+	"dyanis-chess/backend/internal/explorer"
+	"dyanis-chess/backend/internal/match"
 	"dyanis-chess/backend/internal/play"
 	"dyanis-chess/backend/internal/puzzles"
+	"dyanis-chess/backend/internal/ratings"
+	"dyanis-chess/backend/internal/repertoire"
 	"dyanis-chess/backend/internal/store"
 	"dyanis-chess/engine"
 )
@@ -52,7 +56,11 @@ func main() {
 	cfg := api.Config{DefaultDepth: *depth, MaxDepth: *maxDepth}
 	var accounts *auth.Service
 	var games *play.Hub
+	var rated *ratings.Service
+	var matcher *match.Service
 	var puzzleAPI *puzzles.Service
+	var repertoireAPI *repertoire.Service
+	var explorerAPI *explorer.Service
 	if *dsn != "" {
 		ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 		db, err := store.Open(ctx, *dsn, 60*time.Second)
@@ -75,9 +83,31 @@ func main() {
 			},
 		})
 		cfg.UserID = accounts.UserID
-		games = play.New(play.Config{Store: db, User: accounts.UserFromRequest})
+		rated = ratings.New(db, nil)
+		games = play.New(play.Config{Store: db, User: accounts.UserFromRequest, Ratings: rated})
 		defer games.Close()
-		puzzleAPI = puzzles.New(puzzles.Config{Store: db, UserID: accounts.UserID})
+		puzzleAPI = puzzles.New(puzzles.Config{Store: db, UserID: accounts.UserID, Ratings: rated})
+		// Matchmaking brings two people together for a game with a clock or a puzzle duel.
+		matcher = match.New(match.Config{
+			User:   accounts.UserFromRequest,
+			Rating: rated.Get,
+			Chess: func(ctx context.Context, a, b match.Seeker, req match.Request) (string, error) {
+				return games.NewMatched(ctx, play.Player{ID: a.ID, Name: a.Name, Avatar: a.Avatar}, play.Player{ID: b.ID, Name: b.Name, Avatar: b.Avatar},
+					play.TimeControl{BaseMs: req.BaseMs, IncMs: req.IncMs}, req.Rated)
+			},
+			Duel: func(ctx context.Context, a, b match.Seeker, _ match.Request) (string, error) {
+				return puzzleAPI.NewDuel(ctx, puzzles.DuelPlayer{ID: a.ID, Name: a.Name, Avatar: a.Avatar, Rating: a.Rating, Provisional: a.Provisional},
+					puzzles.DuelPlayer{ID: b.ID, Name: b.Name, Avatar: b.Avatar, Rating: b.Rating, Provisional: b.Provisional})
+			},
+		})
+		defer matcher.Close()
+		repertoireAPI = repertoire.New(repertoire.Config{Store: db, UserID: accounts.UserID})
+		// Statistics of the Lichess opening explorer for the repository builder. The
+		// explorer wants a token; the environment, not a flag, so that it stays out of process lists.
+		explorerAPI = explorer.New(explorer.Config{Token: os.Getenv("LICHESS_TOKEN"), UserID: accounts.UserID})
+		if os.Getenv("LICHESS_TOKEN") == "" {
+			log.Printf("no LICHESS_TOKEN: the repository builder shows no Lichess statistics (see README.md)")
+		}
 		if n, err := db.CountPuzzles(context.Background()); err == nil && n == 0 {
 			log.Printf("no puzzles yet: load them with backend/cmd/puzzleimport (see README.md)")
 		}
@@ -98,6 +128,12 @@ func main() {
 		mux.Handle("/api/games/", games.Handler())
 		mux.Handle("/api/bots", games.Handler())
 		mux.Handle("/api/puzzles/", puzzleAPI.Handler())
+		mux.Handle("/api/duels/", puzzleAPI.Handler())
+		mux.Handle("/api/match/", matcher.Handler())
+		mux.Handle("/api/ratings", rated.Handler(accounts.UserID))
+		mux.Handle("/api/repertoires", repertoireAPI.Handler())
+		mux.Handle("/api/repertoires/", repertoireAPI.Handler())
+		mux.Handle("/api/explorer", explorerAPI.Handler())
 	}
 	if *static != "" {
 		mux.Handle("/", spa(*static))

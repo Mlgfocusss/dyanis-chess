@@ -3,7 +3,8 @@
 // Parse understands what real-world PGN files (lichess, chess.com,
 // ChessBase exports) contain: the seven-tag roster plus any extra tags,
 // SAN movetext with "{...}" and ";..." comments, NAG codes ($1, !?),
-// nested "(...)" variations (skipped — only the main line is kept),
+// nested "(...)" variations (Parse keeps only the main line; ParseTrees,
+// in tree.go, keeps them all),
 // "%" escape lines, the "[%clk h:mm:ss]" clock annotations both sites
 // embed in comments, a custom start position via the FEN/SetUp tags,
 // and several games per file. Every move is resolved against the real
@@ -95,11 +96,14 @@ func ParseOne(s string) (*Game, error) {
 
 // Parse reads every game from r. On the first malformed game it
 // returns the games read before it together with a *ParseError.
-func Parse(r io.Reader) ([]*Game, error) {
+func Parse(r io.Reader) ([]*Game, error) { return scanGames(r, buildGame) }
+
+// scanGames cuts the input into games (tag lines and movetext) and builds each with build.
+func scanGames[T any](r io.Reader, build func(idx int, tagLines []string, movetext string) (T, error)) ([]T, error) {
 	sc := bufio.NewScanner(r)
 	sc.Buffer(make([]byte, 1<<20), 16<<20)
 
-	var games []*Game
+	var games []T
 	var tags []string // raw tag lines of the game being collected
 	var text strings.Builder
 	inMoves := false
@@ -108,7 +112,7 @@ func Parse(r io.Reader) ([]*Game, error) {
 		if len(tags) == 0 && strings.TrimSpace(text.String()) == "" {
 			return nil
 		}
-		g, err := buildGame(len(games)+1, tags, text.String())
+		g, err := build(len(games)+1, tags, text.String())
 		tags, inMoves = nil, false
 		text.Reset()
 		if err != nil {
@@ -280,6 +284,8 @@ const (
 	tokMove tokKind = iota
 	tokComment
 	tokResult
+	tokOpen  // "(" of a variation (only with variations)
+	tokClose // ")"
 )
 
 type token struct {
@@ -289,7 +295,11 @@ type token struct {
 
 // tokenize splits movetext into SAN moves, comments and the result
 // marker, discarding move numbers, NAGs and variations.
-func tokenize(s string) ([]token, error) {
+func tokenize(s string) ([]token, error) { return tokenizeOpt(s, false) }
+
+// tokenizeOpt is tokenize; with variations the "(" and ")" of variations are tokens and what
+// is inside them is read like the main line.
+func tokenizeOpt(s string, variations bool) ([]token, error) {
 	var out []token
 	depth := 0 // variation nesting
 	i := 0
@@ -303,7 +313,7 @@ func tokenize(s string) ([]token, error) {
 			if j < 0 {
 				return nil, fmt.Errorf("unterminated { comment")
 			}
-			if depth == 0 {
+			if depth == 0 || variations {
 				out = append(out, token{tokComment, s[i+1 : i+j]})
 			}
 			i += j + 1
@@ -312,18 +322,24 @@ func tokenize(s string) ([]token, error) {
 			if j < 0 {
 				j = len(s) - i
 			}
-			if depth == 0 {
+			if depth == 0 || variations {
 				out = append(out, token{tokComment, s[i+1 : i+j]})
 			}
 			i += j
 		case c == '(':
 			depth++
+			if variations {
+				out = append(out, token{tokOpen, "("})
+			}
 			i++
 		case c == ')':
 			if depth == 0 {
 				return nil, fmt.Errorf("unbalanced )")
 			}
 			depth--
+			if variations {
+				out = append(out, token{tokClose, ")"})
+			}
 			i++
 		default:
 			j := i
@@ -332,7 +348,7 @@ func tokenize(s string) ([]token, error) {
 			}
 			word := s[i:j]
 			i = j
-			if depth > 0 {
+			if depth > 0 && !variations {
 				continue
 			}
 			switch word {

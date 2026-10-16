@@ -77,22 +77,24 @@
   .page { padding: 18px 16px 40px; }
 }
 
-/* the "Играть" group: a button that opens a list of pages */
+/* a group of the menu: a button whose pages come out in a popup beside the menu */
 .nav__group { position: relative; }
-.nav__chev { margin-left: auto; transition: transform 0.15s; }
-.nav__chev--open { transform: rotate(180deg); }
-.nav__sub { list-style: none; margin: 2px 0 4px; padding: 0 0 0 6px; display: flex; flex-direction: column; gap: 2px; }
-.nav__sub .nav__item { min-height: 40px; font-size: 0.9rem; gap: 10px; padding: 0 10px; }
+.nav__chev { margin-left: auto; transform: rotate(-90deg); opacity: 0.7; }
+.nav__sub {
+  list-style: none; margin: 0; padding: 6px; display: flex; flex-direction: column; gap: 2px;
+  position: fixed; left: 258px; top: var(--fly-top, 0); z-index: 30; min-width: 232px;
+  background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--radius); box-shadow: var(--shadow);
+}
+/* a bridge over the gap between the button and the popup, so that the pointer does not leave */
+.nav__sub::before { content: ""; position: absolute; left: -12px; top: 0; bottom: 0; width: 12px; }
+.nav__sub .nav__item { min-height: 42px; font-size: 0.92rem; gap: 10px; padding: 0 12px; white-space: nowrap; }
 .nav__sub .nav__item .icon { width: 18px; height: 18px; }
 
 @media (max-width: 860px) {
   /* on the bar the list opens upward as a popup */
   .nav__group { position: static; }
-  .nav__sub {
-    position: fixed; left: 8px; right: 8px; bottom: calc(64px + env(safe-area-inset-bottom)); z-index: 30;
-    margin: 0; padding: 8px; background: var(--surface); border: 1px solid var(--border-strong);
-    border-radius: var(--radius); box-shadow: var(--shadow);
-  }
+  .nav__sub { left: 8px; right: 8px; top: auto; bottom: calc(64px + env(safe-area-inset-bottom)); padding: 8px; }
+  .nav__sub::before { display: none; }
   .nav__sub .nav__item { flex-direction: row; justify-content: flex-start; gap: 12px; min-height: 48px; text-align: left; padding: 0 12px; }
   .nav__sub .nav__label { font-size: 0.95rem; }
   .nav__sub .nav__soon-item { display: block; }
@@ -101,12 +103,20 @@
 .nav__sub .nav__soon { font-size: 0.6rem; padding: 0 5px; }
 
 /* Focus mode ("Доска в центре"): the menu and every panel are hidden, the board is centred and as big as the window allows. */
-.focus-exit {
-  position: fixed; top: 12px; right: 16px; z-index: 40; display: inline-flex; align-items: center; gap: 8px;
-  min-height: 40px; padding: 0 14px; border-radius: var(--radius-sm); background: var(--surface-2);
-  border: 1px solid var(--border-strong); color: var(--text-2); font-weight: 500; box-shadow: var(--shadow);
+.focus-toggle {
+  position: fixed; right: 18px; bottom: 18px; z-index: 40; display: inline-flex; align-items: center; gap: 8px;
+  min-height: 42px; padding: 0 16px 0 13px; border-radius: 999px; background: var(--surface-2);
+  border: 1px solid var(--border-strong); color: var(--text); font-weight: 500; font-size: 0.9rem;
+  box-shadow: var(--shadow); transition: background 0.15s, color 0.15s;
 }
-.focus-exit:hover { background: var(--surface-3); color: var(--text); }
+.focus-toggle:hover { background: var(--surface-3); }
+.shell--focus .focus-toggle { opacity: 0.6; }
+.shell--focus .focus-toggle:hover, .shell--focus .focus-toggle:focus-visible { opacity: 1; }
+@media (max-width: 860px) {
+  .focus-toggle { bottom: 78px; right: 12px; padding: 0 12px; }
+  .focus-toggle__text { display: none; }
+  .shell--focus .focus-toggle { bottom: 18px; }
+}
 .shell--focus .nav { display: none; }
 .shell--focus .main { margin-left: 0; padding-bottom: 0; }
 .shell--focus .room__side,
@@ -116,9 +126,15 @@
 .shell--focus .review__side,
 .shell--focus .review__hint--pad,
 .shell--focus .eval-chart { display: none !important; }
-.shell--focus .room { --board: min(calc(100vh - 205px), calc(100vw - 80px), 1100px); padding-top: 16px; }
-.shell--focus .play { --board: min(calc(100vh - 175px), calc(100vw - 80px), 1100px); padding-top: 16px; }
-.shell--focus .review { --board: min(calc(100vh - 215px), calc(100vw - 140px), 1100px); padding-top: 16px; }
+/* the board takes the height of the window less two slim player bars (about 112px), as on chess.com */
+.shell--focus .room, .shell--focus .play { --board: min(calc(100vh - 112px), calc(100vw - 40px), 1800px); padding: 6px 16px; }
+.shell--focus .room { --board: min(calc(100vh - 122px), calc(100vw - 40px), 1800px); } /* its top bar is a little taller */
+.shell--focus .review { --board: min(calc(100vh - 160px), calc(100vw - 110px), 1800px); }
+.shell--focus .page__bar { display: none; }
+.shell--focus .page--stage { padding: 8px 16px; }
+.shell--focus .pbar { padding: 2px 4px; gap: 10px; }
+.shell--focus .review__nav { margin-top: 8px; margin-bottom: 4px; }
+.shell--focus .review__players { padding-top: 0; padding-bottom: 4px; }
 .shell--focus .room__grid,
 .shell--focus .play__grid,
 .shell--focus .review { grid-template-columns: minmax(0, 1fr) !important; }

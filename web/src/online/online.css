@@ -19,9 +19,10 @@
 
 /* ---- game room ---- */
 .room {
-  --board: min(calc(100vh - 215px), 900px);
+  /* the board takes the height of the window less what is around it: the page's padding and two player bars (about 140px) */
+  --board: min(calc(100vh - 148px), 1400px);
   --panel: 360px;
-  padding: 20px 32px 40px;
+  padding: 12px 32px 12px;
 }
 .room--loading { color: var(--text-2); }
 .room__net { max-width: 1200px; margin: 0 auto 12px; }
@@ -42,7 +43,7 @@
 .room__moves h2 { font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin-bottom: 8px; }
 
 /* player bars with the clock */
-.pbar { display: flex; align-items: center; gap: 12px; padding: 6px 4px; }
+.pbar { display: flex; align-items: center; gap: 12px; padding: 4px 4px; }
 .pbar__empty { width: 36px; height: 36px; border-radius: 50%; border: 2px dashed var(--border-strong); flex: none; }
 .pbar__who { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .pbar__name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -99,3 +100,32 @@
 .chat__time { color: var(--muted); font-size: 0.75rem; margin-right: 6px; }
 .chat__form { display: flex; gap: 8px; }
 .chat__form .field { flex: 1; min-width: 0; }
+
+/* quick game: matchmaking */
+.lobby__ratings { display: flex; gap: 10px; flex-wrap: wrap; }
+.lobby__rating {
+  padding: 5px 12px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--border);
+  color: var(--text-2); font-size: 0.88rem;
+}
+.lobby__rating b { color: var(--text); font-variant-numeric: tabular-nums; margin-left: 4px; }
+.chip--big { min-width: 88px; min-height: 46px; font-size: 1rem; font-weight: 600; }
+.lobby__search {
+  display: flex; align-items: center; gap: 16px; width: 100%; padding: 14px 16px; border-radius: var(--radius-sm);
+  background: var(--surface-2); border: 1px solid var(--border);
+}
+.lobby__search > div { flex: 1; }
+.lobby__searching { font-weight: 600; }
+.lobby__spin {
+  width: 22px; height: 22px; border-radius: 50%; border: 3px solid var(--border-strong); border-top-color: var(--primary);
+  animation: lobby-spin 0.9s linear infinite;
+}
+@keyframes lobby-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .lobby__spin { animation-duration: 3s; } }
+.pbar__elo { color: var(--muted); font-weight: 500; }
+
+/* a move waiting for confirmation (components/Board.jsx) */
+.board-wrap { position: relative; }
+.board-confirm {
+  position: absolute; left: 50%; top: calc(100% + 6px); transform: translateX(-50%); z-index: 20; display: flex; gap: 8px;
+  padding: 8px; border-radius: var(--radius); background: var(--surface); border: 1px solid var(--border-strong); box-shadow: var(--shadow);
+}

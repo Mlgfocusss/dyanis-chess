@@ -3,10 +3,12 @@ package puzzles
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"dyanis-chess/backend/internal/store"
 )
@@ -111,6 +113,14 @@ type fakeStore struct {
 	rating   store.PuzzleRating
 	recorded []bool
 	tried    bool
+	// the puzzle of the day
+	dailySeeds  []uint64
+	attemptSolv bool
+	attempted   bool
+	noDaily     bool
+	dailyLog    []string // "<day> <puzzle> <solved>" of each write
+	rush        []string // "<mode> <score>" of each finished run
+	duels       []*store.DuelRow
 }
 
 func (f *fakeStore) PuzzleByID(_ context.Context, id string) (*store.Puzzle, error) {
@@ -130,6 +140,40 @@ func (f *fakeStore) PickPuzzle(_ context.Context, _, theme string, lo, hi int, s
 		return nil, store.ErrNotFound
 	}
 	return f.puzzle, nil
+}
+
+func (f *fakeStore) DailyPuzzle(_ context.Context, lo, hi, minPop int, seed uint64) (*store.Puzzle, error) {
+	if f.noDaily || lo != 1400 || hi != 1800 || minPop != 90 {
+		return nil, store.ErrNotFound
+	}
+	f.dailySeeds = append(f.dailySeeds, seed)
+	return f.puzzle, nil
+}
+
+func (f *fakeStore) DailyPuzzleResult(context.Context, string, string) (bool, bool, error) {
+	return f.attempted, f.attemptSolv, nil
+}
+
+func (f *fakeStore) RecordDailyPuzzle(_ context.Context, _, day, puzzleID string, solved bool) error {
+	f.dailyLog = append(f.dailyLog, fmt.Sprintf("%s %s %v", day, puzzleID, solved))
+	if !f.attempted { // the first try of the day counts
+		f.attempted, f.attemptSolv = true, solved
+	}
+	return nil
+}
+
+func (f *fakeStore) RecordRush(_ context.Context, _, mode string, score int) error {
+	f.rush = append(f.rush, fmt.Sprintf("%s %d", mode, score))
+	return nil
+}
+
+func (f *fakeStore) RushBests(context.Context, string) (map[string]store.RushBest, error) {
+	return map[string]store.RushBest{"3min": {Best: 12, Runs: 2}}, nil
+}
+
+func (f *fakeStore) SaveDuel(_ context.Context, d *store.DuelRow) error {
+	f.duels = append(f.duels, d)
+	return nil
 }
 
 func (f *fakeStore) PuzzleThemes(context.Context) ([]store.ThemeCount, error) {
@@ -255,6 +299,98 @@ func TestResult(t *testing.T) {
 	}
 	if rec := do(h, "POST", "/api/puzzles/00008/result", `not json`); rec.Code != 400 {
 		t.Errorf("bad body: %d", rec.Code)
+	}
+}
+
+func TestDaily(t *testing.T) {
+	day := time.Date(2026, 10, 16, 23, 59, 0, 0, time.UTC)
+	f := &fakeStore{
+		puzzle: &store.Puzzle{ID: "00008", FEN: fen00008, Moves: moves00008, Rating: 1600, Popularity: 95, Plays: 100, Themes: "crushing"},
+		rating: store.PuzzleRating{Rating: 1200, Attempts: 30, Solved: 20},
+	}
+	h := New(Config{Store: f, UserID: func(*http.Request) string { return "u1" }, Now: func() time.Time { return day }}).Handler()
+	type resp struct {
+		Puzzle struct{ ID string }
+		Daily  *DailyInfo
+	}
+	get := func() resp {
+		t.Helper()
+		rec := do(h, "GET", "/api/puzzles/daily", "")
+		if rec.Code != 200 {
+			t.Fatalf("%d %s", rec.Code, rec.Body)
+		}
+		var got resp
+		if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+			t.Fatal(err)
+		}
+		return got
+	}
+	got := get()
+	if got.Puzzle.ID != "00008" || got.Daily == nil || got.Daily.Date != "2026-10-16" || got.Daily.Status != "new" {
+		t.Errorf("daily: %+v", got)
+	}
+	get()
+	if len(f.dailySeeds) != 1 {
+		t.Errorf("the day's puzzle was picked %d times, once is enough", len(f.dailySeeds))
+	}
+	// Dates give different seeds, the same date the same seed.
+	if dailySeed("2026-10-16") == dailySeed("2026-10-17") || dailySeed("2026-10-16") != dailySeed("2026-10-16") {
+		t.Error("seeds do not follow the date")
+	}
+	// Midnight UTC: a new day picks again.
+	day = day.Add(2 * time.Minute)
+	if got := get(); got.Daily.Date != "2026-10-17" || len(f.dailySeeds) != 2 {
+		t.Errorf("next day: %+v, picks %d", got.Daily, len(f.dailySeeds))
+	}
+	// How the person did.
+	f.attempted, f.attemptSolv = true, true
+	if got := get(); got.Daily.Status != "solved" {
+		t.Errorf("solved: %+v", got.Daily)
+	}
+	f.attemptSolv = false
+	if got := get(); got.Daily.Status != "failed" {
+		t.Errorf("failed: %+v", got.Daily)
+	}
+	f.noDaily = true
+	f.dailySeeds = nil
+	day = day.Add(24 * time.Hour)
+	if rec := do(h, "GET", "/api/puzzles/daily", ""); rec.Code != 404 {
+		t.Errorf("no suitable puzzle: %d", rec.Code)
+	}
+}
+
+func TestDailyResultIsPractice(t *testing.T) {
+	f, h := newTest("u1")
+	f.rating = store.PuzzleRating{Rating: 1200, Attempts: 30, Solved: 20}
+	rec := do(h, "POST", "/api/puzzles/daily/result", `{"solved":true}`)
+	if rec.Code != 200 || !strings.Contains(rec.Body.String(), `"status":"solved"`) {
+		t.Fatalf("%d %s", rec.Code, rec.Body)
+	}
+	if len(f.dailyLog) != 1 || !strings.HasSuffix(f.dailyLog[0], " 00008 true") {
+		t.Errorf("recorded: %v", f.dailyLog)
+	}
+	if len(f.recorded) != 0 {
+		t.Errorf("the puzzle of the day moved the rating: %v", f.recorded)
+	}
+	// A second report of the same day does not change the first.
+	rec = do(h, "POST", "/api/puzzles/daily/result", `{"solved":false}`)
+	if !strings.Contains(rec.Body.String(), `"status":"solved"`) {
+		t.Errorf("second try: %s", rec.Body)
+	}
+	if rec := do(h, "POST", "/api/puzzles/daily/result", `oops`); rec.Code != 400 {
+		t.Errorf("bad body: %d", rec.Code)
+	}
+	_, anon := newTest("")
+	if rec := do(anon, "POST", "/api/puzzles/daily/result", `{"solved":true}`); rec.Code != 401 {
+		t.Errorf("nobody signed in: %d", rec.Code)
+	}
+}
+
+func TestDailyForNobody(t *testing.T) {
+	_, h := newTest("")
+	rec := do(h, "GET", "/api/puzzles/daily", "")
+	if rec.Code != 200 || strings.Contains(rec.Body.String(), `"you"`) || !strings.Contains(rec.Body.String(), `"status":"new"`) {
+		t.Fatalf("%d %s", rec.Code, rec.Body)
 	}
 }
 

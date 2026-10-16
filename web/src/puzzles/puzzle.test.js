@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { hintSquare, judgeMove, legalFor, signed, squaresOf } from "./puzzle.js";
+import { dayLabel, hintSquare, judgeMove, legalFor, signed, squaresOf } from "./puzzle.js";
 
 const puzzle = {
   steps: [
@@ -38,4 +38,10 @@ test("helpers", () => {
   assert.equal(signed(18), "+18");
   assert.equal(signed(-12), "−12");
   assert.equal(signed(0), "0");
+});
+
+test("dayLabel names the day in Russian", () => {
+  assert.equal(dayLabel("2026-10-16"), "16 октября");
+  assert.equal(dayLabel("2026-01-01"), "1 января");
+  assert.equal(dayLabel("nonsense"), "");
 });

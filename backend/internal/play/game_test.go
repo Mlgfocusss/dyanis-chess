@@ -522,3 +522,27 @@ func TestClocksFreezeWhenTheGameEnds(t *testing.T) {
 		t.Errorf("clocks after resignation: %+v", c)
 	}
 }
+
+// The browser lets the person choose the piece for a promotion, so every one of the
+// four moves has to be found, and a promotion without a piece is no move.
+func TestFindMoveAllPromotions(t *testing.T) {
+	pos, err := engine.ParseFEN("8/4P1k1/8/8/8/8/8/4K3 w - - 0 1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, u := range []string{"e7e8q", "e7e8r", "e7e8b", "e7e8n"} {
+		m, ok := findMove(pos, u)
+		if !ok {
+			t.Errorf("%s not found", u)
+			continue
+		}
+		after := pos.Copy()
+		after.Play(m)
+		if !strings.Contains(after.FEN(), map[string]string{"q": "Q", "r": "R", "b": "B", "n": "N"}[u[4:]]) {
+			t.Errorf("%s: %s", u, after.FEN())
+		}
+	}
+	if _, ok := findMove(pos, "e7e8"); ok {
+		t.Error("a promotion without a piece was accepted")
+	}
+}

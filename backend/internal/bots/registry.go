@@ -16,10 +16,10 @@ var all = []Bot{
 		Greeting: "Привет! Давай играть? Я только вчера научился.",
 		OnWin:    "Ура, я выиграл! Сыграем ещё?",
 		OnLose:   "Ой… Ты так здорово играешь!",
-		Params:   Params{Depth: 1, Temp: 400, Random: 0.45},
+		Params:   Params{Depth: 1, Temp: 400, Random: 0.45, NoMate: true},
 	},
 	{
-		ID: "liza", Name: "Лиза", Category: "beginners", Elo: 700, Points: 15,
+		ID: "liza", Name: "Лиза", Category: "beginners", Elo: 600, Points: 15,
 		Desc:     "Знает правила и берёт всё, что плохо лежит, но почти не смотрит вперёд. Ферзя выводит рано.",
 		Greeting: "Привет! Я люблю, когда на доске много фигур.",
 		OnWin:    "Получилось! Спасибо за партию.",
@@ -32,43 +32,43 @@ var all = []Bot{
 		Greeting: "Привет! Нас в кружке учат играть дебют, посмотрим, что получится.",
 		OnWin:    "Я выиграл! Расскажу всем в кружке.",
 		OnLose:   "Хорошо играешь. Мне надо ещё потренироваться.",
-		Params:   Params{Depth: 1, Temp: 140, Random: 0.1},
+		Params:   Params{Depth: 2, Temp: 60},
 	},
 
 	// ---- Любители
 	{
-		ID: "anna", Name: "Анна", Category: "club", Elo: 1300, Points: 30,
+		ID: "anna", Name: "Анна", Category: "club", Elo: 1200, Points: 30,
 		Desc:     "Играет по выходным для удовольствия. Знает дебют и простую тактику, но в эндшпиле теряет нить.",
 		Greeting: "Привет! Люблю хорошие партии без спешки.",
 		OnWin:    "Хорошая была борьба, спасибо!",
 		OnLose:   "Красиво сыграно! Хочу реванш.",
-		Params:   Params{Depth: 2, Temp: 100, Random: 0.04},
+		Params:   Params{Depth: 3, Temp: 55},
 	},
 	{
-		ID: "artem", Name: "Артём", Category: "club", Elo: 1500, Points: 35,
+		ID: "artem", Name: "Артём", Category: "club", Elo: 1400, Points: 35,
 		Desc:     "Играет в клубе. Считает варианты на три-четыре хода и редко подставляет фигуры, но слабоват в позиционной игре.",
 		Greeting: "Привет! Играем всерьёз, без поддавков.",
 		OnWin:    "Хорошая партия. Разберём её вместе?",
 		OnLose:   "Сильно! Ты это заслужил.",
-		Params:   Params{Depth: 3, Temp: 100},
+		Params:   Params{Depth: 3, Temp: 46},
 	},
 	{
-		ID: "igor", Name: "Игорь", Category: "club", Elo: 1750, Points: 45,
+		ID: "igor", Name: "Игорь", Category: "club", Elo: 1600, Points: 45,
 		Desc:     "Опытный турнирный игрок. Хорошо чувствует тактику и использует каждую неточность соперника.",
 		Greeting: "Добрый день. Постарайтесь не зевать.",
 		OnWin:    "Была неточность в середине игры. Проверьте разбором.",
 		OnLose:   "Сильная игра, поздравляю.",
-		Params:   Params{Depth: 3, Temp: 64},
+		Params:   Params{Depth: 4, Temp: 30},
 	},
 
 	// ---- Сильные
 	{
-		ID: "viktor", Name: "Виктор", Category: "strong", Elo: 2050, Points: 60,
+		ID: "viktor", Name: "Виктор", Category: "strong", Elo: 2100, Points: 60,
 		Desc:     "Кандидат в мастера. Считает глубоко, играет точно и не прощает слабых полей в лагере.",
 		Greeting: "Здравствуйте. Начнём.",
 		OnWin:    "Хорошая попытка. Эндшпиль надо подтянуть.",
 		OnLose:   "Это была отличная партия.",
-		Params:   Params{Depth: 4, Temp: 40},
+		Params:   Params{Depth: 6, Temp: 10},
 	},
 	{
 		ID: "sofia", Name: "София", Category: "strong", Elo: 2400, Points: 80,
@@ -76,7 +76,7 @@ var all = []Bot{
 		Greeting: "Приятно познакомиться. Играйте внимательно.",
 		OnWin:    "Спасибо за игру. Посмотрите на ход, после которого стало сложно.",
 		OnLose:   "Впечатляюще. Мои поздравления.",
-		Params:   Params{MoveTime: 12 * time.Millisecond},
+		Params:   Params{MoveTime: 30 * time.Millisecond},
 	},
 	{
 		ID: "max", Name: "Максимум", Category: "strong", Elo: 2900, Points: 150,
@@ -94,7 +94,7 @@ var all = []Bot{
 		Greeting: "Привет! Рапид — моё любимое. Играем?",
 		OnWin:    "Хорошая партия! Реванш?",
 		OnLose:   "Отлично сыграно! Разберём, где я ошибся?",
-		Params:   Params{Depth: 3, Temp: 58},
+		Params:   Params{Depth: 4, Temp: 15},
 	},
 }
 

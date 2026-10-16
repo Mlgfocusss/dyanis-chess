@@ -26,10 +26,10 @@
 .page__bar { margin-bottom: 16px; }
 
 /* ---- analysis layout ---- */
-.review { --board: min(calc(100vh - 270px), 860px); display: grid; grid-template-columns: minmax(0, 1fr) 400px; gap: 28px; align-items: start; }
+.review { --board: min(calc(100vh - 216px), 1400px); display: grid; grid-template-columns: minmax(0, 1fr) 400px; gap: 28px; align-items: start; }
 .review__main { min-width: 0; width: min(100%, calc(var(--board) + 38px)); justify-self: center; }
 /* the review page itself uses the whole width, like the screens with a board */
-.page--stage { max-width: none; padding: 20px 32px 40px; }
+.page.page--stage { max-width: none; padding: 20px 32px 12px; } /* two classes: Root.css's .page (max-width 1280px) comes later and would win */
 @media (max-width: 1180px) {
   .review { --board: 100%; grid-template-columns: minmax(0, 1fr); }
   .page--stage { padding: 12px; }

@@ -82,6 +82,40 @@ func (s *Store) PickPuzzle(ctx context.Context, userID, theme string, lo, hi int
 	return scanPuzzle(s.db.QueryRowContext(ctx, q.String(), args...))
 }
 
+// DailyPuzzle returns the puzzle rated lo..hi and liked enough (popularity at
+// least minPopularity) that the seed points at: the same seed gives the same
+// puzzle while the set is unchanged. ErrNotFound means nothing fits.
+func (s *Store) DailyPuzzle(ctx context.Context, lo, hi, minPopularity int, seed uint64) (*Puzzle, error) {
+	const where = " FROM puzzles p WHERE p.rating BETWEEN ? AND ? AND p.popularity >= ?"
+	var n int
+	if err := s.db.QueryRowContext(ctx, "SELECT COUNT(*)"+where, lo, hi, minPopularity).Scan(&n); err != nil {
+		return nil, err
+	}
+	if n == 0 {
+		return nil, ErrNotFound
+	}
+	return scanPuzzle(s.db.QueryRowContext(ctx, "SELECT "+puzzleColumns+where+" ORDER BY p.id LIMIT 1 OFFSET ?",
+		lo, hi, minPopularity, seed%uint64(n)))
+}
+
+// RecordDailyPuzzle writes down the first try at the puzzle of a day (YYYY-MM-DD,
+// UTC); a later try of the same day changes nothing. It does not touch the rating.
+func (s *Store) RecordDailyPuzzle(ctx context.Context, userID, day, puzzleID string, solved bool) error {
+	_, err := s.db.ExecContext(ctx, "INSERT IGNORE INTO daily_puzzle_results (user_id, day, puzzle_id, solved, created_at) VALUES (?, ?, ?, ?, ?)",
+		userID, day, puzzleID, solved, time.Now().UTC())
+	return err
+}
+
+// DailyPuzzleResult reports how the person's first try at the puzzle of the
+// day went: tried is false when there has been none.
+func (s *Store) DailyPuzzleResult(ctx context.Context, userID, day string) (tried, solved bool, err error) {
+	err = s.db.QueryRowContext(ctx, "SELECT solved FROM daily_puzzle_results WHERE user_id = ? AND day = ?", userID, day).Scan(&solved)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, false, nil
+	}
+	return err == nil, solved, err
+}
+
 // PuzzleThemes lists every theme with the number of puzzles, most common first.
 func (s *Store) PuzzleThemes(ctx context.Context) ([]ThemeCount, error) {
 	rows, err := s.db.QueryContext(ctx, "SELECT theme, COUNT(*) AS n FROM puzzle_themes GROUP BY theme ORDER BY n DESC, theme")
@@ -226,4 +260,36 @@ func (s *Store) importChunk(ctx context.Context, ps []Puzzle) (int, error) {
 		}
 	}
 	return int(added), tx.Commit()
+}
+
+// RushBest is a person's record in one mode of the tactics storm.
+type RushBest struct {
+	Best int `json:"best"`
+	Runs int `json:"runs"`
+}
+
+// RecordRush writes down a finished run of the tactics storm.
+func (s *Store) RecordRush(ctx context.Context, userID, mode string, score int) error {
+	_, err := s.db.ExecContext(ctx, "INSERT INTO rush_results (user_id, mode, score, created_at) VALUES (?, ?, ?, ?)",
+		userID, mode, score, time.Now().UTC())
+	return err
+}
+
+// RushBests returns the best score and the number of runs of a person, by mode.
+func (s *Store) RushBests(ctx context.Context, userID string) (map[string]RushBest, error) {
+	rows, err := s.db.QueryContext(ctx, "SELECT mode, MAX(score), COUNT(*) FROM rush_results WHERE user_id = ? GROUP BY mode", userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]RushBest{}
+	for rows.Next() {
+		var mode string
+		var b RushBest
+		if err := rows.Scan(&mode, &b.Best, &b.Runs); err != nil {
+			return nil, err
+		}
+		out[mode] = b
+	}
+	return out, rows.Err()
 }

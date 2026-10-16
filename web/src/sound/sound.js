@@ -77,6 +77,7 @@ const SYNTH = {
     [440, 349, 262].forEach((f, i) => tone(ac, t + 0.1 + i * 0.16, f, 0.3, 0.5));
   },
   start: (ac, t) => tone(ac, t, 660, 0.16, 0.5),
+  lowtime: (ac, t) => tone(ac, t, 1046, 0.09, 0.5),
 };
 
 const cache = new Map();

@@ -1,0 +1,13 @@
+/* The choice of the piece for a promoting pawn; it sits inside the square of the board it opens on. */
+.promo {
+  position: absolute; left: 0; top: 0; width: 100%; z-index: 30;
+  display: flex; flex-direction: column;
+  background: var(--surface); border-radius: 6px; overflow: hidden;
+  box-shadow: 0 10px 28px rgba(2, 6, 23, 0.6), 0 0 0 1px var(--border);
+}
+.promo--up { top: auto; bottom: 0; flex-direction: column-reverse; }
+.promo__btn {
+  display: block; width: 100%; aspect-ratio: 1; padding: 0; border: 0; background: transparent; line-height: 0; cursor: pointer;
+}
+.promo__btn:hover, .promo__btn:focus-visible { background: var(--primary-soft); outline: none; }
+.promo__btn > * { pointer-events: none; }

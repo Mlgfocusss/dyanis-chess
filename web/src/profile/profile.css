@@ -22,3 +22,12 @@
 .profile__botname small { color: var(--muted); font-weight: 500; margin-left: 4px; }
 .profile__botpts { color: var(--warn); font-weight: 600; }
 .profile__bots .btn { align-self: flex-start; text-decoration: none; }
+
+.profile__ratings { padding: 18px 20px; display: flex; flex-direction: column; gap: 12px; margin-bottom: 14px; }
+.profile__ratings header { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.profile__ratings h2 { font-size: 1.1rem; }
+.profile__rlist { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.profile__rating { display: flex; flex-direction: column; gap: 2px; padding: 12px 14px; border-radius: var(--radius-sm); background: var(--surface-2); border: 1px solid var(--border); }
+.profile__rname { font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.profile__rvalue { font: 700 1.8rem/1.2 var(--mono); font-variant-numeric: tabular-nums; }
+.profile__rsub { color: var(--muted); font-size: 0.8rem; }

@@ -379,6 +379,37 @@ export default function App() {
     </div>
   );
 
+  // "White always at the bottom": the board and the bars follow the side shown at the bottom.
+  const viewSide = settings.whiteBottom ? "white" : playerSide;
+  const engBar = (
+    <div className="pbar">
+      <span className="play__ico">
+        <Icon name="bot" size={20} />
+      </span>
+      <div className="pbar__who">
+        <span className="pbar__name">{BOT_NAME}</span>
+        <span className="pbar__sub">
+          {playerSide === "white" ? "Чёрные" : "Белые"}
+          <Captured fen={state.fen} side={playerSide === "white" ? "black" : "white"} />
+        </span>
+      </div>
+    </div>
+  );
+  const youBar = (
+    <div className="pbar">
+      <span className="play__ico">
+        <Icon name="user" size={20} />
+      </span>
+      <div className="pbar__who">
+        <span className="pbar__name">{playerName}</span>
+        <span className="pbar__sub">
+          {playerSide === "white" ? "Белые" : "Чёрные"}
+          <Captured fen={state.fen} side={playerSide} />
+        </span>
+      </div>
+    </div>
+  );
+
   const controls = (
     <div className="controls">
       <div className="controls__main">
@@ -395,7 +426,7 @@ export default function App() {
             </button>
           </span>
         ) : (
-          <button className="btn btn--danger-ghost" onClick={() => setConfirmResign(true)} disabled={!gameOn}>
+          <button className="btn btn--danger-ghost" onClick={() => (settings.confirmGiveUp ? setConfirmResign(true) : handleResign())} disabled={!gameOn}>
             Сдаться
           </button>
         )}
@@ -517,37 +548,15 @@ export default function App() {
 
       <div className="play__grid">
         <div className="play__board">
-          <div className="pbar">
-            <span className="play__ico">
-              <Icon name="bot" size={20} />
-            </span>
-            <div className="pbar__who">
-              <span className="pbar__name">{BOT_NAME}</span>
-              <span className="pbar__sub">
-                {playerSide === "white" ? "Чёрные" : "Белые"}
-                <Captured fen={state.fen} side={playerSide === "white" ? "black" : "white"} />
-              </span>
-            </div>
-          </div>
+          {viewSide === playerSide ? engBar : youBar}
           <Board
             state={state}
-            orientation={playerSide}
+            orientation={viewSide}
             disabled={thinking || !gameOn}
             lastMove={lastMove}
             onPlayerMove={handlePlayerMove}
           />
-          <div className="pbar">
-            <span className="play__ico">
-              <Icon name="user" size={20} />
-            </span>
-            <div className="pbar__who">
-              <span className="pbar__name">{playerName}</span>
-              <span className="pbar__sub">
-                {playerSide === "white" ? "Белые" : "Чёрные"}
-                <Captured fen={state.fen} side={playerSide} />
-              </span>
-            </div>
-          </div>
+          {viewSide === playerSide ? youBar : engBar}
           {info && showSummary && (
             <GameSummary
               info={info}
