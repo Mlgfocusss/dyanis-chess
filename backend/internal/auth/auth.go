@@ -7,6 +7,8 @@
 //	GET  /api/auth/google/callback    where Google sends the person back
 //	POST /api/auth/logout             end the session
 //	PUT  /api/me/settings             save the settings page's JSON
+//	PUT  /api/me/profile              change the display name and the open-profile fields (country, avatar...)
+//	DELETE /api/me                    delete the account and its data
 //
 // The cookie holds a random token; the database holds only its SHA-256, so
 // a leaked copy of the database signs nobody in. The cookie is HttpOnly
@@ -52,6 +54,8 @@ type Store interface {
 	LinkGoogle(ctx context.Context, id, sub, name, email, avatarURL string) error
 	MergeUsers(ctx context.Context, from, to string) error
 	SetSettings(ctx context.Context, id string, settings []byte) error
+	UpdateProfile(ctx context.Context, id string, p store.ProfileUpdate) error
+	DeleteUser(ctx context.Context, id string) error
 	CreateSession(ctx context.Context, tokenHash, userID string, expires time.Time) error
 	SessionUser(ctx context.Context, tokenHash string) (*store.User, error)
 	DeleteSession(ctx context.Context, tokenHash string) error
@@ -85,6 +89,8 @@ type Config struct {
 type Service struct {
 	cfg    Config
 	guests *limiter
+	names  *nameLimiter
+	fields *nameLimiter // saves of the profile fields other than the name
 }
 
 const (
@@ -112,7 +118,7 @@ func New(cfg Config) *Service {
 	if g.UserInfoURL == "" {
 		g.UserInfoURL = "https://openidconnect.googleapis.com/v1/userinfo"
 	}
-	return &Service{cfg: cfg, guests: newLimiter(30, time.Hour)}
+	return &Service{cfg: cfg, guests: newLimiter(30, time.Hour), names: newNameLimiter(nameChangeEvery), fields: newNameLimiter(fieldsChangeEvery)}
 }
 
 func (s *Service) googleEnabled() bool {
@@ -125,6 +131,8 @@ func (s *Service) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/me", s.me)
 	mux.HandleFunc("PUT /api/me/settings", s.putSettings)
+	mux.HandleFunc("PUT /api/me/profile", s.putProfile)
+	mux.HandleFunc("DELETE /api/me", s.deleteMe)
 	mux.HandleFunc("POST /api/auth/guest", s.guest)
 	mux.HandleFunc("GET /api/auth/google/login", s.googleLogin)
 	mux.HandleFunc("GET /api/auth/google/callback", s.googleCallback)
@@ -160,20 +168,29 @@ func (s *Service) UserID(r *http.Request) string {
 // ---------------------------------------------------------------- JSON
 
 type userJSON struct {
-	ID        string          `json:"id"`
-	Kind      string          `json:"kind"`
-	Name      string          `json:"name"`
-	Email     string          `json:"email,omitempty"`
-	AvatarURL string          `json:"avatarUrl,omitempty"`
-	Settings  json.RawMessage `json:"settings,omitempty"`
-	CreatedAt time.Time       `json:"createdAt"`
+	ID        string `json:"id"`
+	Kind      string `json:"kind"`
+	Name      string `json:"name"`
+	Email     string `json:"email,omitempty"`
+	AvatarURL string `json:"avatarUrl,omitempty"`
+	// GoogleAvatarURL is the photo Google sent, offered as one of the avatars to choose from.
+	GoogleAvatarURL string          `json:"googleAvatarUrl,omitempty"`
+	FirstName       string          `json:"firstName,omitempty"`
+	LastName        string          `json:"lastName,omitempty"`
+	Location        string          `json:"location,omitempty"`
+	About           string          `json:"about,omitempty"`
+	Country         string          `json:"country,omitempty"` // ISO 3166-1 alpha-2
+	Settings        json.RawMessage `json:"settings,omitempty"`
+	CreatedAt       time.Time       `json:"createdAt"`
 }
 
 func toJSON(u *store.User) *userJSON {
 	if u == nil {
 		return nil
 	}
-	return &userJSON{ID: u.ID, Kind: u.Kind, Name: u.Name, Email: u.Email, AvatarURL: u.AvatarURL, Settings: u.Settings, CreatedAt: u.CreatedAt}
+	return &userJSON{ID: u.ID, Kind: u.Kind, Name: u.Name, Email: u.Email, AvatarURL: u.AvatarURL, GoogleAvatarURL: u.GoogleAvatarURL,
+		FirstName: u.FirstName, LastName: u.LastName, Location: u.Location, About: u.About, Country: u.Country,
+		Settings: u.Settings, CreatedAt: u.CreatedAt}
 }
 
 func writeJSON(w http.ResponseWriter, code int, v any) {
@@ -407,6 +424,7 @@ func (s *Service) doJSON(req *http.Request, out any) error {
 func (s *Service) signInGoogle(r *http.Request, p *profile) (string, error) {
 	ctx := r.Context()
 	name := cleanName(p.Name, "Игрок")
+	photo := safePhoto(p.Picture)
 	cur := s.UserFromRequest(r)
 	if cur != nil && cur.Kind != store.KindGuest {
 		cur = nil // already a Google user: signing in again is a plain switch
@@ -420,7 +438,8 @@ func (s *Service) signInGoogle(r *http.Request, p *profile) (string, error) {
 				return "", err
 			}
 		}
-		if err := s.cfg.Store.LinkGoogle(ctx, existing.ID, p.Sub, name, p.Email, p.Picture); err != nil {
+		// The name the person chose on the site is not replaced by Google's at every sign-in.
+		if err := s.cfg.Store.LinkGoogle(ctx, existing.ID, p.Sub, existing.Name, p.Email, photo); err != nil {
 			return "", err
 		}
 		return existing.ID, nil
@@ -429,12 +448,15 @@ func (s *Service) signInGoogle(r *http.Request, p *profile) (string, error) {
 	}
 
 	if cur != nil { // upgrade the guest in place
-		if err := s.cfg.Store.LinkGoogle(ctx, cur.ID, p.Sub, name, p.Email, p.Picture); err != nil {
+		if !generatedGuestName.MatchString(cur.Name) {
+			name = cur.Name // a name the guest chose stays
+		}
+		if err := s.cfg.Store.LinkGoogle(ctx, cur.ID, p.Sub, name, p.Email, photo); err != nil {
 			return "", err
 		}
 		return cur.ID, nil
 	}
-	u := &store.User{ID: randomID(), Kind: store.KindGoogle, GoogleSub: p.Sub, Name: name, Email: p.Email, AvatarURL: p.Picture}
+	u := &store.User{ID: randomID(), Kind: store.KindGoogle, GoogleSub: p.Sub, Name: name, Email: p.Email, AvatarURL: photo, GoogleAvatarURL: photo}
 	if err := s.cfg.Store.CreateUser(ctx, u); err != nil {
 		return "", err
 	}
@@ -494,6 +516,16 @@ func guestName() string {
 		panic(err)
 	}
 	return fmt.Sprintf("Гость %d", 1000+n.Int64())
+}
+
+// safePhoto accepts the picture address Google sent only if it is a web address that fits the column:
+// a value like "preset:crown" can never come from here and an overlong one would fail the insert.
+func safePhoto(u string) string {
+	u = strings.TrimSpace(u)
+	if (strings.HasPrefix(u, "https://") || strings.HasPrefix(u, "http://")) && len(u) <= 512 {
+		return u
+	}
+	return ""
 }
 
 // cleanName trims a display name to the column size and drops control

@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { AUTH_ERRORS, getMe, logout as apiLogout, startGuest } from "./api.js";
+import { AUTH_ERRORS, deleteMe, getMe, logout as apiLogout, renameMe, saveProfile, startGuest } from "./api.js";
 
 // Who is signed in. status: "loading" until /api/me answers, "ready", or
 // "unavailable" when the server has no accounts (it runs without MySQL).
@@ -43,7 +43,30 @@ export function AuthProvider({ children }) {
     setState((s) => ({ ...s, user: null }));
   }, []);
 
-  const value = useMemo(() => ({ ...state, authError, guest, logout }), [state, authError, guest, logout]);
+  // Changes the display name; the menu, the profile and the games list show the new one at once.
+  const rename = useCallback(async (name) => {
+    const user = await renameMe(name);
+    setState((s) => ({ ...s, user }));
+    return user;
+  }, []);
+
+  // Saves profile fields (see saveProfile); the menu, the profile and the games list show them at once.
+  const updateProfile = useCallback(async (patch) => {
+    const user = await saveProfile(patch);
+    setState((s) => ({ ...s, user }));
+    return user;
+  }, []);
+
+  // Deletes the account for good; throws (with the server's text) when that is not possible now.
+  const deleteAccount = useCallback(async () => {
+    await deleteMe();
+    setState((s) => ({ ...s, user: null }));
+  }, []);
+
+  const value = useMemo(
+    () => ({ ...state, authError, guest, logout, rename, updateProfile, deleteAccount }),
+    [state, authError, guest, logout, rename, updateProfile, deleteAccount]
+  );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 

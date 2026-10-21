@@ -3,6 +3,7 @@ import { fetchContinuations, fetchExplorer } from "./api.js";
 import { fetchLine } from "../review/api.js";
 import { formatEval } from "../review/classes.js";
 import { statusOf } from "./tree.js";
+import { openingName } from "./names.js";
 import { DEFAULT_PRESET, RATING_PRESETS, buildSuggestions, formatGames, formatShare, makeQueue, resultShares } from "./suggest.js";
 
 const CAND_DEPTH = 10; // depth of the verdict on each candidate move
@@ -245,7 +246,7 @@ export default function Suggestions({ fen, side, turn, children, onPick, onHover
                     </span>
                   )}
                   {r.rare && <span className="sug__tag sug__tag--muted" title="Этот ход играют редко">редкий</span>}
-                  <span className="sug__open">{r.opening ? r.opening.name : r.theory || r.stat ? "" : "вне теории"}</span>
+                  <span className="sug__open">{r.opening ? openingName(r.opening) : r.theory || r.stat ? "" : "вне теории"}</span>
                 </span>
               </span>
               <span className="sug__ev">

@@ -1,13 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { cancelSeek, checkSeek, seekMatch } from "./api.js";
 
+// The calls of the queue: the online games by default; the chess variants (variants/api.js) give their
+// own. Keep the object the same between renders.
+const ONLINE_API = { seekMatch, checkSeek, cancelSeek };
+
 const POLL_MS = 1000;
 
 // A search for a person to play: start(request) joins the queue, the hook asks the server how it
 // goes every second (which also tells the server the person is still there), and onFound gets
 // { kind, id } when somebody was found. status is null while not searching, else the server's
 // { status: "waiting", waited, window, count }. Leaving the page leaves the queue.
-export default function useSeek(onFound) {
+export default function useSeek(onFound, api = ONLINE_API) {
   const [status, setStatus] = useState(null);
   const [error, setError] = useState("");
   const active = useRef(false);
@@ -25,7 +29,7 @@ export default function useSeek(onFound) {
   const poll = useCallback(async () => {
     if (!active.current) return;
     try {
-      const st = await checkSeek();
+      const st = await api.checkSeek();
       if (!active.current) return;
       if (st.status === "found") return done(st);
       if (st.status === "none") {
@@ -38,7 +42,7 @@ export default function useSeek(onFound) {
       // a hiccup of the network: ask again
     }
     timer.current = setTimeout(poll, POLL_MS);
-  }, [done]);
+  }, [done, api]);
 
   const start = useCallback(
     async (req) => {
@@ -46,7 +50,7 @@ export default function useSeek(onFound) {
       active.current = true;
       setStatus({ status: "waiting", waited: 0 });
       try {
-        const st = await seekMatch(req);
+        const st = await api.seekMatch(req);
         if (!active.current) return;
         if (st.status === "found") return done(st);
         setStatus(st);
@@ -56,7 +60,7 @@ export default function useSeek(onFound) {
         setError(e.message);
       }
     },
-    [done, poll]
+    [done, poll, api]
   );
 
   const cancel = useCallback(async () => {
@@ -65,22 +69,22 @@ export default function useSeek(onFound) {
     clearTimeout(timer.current);
     setStatus(null);
     try {
-      const st = await cancelSeek();
+      const st = await api.cancelSeek();
       if (st.status === "found") found.current(st); // it was too late to cancel: the game exists
     } catch {
       // the server drops an abandoned search by itself
     }
-  }, []);
+  }, [api]);
 
   useEffect(
     () => () => {
       clearTimeout(timer.current);
       if (active.current) {
         active.current = false;
-        cancelSeek().catch(() => {});
+        api.cancelSeek().catch(() => {});
       }
     },
-    []
+    [api]
   );
 
   return { status, error, start, cancel };

@@ -20,6 +20,20 @@ export default function ReviewInline({ pgn, finalFen, orientation = "white", dep
     start({ pgn, depth });
   }, [pgn]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // A finished review has an address of its own, so the browser's bar shows the link that can be sent. It is
+  // put there with replaceState: that makes no hashchange, so the page stays the game's (Root.jsx and the
+  // game pages only look at the hash when it changes). When the review is closed, the game's address returns.
+  const doneId = job?.status === "done" && job.report ? job.id : "";
+  useEffect(() => {
+    if (!doneId) return undefined;
+    const before = window.location.hash;
+    const mine = `#review/${doneId}`;
+    window.history.replaceState(null, "", mine);
+    return () => {
+      if (window.location.hash === mine) window.history.replaceState(null, "", before || window.location.pathname + window.location.search);
+    };
+  }, [doneId]);
+
   if (job?.status === "done" && job.report) {
     return <ReviewView key={job.id} job={job} inline orientation={orientation} onBack={onClose} />;
   }

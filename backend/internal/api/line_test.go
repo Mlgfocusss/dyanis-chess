@@ -94,3 +94,41 @@ func TestLineEvalWithTheRealEngine(t *testing.T) {
 		t.Errorf("%+v", out.Eval)
 	}
 }
+
+func TestLineLines(t *testing.T) {
+	var gotDepth, gotN int
+	s := New(Config{
+		EvalLines: func(p *engine.Position, _ []uint64, o analysis.Options, n int) ([]analysis.LineEval, error) {
+			gotDepth, gotN = o.Depth, n
+			return []analysis.LineEval{{Rank: 1, BestSAN: "e5", PV: []string{"e5", "Nf3"}}, {Rank: 2, BestSAN: "c5", PV: []string{"c5"}}}, nil
+		},
+		DefaultDepth: 18, MaxDepth: 20,
+	})
+	defer s.Close()
+	_, out := postLine(t, s, `{"fen":"`+startFEN+`","moves":["e4"],"lines":3}`)
+	if len(out.Lines) != 2 || out.Lines[0].BestSAN != "e5" || gotN != 3 || out.Eval != nil {
+		t.Errorf("lines %+v n %d eval %v", out.Lines, gotN, out.Eval)
+	}
+	// without a depth the lines use the shorter default: each one is a search of its own
+	if gotDepth != 14 {
+		t.Errorf("default depth of lines = %d, want 14", gotDepth)
+	}
+	postLine(t, s, `{"fen":"`+startFEN+`","lines":99,"depth":30}`)
+	if gotN != 3 || gotDepth != 20 {
+		t.Errorf("lines capped at 3 and depth at MaxDepth: n %d depth %d", gotN, gotDepth)
+	}
+	// both at once
+	_, both := postLine(t, s, `{"fen":"`+startFEN+`","eval":true,"lines":2,"depth":3}`)
+	if both.Eval == nil || len(both.Lines) != 2 {
+		t.Errorf("eval and lines together: %+v", both)
+	}
+}
+
+func TestLineLinesWithTheRealEngine(t *testing.T) {
+	s := New(Config{})
+	defer s.Close()
+	_, out := postLine(t, s, `{"fen":"`+startFEN+`","lines":3,"depth":5}`)
+	if len(out.Lines) != 3 || out.Lines[0].BestUCI == out.Lines[1].BestUCI || out.Lines[2].Rank != 3 {
+		t.Errorf("%+v", out.Lines)
+	}
+}

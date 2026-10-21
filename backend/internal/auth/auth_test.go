@@ -16,10 +16,13 @@ import (
 
 // memStore is an in-memory Store.
 type memStore struct {
-	mu       sync.Mutex
-	users    map[string]*store.User
-	sessions map[string]string // token hash -> user id
-	merged   [][2]string
+	mu        sync.Mutex
+	users     map[string]*store.User
+	sessions  map[string]string // token hash -> user id
+	merged    [][2]string
+	deleteErr error // what DeleteUser returns instead of deleting
+	updateErr error // what UpdateProfile returns instead of saving
+	updates   int   // saves that reached UpdateProfile
 }
 
 func newMemStore() *memStore {
@@ -46,11 +49,17 @@ func (m *memStore) UserByGoogleSub(_ context.Context, sub string) (*store.User, 
 	return nil, store.ErrNotFound
 }
 
-func (m *memStore) LinkGoogle(_ context.Context, id, sub, name, email, avatar string) error {
+// LinkGoogle mirrors the SQL: the photo is always remembered, and the shown avatar follows it only
+// when it was the photo (or nothing had been chosen yet).
+func (m *memStore) LinkGoogle(_ context.Context, id, sub, name, email, photo string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	u := m.users[id]
-	u.Kind, u.GoogleSub, u.Name, u.Email, u.AvatarURL = store.KindGoogle, sub, name, email, avatar
+	u.Kind, u.GoogleSub, u.Name, u.Email = store.KindGoogle, sub, name, email
+	if u.AvatarURL == u.GoogleAvatarURL {
+		u.AvatarURL = photo
+	}
+	u.GoogleAvatarURL = photo
 	return nil
 }
 
@@ -66,6 +75,39 @@ func (m *memStore) SetSettings(_ context.Context, id string, settings []byte) er
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.users[id].Settings = settings
+	return nil
+}
+
+func (m *memStore) UpdateProfile(_ context.Context, id string, p store.ProfileUpdate) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	u := m.users[id]
+	if u == nil {
+		return store.ErrNotFound
+	}
+	if m.updateErr != nil {
+		return m.updateErr
+	}
+	m.updates++
+	applyUpdate(u, p)
+	return nil
+}
+
+func (m *memStore) DeleteUser(_ context.Context, id string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.deleteErr != nil {
+		return m.deleteErr
+	}
+	if m.users[id] == nil {
+		return store.ErrNotFound
+	}
+	delete(m.users, id)
+	for h, uid := range m.sessions {
+		if uid == id {
+			delete(m.sessions, h)
+		}
+	}
 	return nil
 }
 

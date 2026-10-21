@@ -1,0 +1,38 @@
+/* Other chess ("Другие шахматы"): catalogue, lobby and the extras of the game room. Tokens from index.css only. */
+
+/* ---- catalogue ---- */
+.vcat__grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; }
+.vcat__empty { padding: 24px; color: var(--text-2); }
+.vcat__problems { margin-top: 24px; padding: 16px 20px; border-color: rgba(var(--warn-rgb), 0.5); }
+.vcat__problems h2 { font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--warn-text); margin-bottom: 8px; }
+.vcat__problems ul { margin: 0; padding-left: 18px; color: var(--text-2); font-size: 0.88rem; }
+
+.vcard { padding: 20px; display: flex; flex-direction: column; gap: 14px; }
+.vcard__head { display: flex; gap: 14px; align-items: flex-start; }
+.vcard__icon {
+  flex: none; display: grid; place-items: center; width: 44px; height: 44px; border-radius: 12px;
+  background: var(--primary-soft); color: var(--primary);
+}
+.vcard__name { font-size: 1.1rem; font-weight: 700; letter-spacing: -0.01em; }
+.vcard__short { color: var(--text-2); font-size: 0.92rem; margin-top: 2px; }
+.vcard__rules { margin: 0; padding-left: 18px; color: var(--text-2); font-size: 0.88rem; display: flex; flex-direction: column; gap: 4px; }
+.vcard__actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: auto; }
+.vcard__actions .btn { text-decoration: none; }
+
+/* ---- lobby ---- */
+.vlobby { display: flex; flex-direction: column; gap: 16px; }
+.vlobby .page__head { margin-bottom: 0; }
+.vlobby__back { display: inline-flex; align-items: center; gap: 6px; margin-bottom: 10px; color: var(--text-2); text-decoration: none; font-size: 0.9rem; }
+.vlobby__back:hover { color: var(--text); text-decoration: underline; text-underline-offset: 3px; }
+.vlobby__rules { padding: 18px 22px; }
+.vlobby__rules ul { margin: 8px 0 0; padding-left: 18px; color: var(--text-2); display: flex; flex-direction: column; gap: 4px; }
+
+/* ---- game room ---- */
+/* the king in check: a red glow inside its square (the board puts the class on the square's box) */
+.sq-check {
+  box-shadow: inset 0 0 0 3px rgba(var(--danger-rgb), 0.9), inset 0 0 16px 4px rgba(var(--danger-rgb), 0.55);
+}
+.vroom__hint { color: var(--info); font-weight: 500; }
+/* a turn of several actions makes a long cell: let it wrap */
+.vmoves__row { grid-template-columns: 36px minmax(0, 1fr) minmax(0, 1fr); align-items: start; }
+.vmoves__row .moves__san { overflow-wrap: anywhere; }

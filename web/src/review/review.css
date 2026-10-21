@@ -25,74 +25,143 @@
 
 .page__bar { margin-bottom: 16px; }
 
-/* ---- analysis layout ---- */
-.review { --board: min(calc(100vh - 216px), 1400px); display: grid; grid-template-columns: minmax(0, 1fr) 400px; gap: 28px; align-items: start; }
-.review__main { min-width: 0; width: min(100%, calc(var(--board) + 38px)); justify-self: center; }
-/* the review page itself uses the whole width, like the screens with a board */
-.page.page--stage { max-width: none; padding: 20px 32px 12px; } /* two classes: Root.css's .page (max-width 1280px) comes later and would win */
-@media (max-width: 1180px) {
-  .review { --board: 100%; grid-template-columns: minmax(0, 1fr); }
-  .page--stage { padding: 12px; }
+/* ---- analysis layout (as on chess.com): the board on the left as tall as the window allows, the panel on
+   the right exactly as tall as the board's column. --gutter is the evaluation bar and its gap. ---- */
+.review {
+  --panel: clamp(340px, 24vw, 460px);
+  --gutter: 38px;
+  --board: min(calc(100vh - 140px), calc(100vw - 264px - 56px - var(--panel) - 24px - var(--gutter)), 1400px);
+  display: grid;
+  grid-template-columns: calc(var(--board) + var(--gutter)) var(--panel);
+  justify-content: center;
+  gap: 24px;
+  align-items: stretch;
 }
-.review__side { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.review__main { min-width: 0; width: min(100%, calc(var(--board) + var(--gutter))); justify-self: center; }
+/* the review page itself uses the whole width, like the screens with a board */
+.page.page--stage { max-width: none; padding: 18px 28px 14px; } /* two classes: Root.css's .page (max-width 1280px) comes later and would win */
 
 .review__players {
-  display: flex; align-items: center; gap: 8px; padding: 6px 0 8px 36px; font-weight: 600; color: var(--text);
+  display: flex; align-items: center; gap: 8px; padding: 6px 0 8px var(--gutter); font-weight: 600; color: var(--text);
 }
 .review__players--top { padding-top: 0; }
 .review__boardrow { display: flex; gap: 10px; align-items: stretch; }
 .review__board { flex: 1; min-width: 0; }
 
-.review__nav { display: flex; gap: 8px; align-items: center; margin: 12px 0 14px 36px; flex-wrap: wrap; }
-.review__nav button {
-  display: grid; place-items: center; min-width: 44px; height: 44px; border-radius: var(--radius-sm);
-  background: var(--surface-2); border: 1px solid var(--border); color: var(--text);
-  transition: background 0.15s;
-}
-.review__nav button:hover:not(:disabled) { background: var(--surface-3); }
-.review__toggle { margin-left: auto; color: var(--text-2); display: flex; gap: 8px; align-items: center; font-size: 0.9rem; cursor: pointer; }
-.review__toggle input { accent-color: var(--primary); width: 16px; height: 16px; }
-
 /* evaluation bar */
 .evalbar {
   position: relative; width: 28px; flex: none; border-radius: 6px; overflow: hidden;
-  background: #1e293b; display: flex; flex-direction: column; justify-content: flex-end;
+  outline: 1px solid var(--side-ring); outline-offset: -1px;
+  background: var(--track); display: flex; flex-direction: column; justify-content: flex-end;
 }
 .evalbar--flipped { justify-content: flex-start; }
-.evalbar__white { background: #f1f5f9; transition: height 0.25s; }
+.evalbar__white { background: var(--side-white); transition: height 0.25s; }
 .evalbar__label {
   position: absolute; left: 0; right: 0; bottom: 4px; text-align: center; font-size: 0.62rem; font-weight: 700;
-  color: #0f172a;
+  color: var(--side-black-2);
 }
 .evalbar--flipped .evalbar__label { bottom: auto; top: 4px; }
+.evalbar--dim { opacity: 0.55; }
 
-/* evaluation chart */
-.eval-chart {
-  display: block; width: calc(100% - 36px); margin-left: 36px; height: 112px;
-  border-radius: var(--radius-sm); cursor: pointer; touch-action: none;
+/* ---- the panel: heading, tabs, the part that scrolls, the buttons at the foot ---- */
+.rv { display: flex; flex-direction: column; min-width: 0; min-height: 0; padding: 0; overflow: hidden; contain: size; } /* contain: size keeps the panel from stretching the row: its height is the board's */
+.rv__head { padding: 14px 16px 10px; display: flex; flex-direction: column; gap: 6px; }
+.rv__titlerow { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.rv__title { flex: 1; min-width: 0; font-size: 1.12rem; font-weight: 700; letter-spacing: -0.01em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rv__titlerow .btn { flex: none; white-space: nowrap; }
+.rv__titlerow .rv__meta { min-width: 0; }
+.rv__meta { color: var(--muted); font-size: 0.82rem; line-height: 1.35; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+.rv__opening { color: var(--text-2); font-weight: 500; font-size: 0.88rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rv__titlerow .rv__meta { flex: 0 1 auto; white-space: nowrap; display: block; text-overflow: ellipsis; }
+.rv__titlerow .rv__opening { flex: 1 1 0; min-width: 0; text-align: right; }
+.rv__acc { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 2px; }
+.rv__pill {
+  display: flex; align-items: center; gap: 8px; min-width: 0; height: 34px; padding: 0 12px; border-radius: var(--radius-sm);
+  background: var(--side-white); color: var(--side-black-2); box-shadow: inset 0 0 0 1px var(--side-ring);
 }
-.eval-chart__bg { fill: #1e293b; }
-.eval-chart__white { fill: #cbd5e1; }
-.eval-chart__mid { stroke: #64748b; stroke-width: 1; stroke-dasharray: 4 4; }
-.eval-chart__line { fill: none; stroke: var(--primary); stroke-width: 1.6; }
-.eval-chart__key { stroke: rgba(248, 113, 113, 0.7); stroke-width: 1; }
-.eval-chart__cursor { stroke: var(--info); stroke-width: 2; }
+.rv__pill--black { background: var(--side-black); color: var(--on-black); box-shadow: inset 0 0 0 1px var(--border-strong); }
+.rv__pill b { margin-left: auto; font-size: 1.05rem; font-variant-numeric: tabular-nums; }
+.rv__pillname { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.82rem; opacity: 0.8; }
 
-/* game header and current move */
-.review__game { padding: 18px 20px; }
-.review__game h2 { font-size: 1.25rem; font-weight: 700; letter-spacing: -0.01em; }
-.review__meta { color: var(--muted); font-size: 0.88rem; margin-top: 2px; }
-.review__opening { margin-top: 10px; color: var(--text); font-weight: 500; display: flex; gap: 8px; align-items: baseline; }
+.rv__tabs { display: flex; align-items: center; gap: 2px; padding: 0 10px; border-bottom: 1px solid var(--border); }
+.rv__tab {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 12px; background: none; border: 0;
+  border-bottom: 2px solid transparent; margin-bottom: -1px; color: var(--text-2); font-weight: 600; font-size: 0.92rem;
+}
+.rv__tab:hover { color: var(--text); }
+.rv__tab--on, .rv__tab--on:hover { color: var(--primary); border-bottom-color: var(--primary); }
+.rv__tabnote { color: var(--muted); font-weight: 500; font-size: 0.76rem; font-variant-numeric: tabular-nums; }
+.rv__arrow { margin-left: auto; display: inline-flex; gap: 6px; align-items: center; color: var(--text-2); font-size: 0.8rem; cursor: pointer; padding-right: 4px; }
+.rv__arrow input { accent-color: var(--primary); width: 15px; height: 15px; }
+
+.rv__body { flex: 1; min-height: 0; overflow-y: auto; padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; }
+.rv__body > * { flex: none; }
+.rv__body > .move-list { flex: 1 0 150px; }
+.rv__foot { flex: none; padding: 10px 12px 12px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 8px; background: var(--surface); }
+
+/* the move on the board and how it was judged */
+.rv__move { display: flex; align-items: center; gap: 10px; min-height: 36px; }
+.rv__move .review__playedmove { flex: 1; min-width: 0; margin: 0; }
+.rv__movetext { min-width: 0; line-height: 1.3; }
+.rv__evalnote { flex: none; color: var(--text-2); font-size: 0.88rem; }
+.rv__evalnote b { color: var(--text); font-family: var(--mono); }
+.rv__freehint { font-size: 0.85rem; }
+.rv__load { display: flex; flex-direction: column; gap: 10px; }
+
+/* the buttons under the panel: stepping (the middle one plays the game) and the second row of tools */
+.rnav { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+.rnav button {
+  display: grid; place-items: center; height: 44px; border-radius: var(--radius-sm); background: var(--surface-2);
+  border: 1px solid var(--border); color: var(--text); transition: background 0.15s;
+}
+.rnav button:hover:not(:disabled) { background: var(--surface-3); }
+.rnav .rnav__play { background: var(--primary-soft); border-color: rgba(var(--primary-rgb), 0.4); color: var(--primary); }
+.rnav .rnav__play:hover:not(:disabled) { background: var(--primary-soft); border-color: var(--primary); }
+.rnav--board { display: none; margin: 10px 0 0 var(--gutter); }
+.rtools { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.rtools__gap { flex: 1; }
+.rtools__btn {
+  display: inline-flex; align-items: center; gap: 3px; height: 34px; padding: 0 6px; border-radius: var(--radius-sm); background: none;
+  border: 1px solid var(--border); color: var(--text-2); font-size: 0.8rem; font-weight: 600; white-space: nowrap; transition: background 0.15s, color 0.15s;
+}
+.rtools__btn:hover:not(:disabled) { background: var(--surface-2); color: var(--text); }
+.rtools__btn--icon { padding: 0 6px; }
+.rtools__btn--moment { padding: 0 4px; gap: 2px; }
+.rtools__btn--on, .rtools__btn--on:hover:not(:disabled) { background: rgba(var(--info-rgb), 0.14); border-color: rgba(var(--info-rgb), 0.5); color: var(--info-text); }
+.share { position: relative; }
+.share__menu {
+  list-style: none; margin: 0; padding: 6px; position: absolute; right: 0; bottom: calc(100% + 8px); z-index: 25; min-width: 300px;
+  background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--radius); box-shadow: var(--shadow-pop);
+}
+.share__item {
+  display: flex; align-items: center; gap: 10px; width: 100%; min-height: 40px; padding: 0 12px; background: none; border: 0;
+  border-radius: var(--radius-sm); color: var(--text); text-align: left; font-size: 0.9rem; white-space: nowrap;
+}
+.share__item:hover { background: var(--surface-2); }
+
+/* evaluation chart: the curve, the dots of the turning points, the move on the board */
+.eval-chart { position: relative; height: 56px; border-radius: var(--radius-sm); cursor: pointer; touch-action: none; }
+.eval-chart__svg { position: absolute; inset: 0; display: block; width: 100%; height: 100%; border-radius: var(--radius-sm); }
+.eval-chart__bg { fill: var(--track); }
+.eval-chart__white { fill: var(--chart-white); }
+.eval-chart__mid { stroke: var(--side-mid); stroke-width: 1; stroke-dasharray: 4 4; }
+.eval-chart__line { fill: none; stroke: var(--primary); stroke-width: 1.6; }
+.eval-chart__hover { stroke: var(--side-mid); stroke-width: 1; }
+.eval-chart__cursor { stroke: var(--info); stroke-width: 2; }
+.eval-chart__mark { position: absolute; width: 9px; height: 9px; margin: -4.5px 0 0 -4.5px; border-radius: 50%; box-shadow: 0 0 0 1.5px var(--track); pointer-events: none; }
+.eval-chart__now { position: absolute; width: 13px; height: 13px; margin: -6.5px 0 0 -6.5px; border-radius: 50%; border: 2.5px solid var(--info); background: var(--track); pointer-events: none; }
+.eval-chart__tip {
+  position: absolute; bottom: calc(100% + 6px); transform: translateX(-50%); padding: 3px 9px; border-radius: 6px; z-index: 5; white-space: nowrap;
+  background: var(--surface-3); color: var(--text); border: 1px solid var(--border-strong); font-size: 0.75rem; font-weight: 600; pointer-events: none;
+}
+
 .review__eco {
   background: var(--primary-soft); color: var(--primary); border-radius: 6px; padding: 1px 8px;
   font-size: 0.78rem; font-weight: 700; font-family: var(--mono);
 }
 
-.review__now { padding: 14px 18px; min-height: 84px; }
 .review__playedmove { display: flex; gap: 10px; align-items: center; margin-bottom: 6px; }
 .review__better { color: var(--text-2); }
-.review__line { color: var(--text-2); font-size: 0.9rem; }
-.review__line b { color: var(--text); font-size: 1.05rem; font-family: var(--mono); }
 .review__hint { color: var(--muted); }
 
 /* badges */
@@ -102,79 +171,68 @@
 }
 .badge--lg { min-width: 32px; height: 32px; border-radius: 16px; font-size: 0.95rem; }
 .badge .icon { stroke-width: 2.4; }
+.badge--wait { background: var(--surface-3); }
 
 /* move list */
-.move-list { padding: 8px; max-height: 320px; overflow-y: auto; }
-.move-row { display: grid; grid-template-columns: 36px 1fr 1fr; align-items: center; }
+.move-list { padding: 6px; overflow-y: auto; background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-sm); }
+.move-row { display: grid; grid-template-columns: 34px 1fr 1fr; align-items: center; }
 .move-row__no { color: var(--muted); text-align: right; padding-right: 10px; font-size: 0.82rem; font-variant-numeric: tabular-nums; }
 .move-cell {
   display: flex; align-items: center; gap: 8px; background: none; border: 0; border-radius: 6px;
-  text-align: left; padding: 0 8px; min-height: 38px; color: var(--text);
+  text-align: left; padding: 0 8px; min-height: 36px; color: var(--text);
 }
-.move-cell:hover { background: var(--surface-2); }
+.move-cell:hover { background: var(--surface-3); }
 .move-cell--active, .move-cell--active:hover { background: var(--primary-soft); box-shadow: inset 3px 0 0 var(--primary); }
 .move-cell--empty { display: block; }
 .move-cell__san { font-weight: 600; font-family: var(--mono); font-size: 0.9rem; }
 
-/* summary */
-.review__summary { padding: 18px 20px; }
-.review__summary h3, .review__key h3 { font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin-bottom: 12px; }
+/* the summary tab: accuracy, the curve, the table of classes, the moments */
+.sumtab { display: flex; flex-direction: column; gap: 16px; }
+.sumtab__block h3 { font-size: 0.74rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin-bottom: 8px; }
+.sumtab .eval-chart { height: 96px; }
 .accuracy { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .accuracy__box {
-  background: #f1f5f9; color: #0f172a; border-radius: var(--radius-sm); padding: 10px 14px;
-  display: flex; flex-direction: column;
+  background: var(--side-white); color: var(--side-black-2); box-shadow: inset 0 0 0 1px var(--side-ring); border-radius: var(--radius-sm); padding: 10px 14px;
+  display: flex; flex-direction: column; min-width: 0;
 }
-.accuracy__box--black { background: #0b1220; color: var(--text); border: 1px solid var(--border-strong); }
+.accuracy__box--black { background: var(--side-black); color: var(--on-black); border: 1px solid var(--border-strong); }
 .accuracy__name { font-size: 0.8rem; opacity: 0.75; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.accuracy__num { font-size: 1.7rem; font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
-.counts { width: 100%; margin-top: 12px; border-collapse: collapse; font-size: 0.92rem; }
-.counts td { padding: 5px 4px; }
-.counts td:nth-child(2) { display: flex; align-items: center; gap: 8px; color: var(--text-2); }
-.counts__n { width: 40px; text-align: center; font-weight: 600; font-variant-numeric: tabular-nums; }
-
-.review__key { padding: 18px 20px; }
-.key-moment {
-  display: flex; align-items: center; gap: 10px; width: 100%; min-height: 40px; background: var(--surface-2);
-  border: 0; border-radius: var(--radius-sm); padding: 0 12px; margin-bottom: 6px; text-align: left;
-  transition: background 0.15s;
+.accuracy__num { font-size: 1.7rem; font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; line-height: 1.15; }
+.accuracy__cap { font-size: 0.72rem; opacity: 0.65; }
+.counts { width: 100%; border-collapse: collapse; font-size: 0.92rem; table-layout: fixed; }
+.counts th { font-size: 0.76rem; font-weight: 600; color: var(--text-2); padding: 0 4px 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.counts td { padding: 4px 4px; }
+.counts td:nth-child(2) { display: flex; align-items: center; gap: 8px; color: var(--text-2); white-space: nowrap; font-size: 0.9rem; }
+.counts__n { width: 19%; text-align: center; font-weight: 600; font-variant-numeric: tabular-nums; }
+.moments { display: flex; flex-direction: column; gap: 4px; }
+.moment {
+  display: flex; align-items: center; gap: 10px; width: 100%; min-height: 38px; background: var(--surface-2); border: 0;
+  border-radius: var(--radius-sm); padding: 0 12px; text-align: left; color: var(--text); transition: background 0.15s;
 }
-.key-moment:hover { background: var(--surface-3); }
-.key-moment small { color: var(--danger); margin-left: auto; font-weight: 600; }
-
-@media (max-width: 1080px) {
-  .review { grid-template-columns: minmax(0, 1fr); }
-  .review__main { max-width: 660px; }
-}
-@media (max-width: 640px) {
-  .review__players, .review__nav { padding-left: 0; margin-left: 0; }
-  .eval-chart { width: 100%; margin-left: 0; }
-  .review__toggle { margin-left: 0; width: 100%; }
-}
+.moment:hover { background: var(--surface-3); }
+.moment--on, .moment--on:hover { background: var(--primary-soft); box-shadow: inset 3px 0 0 var(--primary); }
+.moment__san { font: 600 0.9rem var(--mono); }
+.moment__who { color: var(--muted); font-size: 0.8rem; }
+.moment__loss { color: var(--danger); margin-left: auto; font-weight: 600; }
 
 .review-form__note { color: var(--muted); font-size: 0.88rem; margin-bottom: 12px; }
 .review-form__note a { color: var(--primary); }
 
 /* class badge drawn on a square of the board */
-.sq-badge { position: absolute; top: 1px; right: 1px; z-index: 6; line-height: 0; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5)); pointer-events: none; }
+.sq-badge { position: absolute; top: 2px; right: 2px; z-index: 6; line-height: 0; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5)); pointer-events: none; }
 .sq-badge .badge { box-shadow: 0 0 0 2px rgba(15, 23, 42, 0.55); }
 .review__why { display: block; color: var(--muted); font-size: 0.85rem; margin-top: 2px; }
-.review__back { align-self: flex-start; }
 .review__wait { padding: 20px; display: flex; flex-direction: column; gap: 14px; }
 .review__wait h2 { font-size: 1.15rem; }
 
 /* The review that replaces a game screen: same room, so the page does not jump. */
 .review--inline {
-  padding: 20px 32px 40px;
+  --board: min(calc(100vh - 176px), calc(100vw - 264px - 64px - var(--panel) - 24px - var(--gutter)), 1400px);
+  padding: 20px 32px 24px;
   animation: review-in 0.25s ease-out;
 }
-.review--inline .review__players,
-.review--inline .review__nav { padding-left: 38px; margin-left: 0; }
-.review--inline .review__nav { padding-left: 0; margin-left: 38px; }
 .review__board--waiting { opacity: 0.85; }
 @keyframes review-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
-@media (max-width: 1180px) {
-  .review--inline { padding: 12px; }
-}
 .badge-img { display: inline-block; flex: none; vertical-align: middle; object-fit: contain; user-select: none; }
 
 /* Where the selected piece can go (components/Board.jsx): a dark dot on an empty
@@ -184,26 +242,188 @@
 .sq-dot { background: radial-gradient(circle at center, rgba(0, 0, 0, 0.28) 0, rgba(0, 0, 0, 0.28) 17%, transparent 18%); }
 .sq-ring { background: radial-gradient(circle at center, transparent 0, transparent 66%, rgba(0, 0, 0, 0.28) 67%, rgba(0, 0, 0, 0.28) 86%, transparent 87%); }
 
-/* copy buttons, the engine's line, the person's own branch */
-.review__nav .review__copy { display: inline-flex; align-items: center; gap: 6px; padding: 0 12px; min-width: 0; font-size: 0.85rem; font-weight: 600; }
-.review__hint--pad { margin: -4px 0 10px 36px; font-size: 0.85rem; }
+/* Nothing on the board can be selected: a drag or a double click would otherwise paint the
+   coordinates and the pieces blue in the middle of a game. */
+.themed-board, .themed-board * {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* A square marked with the right button (components/Board.jsx): a red wash under the piece. */
+.sq-mark { position: absolute; inset: 0; z-index: 3; background: rgba(235, 64, 52, 0.62); pointer-events: none; }
+
+/* A piece picked up (pressed, selected or dragged) rises a little and grows, with a shadow, as on
+   chess.com. The wrapper of the piece carries the library's own move animation, so only its child
+   (the picture) is moved here. The piece that follows the pointer while dragging lives in a fixed
+   layer of the library with no class of its own: it is found by its inline style. */
+.themed-board [data-piece] > * { transition: transform 0.12s ease, filter 0.12s ease; }
+.themed-board .sq-lifted { z-index: 8; }
+.themed-board .sq-lifted [data-piece] > *,
+.themed-board div[style*="position: fixed"][style*="pointer-events: none"] > div > * {
+  transform: translate(var(--lift-x, 0px), calc(var(--lift-y, 0px) - 8%)) scale(1.12);
+  filter: drop-shadow(0 7px 5px rgba(0, 0, 0, 0.38));
+}
+/* the piece slides to the pointer quickly when pressed */
+.themed-board .sq-lifted [data-piece] > * { transition-duration: 0.07s; }
+
+/* small buttons of the panel */
+.btn--small { min-height: 30px; padding: 0 10px; font-size: 0.82rem; gap: 6px; }
 .review__thinking { color: var(--muted); font-size: 0.85rem; }
 .review__loss { color: var(--danger); font-weight: 600; }
-.review__pv { line-height: 2; }
+
+/* the person's own branch: its moves as chips, a few buttons */
 .pv-move, .branch-move {
   display: inline-flex; align-items: center; gap: 4px; background: var(--surface-2); border: 1px solid var(--border); color: var(--text);
   border-radius: 6px; padding: 1px 8px; margin: 0 2px 2px 0; font: 600 0.88rem/1.6 var(--mono);
 }
 .pv-move:hover, .branch-move:hover { background: var(--surface-3); border-color: var(--border-strong); }
 .pv-move__no { color: var(--muted); font-weight: 500; }
-.badge--wait { background: var(--surface-3); }
-.evalbar--dim { opacity: 0.55; }
-.review__branch { padding: 16px 18px; display: flex; flex-direction: column; gap: 12px; border-color: rgba(96, 165, 250, 0.45); }
+.review__branch { padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; border: 1px solid rgba(var(--info-rgb), 0.45); border-radius: var(--radius-sm); }
 .review__branchhead { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
-.review__branchhead h3 { font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--info); }
+.review__branchhead h3 { min-width: 0; font-size: 0.76rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--info); }
+.review__branchhead .btn { flex: none; white-space: nowrap; }
 .review__branchmoves { display: flex; flex-wrap: wrap; align-items: center; }
 .branch-move--on, .branch-move--on:hover { background: var(--primary-soft); border-color: var(--primary); }
 .review__row { display: flex; gap: 8px; flex-wrap: wrap; }
 .review__row .btn { flex: 1 1 auto; }
-.review__copyrow { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
-.review__copyrow .btn { flex: 1 1 auto; justify-content: center; }
+.review__row .btn--ghost { flex: none; }
+.loader__area { min-height: 140px; }
+
+/* The engine's best lines (MultiPV): three slim rows, the evaluation and the moves on one line, cut off
+   at the edge of the panel. The evaluation (or the arrow) opens a row to show its line whole. */
+.lines { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; }
+.lines__row { display: flex; align-items: center; gap: 8px; min-height: 30px; padding: 3px 6px 3px 4px; border-top: 1px solid var(--border); min-width: 0; }
+.lines__row:first-child { border-top: 0; }
+.lines__eval {
+  flex: none; min-width: 56px; height: 22px; padding: 0 6px; border-radius: 5px; border: 0;
+  font: 700 0.78rem/22px var(--mono); text-align: center; font-variant-numeric: tabular-nums;
+}
+.lines__eval--w { background: var(--side-white); color: var(--side-black-2); box-shadow: inset 0 0 0 1px var(--side-ring); }
+.lines__eval--b { background: var(--side-black); color: var(--on-black); box-shadow: inset 0 0 0 1px var(--border-strong); }
+.lines__moves {
+  flex: 1; min-width: 0; overflow: hidden; white-space: nowrap;
+  -webkit-mask-image: linear-gradient(to right, black calc(100% - 26px), transparent);
+  mask-image: linear-gradient(to right, black calc(100% - 26px), transparent);
+}
+.lines .pv-move { background: none; border-color: transparent; padding: 0 4px; margin: 0; font-size: 0.82rem; }
+.lines .pv-move:hover { background: var(--surface-3); border-color: transparent; }
+.lines__chev { flex: none; display: grid; place-items: center; width: 22px; height: 22px; padding: 0; background: none; border: 0; border-radius: 5px; color: var(--muted); }
+.lines__chev:hover { background: var(--surface-3); color: var(--text); }
+.lines__chev .icon { transition: transform 0.15s; }
+.lines__row--open { align-items: flex-start; }
+.lines__row--open .lines__moves { white-space: normal; line-height: 1.8; -webkit-mask-image: none; mask-image: none; }
+.lines__row--open .lines__eval, .lines__row--open .lines__chev { margin-top: 0; }
+.lines__row--open .lines__chev .icon { transform: rotate(180deg); }
+.lines__more { padding: 4px 8px; list-style: none; border-top: 1px solid var(--border); }
+
+/* The AI coach (the "Подробнее" text inside Dionis's card) */
+.coach__lead { color: var(--text-2); font-size: 0.92rem; }
+.coach__busy { animation: coach-pulse 1.4s ease-in-out infinite; }
+@keyframes coach-pulse { 50% { opacity: 0.45; } }
+.coach__body { display: flex; flex-direction: column; gap: 10px; }
+.coach__body p { color: var(--text); font-size: 0.94rem; line-height: 1.55; }
+.coach__body .coach__note { color: var(--muted); font-size: 0.78rem; line-height: 1.4; }
+.coach__show { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* Dionis, the coach of the platform (DionisCard.jsx): a short remark and two small buttons */
+.dionis { position: relative; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; border-color: var(--primary-soft); }
+.dionis__top { display: flex; align-items: flex-start; gap: 10px; }
+.dionis__col { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.dionis__say {
+  padding: 8px 12px; border-radius: 4px 12px 12px 12px; background: var(--surface-2);
+  font-size: 0.95rem; line-height: 1.4; color: var(--text);
+}
+.dionis__row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.dionis__hide { position: absolute; top: 6px; right: 6px; display: grid; place-items: center; width: 24px; height: 24px; padding: 0; background: none; border: 0; color: var(--muted); border-radius: 6px; }
+.dionis__say { padding-right: 30px; }
+.dionis__hide:hover { color: var(--text); background: var(--surface-2); }
+.dionis__more { display: flex; flex-direction: column; gap: 10px; padding-top: 10px; border-top: 1px solid var(--border); }
+
+/* ---- the board in the centre: the panel is gone, so the stepping goes under the board ---- */
+.shell--focus .rnav--board { display: grid; max-width: calc(var(--board) + 2px); }
+
+/* ---- narrow windows: one column, the panel under the board ---- */
+@media (max-width: 1220px) {
+  .review, .review--inline { --board: 100%; }
+  .rnav--board { display: grid; max-width: calc(100% - var(--gutter)); }
+  .review { grid-template-columns: minmax(0, 680px); gap: 14px; }
+  .review--inline { padding: 12px; }
+  .page.page--stage { padding: 12px; }
+  .rv { contain: none; overflow: visible; }
+  .rv__body { overflow: visible; flex: none; }
+  .rv__body > .move-list { flex: none; max-height: 340px; }
+}
+/* a tablet or a narrow window: the stepping sits right under the board (the panel is below the fold) */
+@media (min-width: 861px) and (max-width: 1220px) {
+  .rv__foot .rnav { display: none; }
+}
+/* a phone: the board stays at the top while the panel scrolls under it, the buttons stay at the bottom, above the menu bar */
+@media (max-width: 860px) {
+  .review { --gutter: 22px; }
+  .evalbar { width: 12px; }
+  .evalbar__label { display: none; }
+  .review__boardrow { gap: 6px; }
+  .review__players { padding-left: 0; font-size: 0.92rem; padding-bottom: 4px; }
+  .rnav--board { display: none; margin-left: 0; }
+}
+@media (max-width: 860px) and (min-height: 620px) {
+  .review__main { position: sticky; top: 0; z-index: 12; padding-top: 6px; background: var(--bg); }
+  .rv__foot { position: sticky; bottom: calc(64px + env(safe-area-inset-bottom, 0px)); z-index: 11; box-shadow: var(--shadow-small); }
+}
+@media (max-width: 860px) {
+  .rv__body > .move-list { max-height: none; overflow: visible; }
+  .rv__foot { padding: 8px 10px 10px; }
+  /* the round "board in the centre" button would float over the buttons, and a phone has the board full width anyway */
+  .shell:not(.shell--focus):has(.review) .focus-toggle { display: none; }
+  .rnav button { height: 40px; }
+  .rtools__btn { height: 32px; }
+}
+
+/* ---- the engine's arrows over the board (components/ArrowLayer.jsx, review/arrows.js) ---- */
+.tb-board { position: relative; }
+.earrows { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 20; pointer-events: none; overflow: visible; }
+.earrow__shaft { fill: none; stroke-linecap: butt; stroke-linejoin: round; }
+.earrow--best { --earrow: var(--primary-rgb); }
+.earrow--second { --earrow: var(--info-rgb); }
+.earrow--third { --earrow: var(--warn-rgb); }
+.earrow--threat { --earrow: var(--danger-rgb); }
+.earrow__shaft { stroke: rgb(var(--earrow)); }
+.earrow__head { fill: rgb(var(--earrow)); }
+
+/* the "Ссылка" button of the panel and the note that the link is copied */
+.rtools__sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.rtools__linkwrap { position: relative; display: inline-flex; }
+.rtools__btn--link { color: var(--primary); border-color: rgba(var(--primary-rgb), 0.45); background: var(--primary-soft); }
+.rtools__btn--link:hover:not(:disabled) { background: var(--primary-soft); border-color: var(--primary); color: var(--primary); }
+.rtools__toast {
+  position: absolute; right: 0; bottom: calc(100% + 8px); z-index: 25; padding: 6px 12px; border-radius: var(--radius-sm); white-space: nowrap;
+  background: var(--primary); color: var(--on-primary); font-size: 0.82rem; font-weight: 600; box-shadow: var(--shadow-small); pointer-events: none;
+}
+.rtools__toast:empty { display: none; }
+
+/* the label over the engine's lines, and the number of a line in the colour of its arrow on the board */
+.linebox { display: flex; flex-direction: column; gap: 4px; }
+.linebox__title { white-space: nowrap; font-size: 0.74rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); display: flex; align-items: baseline; gap: 8px; }
+.linebox__title span { text-transform: none; letter-spacing: 0; font-weight: 500; font-size: 0.74rem; }
+.lines__rank {
+  flex: none; display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; font-size: 0.72rem; font-weight: 700;
+  color: var(--text); background: rgba(var(--earrow), 0.2); box-shadow: inset 0 0 0 2px rgb(var(--earrow));
+}
+.lines__rank--1 { --earrow: var(--primary-rgb); }
+.lines__rank--2 { --earrow: var(--info-rgb); }
+.lines__rank--3 { --earrow: var(--warn-rgb); }
+
+/* a window not much taller than 768 px: the panel is made tighter so the three lines are in view at once */
+@media (max-height: 820px) and (min-width: 1221px) {
+  .rv__head { padding: 10px 14px 8px; }
+  .rv__body { padding: 10px 12px; gap: 8px; }
+  .rv__foot { padding: 8px 10px 10px; gap: 6px; }
+  .rv__tab { min-height: 36px; }
+  .eval-chart { height: 40px; }
+  .rv__move { min-height: 30px; }
+  .rnav button { height: 38px; }
+  .dionis { padding: 8px 10px; }
+  .dionis__say { padding-top: 6px; padding-bottom: 6px; font-size: 0.9rem; }
+}

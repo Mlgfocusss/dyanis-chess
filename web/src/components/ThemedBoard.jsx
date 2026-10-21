@@ -4,6 +4,7 @@ import { useElementWidth } from "../hooks/useElementWidth.js";
 import { useSettings, ANIMATION_MS } from "../settings/SettingsContext.jsx";
 import { getBoardTheme, getPieceSet } from "../themes/index.js";
 import ClassBadge from "../review/ClassBadge.jsx";
+import ArrowLayer from "./ArrowLayer.jsx";
 import PromotionPicker from "./PromotionPicker.jsx";
 import { pickerRunsUp } from "./promotion.js";
 
@@ -57,7 +58,7 @@ export function buildBoardProps(settings) {
   return {
     customLightSquareStyle: light,
     customDarkSquareStyle: dark,
-    customBoardStyle: { borderRadius: "10px", boxShadow: "0 12px 32px rgba(2, 6, 23, 0.5)", ...boardStyle },
+    customBoardStyle: { borderRadius: "10px", boxShadow: "var(--shadow-board)", ...boardStyle },
     customNotationStyle: notation,
     customPieces,
     animationDuration: ANIMATION_MS[settings.animation] ?? ANIMATION_MS.medium,
@@ -75,10 +76,20 @@ const OverlayCtx = createContext(null);
 const OverlaySquare = forwardRef(function OverlaySquare({ children, square, style }, ref) {
   const o = useContext(OverlayCtx);
   const b = o?.badge;
+  const lifted = o?.lift?.square === square ? "sq-lifted" : "";
+  const extra = o?.classes?.[square] || "";
   const dot = o?.dots?.[square];
   const promo = o?.promotion?.square === square ? o.promotion : null;
   return (
-    <div ref={ref} style={{ ...style, position: "relative", ...(promo ? { zIndex: 30 } : {}) }}>
+    <div ref={ref} className={[lifted, extra].filter(Boolean).join(" ") || undefined}
+      style={{
+        ...style,
+        position: "relative",
+        ...(promo ? { zIndex: 30 } : {}),
+        ...(o?.lift?.square === square && o.lift.x !== undefined ? { "--lift-x": o.lift.x + "px", "--lift-y": o.lift.y + "px" } : {}),
+      }}
+    >
+      {o?.marks?.[square] && <span className="sq-mark" />}
       {children}
       {promo && <PromotionPicker {...promo} />}
       {dot && <span className={`sq-${dot}`} />}
@@ -96,7 +107,16 @@ const OverlaySquare = forwardRef(function OverlaySquare({ children, square, styl
 // `settings` to override the saved ones (settings page preview); every
 // other prop goes to react-chessboard. dots: { square: "dot" | "ring" }.
 // promotion: { square, letters, side, onPick } opens the choice of the piece on that square.
-export default function ThemedBoard({ settings: override, orientation = "white", badge, dots, promotion, ...rest }) {
+// marks: { square: true } squares the person marked red with the right button; lift: the square
+// { square, x?, y? } whose piece is picked up (it rises a little, as on chess.com; x and y shift
+// it under the pointer). squareClasses: { square: "class names" } added to the square's box (the chess
+// variants mark the king in check, squares hidden by fog); extraPieces: { xD: ({ squareWidth }) => node }
+// renders pieces the library does not know (the duck), over the usual set; keep it the same object
+// between renders, the library rebuilds the board when it changes.
+// engineArrows: [{from, to, kind, width, opacity}] drawn over the board as the engine's arrows of a review
+// (review/arrows.js); undefined = this board has none. Pass an array (empty when there are none) on a
+// board that has them at times: the board keeps its place in the page whether there are arrows or not.
+export default function ThemedBoard({ settings: override, orientation = "white", badge, dots, promotion, marks, lift, squareClasses, extraPieces, engineArrows, ...rest }) {
   const saved = useSettings().settings;
   const settings = override || saved;
   const [ref, width] = useElementWidth();
@@ -111,8 +131,11 @@ export default function ThemedBoard({ settings: override, orientation = "white",
   // badge: undefined = this board has none; null = none now; {square, cls} = draw it.
   const overlay = useMemo(
     () => ({
-      badge: badge ? { ...badge, size: Math.max(22, Math.round((boardWidth / 8) * 0.44)) } : null,
+      badge: badge ? { ...badge, size: Math.max(16, Math.round((boardWidth / 8) * 0.3)) } : null,
       dots,
+      marks,
+      lift,
+      classes: squareClasses,
       promotion: promotion
         ? {
             ...promotion,
@@ -122,18 +145,33 @@ export default function ThemedBoard({ settings: override, orientation = "white",
           }
         : null,
     }),
-    [badge, dots, promotion, boardWidth, orientation, settings.pieceSet]
+    [badge, dots, marks, lift, squareClasses, promotion, boardWidth, orientation, settings.pieceSet]
   );
-  const board = (
+  const customPieces = useMemo(
+    () => (extraPieces ? { ...extraPieces, ...themeProps.customPieces } : themeProps.customPieces),
+    [extraPieces, themeProps.customPieces]
+  );
+  const chessboard = (
     <OverlayCtx.Provider value={overlay}>
       <Chessboard
         boardWidth={boardWidth}
         boardOrientation={orientation}
         {...themeProps}
-        {...(badge !== undefined || dots !== undefined || promotion !== undefined ? { customSquare: OverlaySquare } : {})}
+        customPieces={customPieces}
+        {...(badge !== undefined || dots !== undefined || promotion !== undefined || marks !== undefined || lift !== undefined || squareClasses !== undefined
+          ? { customSquare: OverlaySquare }
+          : {})}
         {...rest}
       />
     </OverlayCtx.Provider>
+  );
+  const board = engineArrows ? (
+    <div className="tb-board">
+      {chessboard}
+      <ArrowLayer arrows={engineArrows} orientation={orientation} />
+    </div>
+  ) : (
+    chessboard
   );
 
   if (!outside) {

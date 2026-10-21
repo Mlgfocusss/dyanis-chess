@@ -470,6 +470,19 @@ func negamax(b *board.Board, depth, ply, alpha, beta int, isRoot bool, tt *Trans
 		return s, board.Move{}
 	}
 
+	// MultiPV: at the root, the moves of the lines already found are left out
+	// (and so is IID, which would search the root without that restriction).
+	restricted := isRoot && tt != nil && len(tt.rootSkip) > 0
+	if restricted {
+		kept := moves[:0]
+		for _, m := range moves {
+			if !tt.skipsRoot(m) {
+				kept = append(kept, m)
+			}
+		}
+		moves = kept
+	}
+
 	var ttMove board.Move
 	hasTTMove := false
 	if tt != nil {
@@ -477,6 +490,9 @@ func negamax(b *board.Board, depth, ply, alpha, beta int, isRoot bool, tt *Trans
 		// as "has a TT move" (IID would be skipped for them).
 		if entry, ok := tt.probe(hash); ok && entry.move != (board.Move{}) {
 			ttMove, hasTTMove = entry.move, true
+		}
+		if restricted && hasTTMove && tt.skipsRoot(ttMove) {
+			ttMove, hasTTMove = board.Move{}, false
 		}
 	}
 
@@ -496,7 +512,7 @@ func negamax(b *board.Board, depth, ply, alpha, beta int, isRoot bool, tt *Trans
 	// Skipped whenever tt is nil (see negamax's own nil-tt comment):
 	// there would be nowhere for a result to land that the real search
 	// below could then read back.
-	if tt != nil && !hasTTMove && depth >= iidMinDepth {
+	if tt != nil && !hasTTMove && !restricted && depth >= iidMinDepth {
 		negamax(b, depth-iidReduction, ply, alpha, beta, false, tt, checkExtLeft)
 		if tt.aborted() {
 			return 0, board.Move{}

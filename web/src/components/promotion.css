@@ -3,7 +3,7 @@
   position: absolute; left: 0; top: 0; width: 100%; z-index: 30;
   display: flex; flex-direction: column;
   background: var(--surface); border-radius: 6px; overflow: hidden;
-  box-shadow: 0 10px 28px rgba(2, 6, 23, 0.6), 0 0 0 1px var(--border);
+  box-shadow: var(--shadow-pop), 0 0 0 1px var(--border);
 }
 .promo--up { top: auto; bottom: 0; flex-direction: column-reverse; }
 .promo__btn {

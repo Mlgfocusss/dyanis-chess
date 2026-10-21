@@ -1,0 +1,14 @@
+/* Atomic chess: the squares of the last explosion and the card with what it destroyed. Tokens from index.css only. */
+.sq-blast {
+  box-shadow: inset 0 0 0 999px rgba(var(--danger-rgb), 0.3);
+}
+.sq-blast--center {
+  box-shadow: inset 0 0 0 999px rgba(var(--danger-rgb), 0.5), inset 0 0 0 3px rgba(var(--danger-rgb), 0.95);
+}
+
+.vatomic__card { padding: 16px 18px; }
+.vatomic__card h2 { font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-2); margin-bottom: 8px; }
+.vatomic__center { margin: 0 0 8px; color: var(--text-2); font-size: 0.92rem; }
+.vatomic__center strong { color: var(--text); }
+.vatomic__lost { margin: 0; padding-left: 18px; color: var(--text-2); font-size: 0.88rem; display: flex; flex-direction: column; gap: 2px; }
+.vatomic__sq { color: var(--text); font-variant-numeric: tabular-nums; }

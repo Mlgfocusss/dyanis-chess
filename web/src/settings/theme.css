@@ -1,0 +1,45 @@
+/* "Интерфейс" → "Тема": three cards, each with a small picture of the page in that theme. The pictures
+   use the --pv-* constants of index.css: they must look the same whichever theme the page has now. */
+.themepick { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; max-width: 560px; }
+.themeopt {
+  display: flex; flex-direction: column; gap: 8px; padding: 8px 8px 10px; text-align: left;
+  background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text-2);
+  transition: border-color 0.15s, background 0.15s;
+}
+.themeopt:hover { border-color: var(--border-strong); background: var(--surface-2); }
+.themeopt--on, .themeopt--on:hover { border-color: var(--primary); background: var(--primary-soft); color: var(--text); }
+.themeopt__name { display: flex; align-items: center; gap: 6px; padding: 0 4px; font-weight: 600; font-size: 0.92rem; }
+.themeopt__name .icon { width: 16px; height: 16px; color: var(--primary); }
+
+/* the picture: a menu strip, a card with two lines of text and a green button */
+.themepv { position: relative; height: 72px; border-radius: 6px; overflow: hidden; border: 1px solid var(--border-strong); }
+.themepv__face {
+  position: absolute; inset: 0; display: grid; grid-template-columns: 22% 1fr; gap: 6px; padding: 6px;
+  background: var(--pv-bg);
+}
+.themepv__menu { border-radius: 3px; background: var(--pv-surface); border: 1px solid var(--pv-line); }
+.themepv__card { display: flex; flex-direction: column; justify-content: center; gap: 5px; padding: 6px 8px; border-radius: 3px; background: var(--pv-surface); border: 1px solid var(--pv-line); }
+.themepv__line { height: 4px; border-radius: 2px; background: var(--pv-text); }
+.themepv__line--short { width: 60%; opacity: 0.55; }
+.themepv__btn { width: 38%; height: 8px; border-radius: 2px; background: var(--pv-primary); }
+
+.themepv__face--dark {
+  --pv-bg: var(--pv-dark-bg); --pv-surface: var(--pv-dark-surface); --pv-line: var(--pv-dark-line);
+  --pv-text: var(--pv-dark-text); --pv-primary: var(--pv-dark-primary);
+}
+.themepv__face--light {
+  --pv-bg: var(--pv-light-bg); --pv-surface: var(--pv-light-surface); --pv-line: var(--pv-light-line);
+  --pv-text: var(--pv-light-text); --pv-primary: var(--pv-light-primary);
+}
+/* "as in the system": the dark picture over the light one, cut along the diagonal */
+.themepv__face--cut { clip-path: polygon(0 0, 100% 0, 0 100%); }
+
+@media (max-width: 480px) {
+  .themepick { gap: 8px; }
+  .themepv { height: 56px; }
+  .themeopt { padding: 6px 6px 8px; }
+  .themeopt__name { font-size: 0.82rem; padding: 0 2px; }
+}
+
+/* the pale parts of the controls that sit on a light page need an edge (--side-ring is clear in the dark theme) */
+.switch { box-shadow: inset 0 0 0 1px var(--side-ring); }

@@ -152,12 +152,44 @@ type PuzzleAttempt struct {
 	Before  int
 	After   int
 	Record  PuzzleRating // the person's rating and record after the attempt
+	// Gained is the points this try earned and Points the person's points after it; set only when
+	// the try was made in the points mode (award was given).
+	Gained int
+	Points *PuzzlePoints
+}
+
+// PuzzlePoints is a person's puzzle points: the total, the solved puzzles in a row, the best such
+// series and what was earned today (UTC).
+type PuzzlePoints struct {
+	Total      int
+	Streak     int
+	BestStreak int
+	Today      int
+}
+
+// PuzzlePointsOf returns the person's puzzle points as of day (YYYY-MM-DD, UTC); all zero for a
+// person who never collected any.
+func (s *Store) PuzzlePointsOf(ctx context.Context, userID, day string) (PuzzlePoints, error) {
+	var p PuzzlePoints
+	err := s.db.QueryRowContext(ctx, "SELECT points, streak, best_streak FROM puzzle_points WHERE user_id = ?", userID).
+		Scan(&p.Total, &p.Streak, &p.BestStreak)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return PuzzlePoints{}, err
+	}
+	err = s.db.QueryRowContext(ctx, "SELECT points FROM puzzle_points_days WHERE user_id = ? AND day = ?", userID, day).Scan(&p.Today)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return PuzzlePoints{}, err
+	}
+	return p, nil
 }
 
 // RecordPuzzleAttempt writes down the first try at a puzzle. update maps the
 // person's current rating and attempt count to the new rating. A puzzle tried
-// before changes nothing and reports Counted false.
-func (s *Store) RecordPuzzleAttempt(ctx context.Context, userID, puzzleID string, solved bool, update func(rating, attempts int) int) (PuzzleAttempt, error) {
+// before changes nothing and reports Counted false. award, when not nil, switches to the points
+// mode: it maps the series of solved puzzles before this try to the points a solved try earns (it
+// is not called for a failed one, which ends the series and earns nothing); the caller then keeps
+// the rating by returning it from update.
+func (s *Store) RecordPuzzleAttempt(ctx context.Context, userID, puzzleID string, solved bool, update func(rating, attempts int) int, award func(streak int) int) (PuzzleAttempt, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return PuzzleAttempt{}, err
@@ -199,7 +231,51 @@ func (s *Store) RecordPuzzleAttempt(ctx context.Context, userID, puzzleID string
 		VALUES (?, ?, ?, ?, ?, ?)`, userID, puzzleID, solved, cur.Rating, next.Rating, now); err != nil {
 		return PuzzleAttempt{}, err
 	}
-	return PuzzleAttempt{Counted: true, Before: cur.Rating, After: next.Rating, Record: next}, tx.Commit()
+	out := PuzzleAttempt{Counted: true, Before: cur.Rating, After: next.Rating, Record: next}
+	if award != nil {
+		p, gained, err := addPoints(ctx, tx, userID, solved, award, now)
+		if err != nil {
+			return PuzzleAttempt{}, err
+		}
+		out.Gained, out.Points = gained, &p
+	}
+	return out, tx.Commit()
+}
+
+// addPoints applies one first try to the person's points inside tx.
+func addPoints(ctx context.Context, tx *sql.Tx, userID string, solved bool, award func(streak int) int, now time.Time) (PuzzlePoints, int, error) {
+	var p PuzzlePoints
+	err := tx.QueryRowContext(ctx, "SELECT points, streak, best_streak FROM puzzle_points WHERE user_id = ? FOR UPDATE", userID).
+		Scan(&p.Total, &p.Streak, &p.BestStreak)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return p, 0, err
+	}
+	gained := 0
+	if solved {
+		gained = award(p.Streak)
+		p.Total += gained
+		p.Streak++
+		p.BestStreak = max(p.BestStreak, p.Streak)
+	} else {
+		p.Streak = 0
+	}
+	if _, err := tx.ExecContext(ctx, `INSERT INTO puzzle_points (user_id, points, streak, best_streak, updated_at) VALUES (?, ?, ?, ?, ?)
+		ON DUPLICATE KEY UPDATE points = VALUES(points), streak = VALUES(streak), best_streak = VALUES(best_streak), updated_at = VALUES(updated_at)`,
+		userID, p.Total, p.Streak, p.BestStreak, now); err != nil {
+		return p, 0, err
+	}
+	day := now.Format("2006-01-02")
+	if gained > 0 {
+		if _, err := tx.ExecContext(ctx, `INSERT INTO puzzle_points_days (user_id, day, points) VALUES (?, ?, ?)
+			ON DUPLICATE KEY UPDATE points = points + VALUES(points)`, userID, day, gained); err != nil {
+			return p, 0, err
+		}
+	}
+	err = tx.QueryRowContext(ctx, "SELECT points FROM puzzle_points_days WHERE user_id = ? AND day = ?", userID, day).Scan(&p.Today)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return p, 0, err
+	}
+	return p, gained, nil
 }
 
 // importBatch is how many puzzles go into one INSERT.

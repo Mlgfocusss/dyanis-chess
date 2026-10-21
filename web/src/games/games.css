@@ -23,6 +23,11 @@
   flex: none; display: grid; place-items: center; width: 40px; height: 40px; margin-right: 6px;
   background: none; border: 0; border-radius: var(--radius-sm); color: var(--muted);
 }
+.games__copy {
+  flex: none; display: grid; place-items: center; width: 40px; height: 40px;
+  background: none; border: 0; border-radius: var(--radius-sm); color: var(--muted);
+}
+.games__copy:hover { background: var(--surface-3); color: var(--text); }
 .games__delete:hover:not(:disabled) { background: var(--danger-soft); color: var(--danger); }
 .games__empty { padding: 28px; display: flex; flex-direction: column; align-items: flex-start; gap: 14px; }
 .games__empty p { color: var(--text-2); }
@@ -37,7 +42,7 @@
 .games__h { font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin-bottom: 10px; }
 .games__result--win { background: var(--primary-soft); color: var(--primary); }
 .games__result--loss { background: var(--danger-soft); color: var(--danger); }
-.games__result--live { background: rgba(96, 165, 250, 0.16); color: var(--info); }
+.games__result--live { background: rgba(var(--info-rgb), 0.16); color: var(--info); }
 .games__result--draw { color: var(--warn); }
 .games__result { min-width: 92px; }
 .games__review { flex: none; margin-right: 8px; min-height: 36px; }

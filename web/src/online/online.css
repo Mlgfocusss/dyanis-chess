@@ -36,7 +36,7 @@
 .room__meta { color: var(--muted); font-size: 0.85rem; }
 .room__notice { color: var(--danger); font-size: 0.9rem; font-weight: 500; }
 .room__actions, .room__offer { padding: 14px; display: flex; flex-direction: column; gap: 8px; }
-.room__offer { border-color: rgba(251, 191, 36, 0.5); }
+.room__offer { border-color: rgba(var(--warn-rgb), 0.5); }
 .room__row { display: flex; gap: 8px; }
 .room__row .btn { flex: 1 1 0; padding: 0 10px; }
 .room__moves { padding: 14px 16px; }
@@ -62,7 +62,7 @@
 .moves { max-height: 300px; overflow-y: auto; font-variant-numeric: tabular-nums; }
 .moves__empty { color: var(--muted); font-size: 0.9rem; }
 .moves__row { display: grid; grid-template-columns: 36px 1fr 1fr; padding: 3px 4px; border-radius: 4px; font-family: var(--mono); font-size: 0.92rem; }
-.moves__row:nth-child(odd) { background: rgba(148, 163, 184, 0.05); }
+.moves__row:nth-child(odd) { background: rgba(var(--ink-rgb), 0.05); }
 .moves__no { color: var(--muted); }
 
 /* invitation / join card */
@@ -94,7 +94,7 @@
 .chat__empty, .chat__hint { color: var(--muted); font-size: 0.88rem; }
 .chat__line { margin: 0; font-size: 0.92rem; line-height: 1.4; overflow-wrap: anywhere; }
 .chat__who { font-weight: 600; margin-right: 6px; }
-.chat__line--white .chat__who { color: #e2e8f0; }
+.chat__line--white .chat__who { color: var(--name-white); }
 .chat__line--black .chat__who { color: var(--info); }
 .chat__line--mine .chat__who { color: var(--primary); }
 .chat__time { color: var(--muted); font-size: 0.75rem; margin-right: 6px; }
@@ -129,3 +129,5 @@
   position: absolute; left: 50%; top: calc(100% + 6px); transform: translateX(-50%); z-index: 20; display: flex; gap: 8px;
   padding: 8px; border-radius: var(--radius); background: var(--surface); border: 1px solid var(--border-strong); box-shadow: var(--shadow);
 }
+.pbar__link { color: inherit; text-decoration: none; }
+.pbar__link:hover { text-decoration: underline; text-underline-offset: 3px; }

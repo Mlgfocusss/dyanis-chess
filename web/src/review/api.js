@@ -43,12 +43,34 @@ export async function deleteAnalysis(id) {
 
 // Plays moves (UCI or SAN) from a position on the server, which knows the rules:
 // { steps: [{uci, san, fen}], fen, legal: [uci], status, eval? }. With eval the
-// engine also judges the last position (depth 0 = server default).
-export async function fetchLine({ fen, moves = [], eval: wantEval = false, depth = 0 }) {
+// engine also judges the last position (depth 0 = server default); with lines (up to 3) it also
+// finds that many best lines of it (MultiPV): lines: [{rank, score, mate, winPct, depth, bestSan, pv}].
+export async function fetchLine({ fen, moves = [], eval: wantEval = false, depth = 0, lines = 0 }) {
   const res = await fetch("/api/line", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ fen, moves, eval: wantEval, depth }),
+    body: JSON.stringify({ fen, moves, eval: wantEval, depth, lines }),
+  });
+  return readJSON(res);
+}
+
+// Whether the AI coach is switched on at the server (it needs an OpenRouter key). Asked once.
+let coachStatus = null;
+export function coachEnabled() {
+  coachStatus ??= fetch("/api/coach")
+    .then((r) => (r.ok ? r.json() : { enabled: false }))
+    .then((b) => !!b.enabled)
+    .catch(() => false);
+  return coachStatus;
+}
+
+// The coach's explanation of a move of a review (ply: the 1-based half-move):
+// { text, cached, bestSan, bestLine: [san], replyLine: [san] }.
+export async function askCoach(id, ply) {
+  const res = await fetch("/api/coach", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id, ply }),
   });
   return readJSON(res);
 }

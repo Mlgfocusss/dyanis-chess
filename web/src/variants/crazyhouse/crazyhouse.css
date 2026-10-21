@@ -1,0 +1,4 @@
+/* Crazyhouse: the room has two pocket rows (about 52px each) besides the player bars, so the board is a little smaller. */
+@media (min-width: 1181px) {
+  .vroom[data-variant="crazyhouse"] { --board: min(calc(100vh - 252px), 1400px); }
+}

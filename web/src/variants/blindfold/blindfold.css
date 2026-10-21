@@ -1,0 +1,48 @@
+/* Blindfold chess: the strip with the last move, the field for a typed move, the card of the room. Tokens only. */
+.blind-opts { display: flex; flex-direction: column; gap: 8px; }
+.blind-opts__title { margin: 0; font-weight: 600; }
+.blind-opts__note { margin: 0; color: var(--text-2); font-size: 0.88rem; }
+
+.blind-top {
+  display: flex; align-items: center; gap: 12px; padding: 10px 14px;
+  border: 1px solid var(--border); border-radius: 12px; background: var(--surface);
+}
+.blind-top__icon {
+  flex: none; display: grid; place-items: center; width: 36px; height: 36px; border-radius: 10px;
+  background: var(--primary-soft); color: var(--primary);
+}
+.blind-top__text { min-width: 0; }
+.blind-top__main { margin: 0; font-size: 1.05rem; font-weight: 700; overflow-wrap: anywhere; }
+.blind-top__sub { margin: 2px 0 0; color: var(--text-2); font-size: 0.85rem; }
+
+.blind-bottom { display: flex; flex-direction: column; gap: 8px; }
+.blind-form { display: flex; flex-wrap: wrap; gap: 8px; }
+.blind-form__input { flex: 1 1 180px; min-width: 0; }
+.blind-form__peek { flex: 1 1 100%; justify-content: center; }
+.blind-bottom__error { margin: 0; color: var(--danger-text); font-size: 0.9rem; overflow-wrap: anywhere; }
+.blind-promo { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.blind-promo__lab { color: var(--text-2); font-size: 0.9rem; }
+
+/* the square the move starts from: an inset ring in the page's accent, over whatever the board theme is */
+.sq-blind-from { box-shadow: inset 0 0 0 4px rgba(var(--primary-rgb), 0.9); }
+.sq-blind-from::after { content: ""; position: absolute; inset: 0; z-index: 1; pointer-events: none; background: rgba(var(--primary-rgb), 0.28); }
+
+.blind-note h2 { display: flex; align-items: center; gap: 8px; }
+.blind-note p { margin: 8px 0 0; color: var(--text-2); font-size: 0.88rem; }
+.blind-note__over { color: var(--info-text); }
+.blind-note__check { display: flex; align-items: flex-start; gap: 8px; margin-top: 10px; font-size: 0.88rem; cursor: pointer; }
+.blind-note__check input { margin-top: 3px; accent-color: var(--primary); }
+
+.blind-moves__head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.blind-moves__off { margin: 8px 0 0; color: var(--text-2); font-size: 0.9rem; }
+.blind-note { padding: 16px 18px; }
+.blind-note h2 { font-size: 1rem; font-weight: 700; }
+.blind-top { margin-bottom: 4px; }
+
+/* The strip above the board and the field under it take about 130px: the board gets that much less height, so the
+   field for a typed move is on the screen of a 1440x900 laptop without scrolling (the narrow layout is left alone). */
+@media (min-width: 1181px) {
+  .vroom[data-variant="blindfold"] { --board: min(calc(100vh - 282px), 1400px); }
+  .shell--focus .vroom[data-variant="blindfold"] { --board: min(calc(100vh - 256px), calc(100vw - 40px), 1800px); }
+}
+

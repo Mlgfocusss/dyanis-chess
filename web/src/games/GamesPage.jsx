@@ -2,7 +2,11 @@ import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "../auth/AuthContext.jsx";
 import { deleteAnalysis, listAnalyses } from "../review/api.js";
 import Icon from "../ui/Icon.jsx";
+import { summaryOpening } from "../openings/names.js";
+import { copyText } from "../review/clipboard.js";
+import { reviewUrl } from "../review/moments.js";
 import OnlineGames from "./OnlineGames.jsx";
+import VariantGames from "../variants/VariantGames.jsx";
 import "./games.css";
 
 function formatDate(iso) {
@@ -19,9 +23,17 @@ function title(g) {
 }
 
 function Row({ item, onDelete, busy }) {
+  const [copied, setCopied] = useState(false);
+  async function copyLink() {
+    if (await copyText(reviewUrl(window.location.origin, window.location.pathname, item.id))) {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    }
+  }
   const { game, summary, status } = item;
   const failed = status === "error";
   const running = status === "queued" || status === "running";
+  const opening = summaryOpening(summary);
   return (
     <li className="games__row">
       <a className="games__link" href={`#review/${item.id}`}>
@@ -30,7 +42,7 @@ function Row({ item, onDelete, busy }) {
           <span className="games__title">{title(game)}</span>
           <span className="games__sub">
             {formatDate(item.created)}
-            {summary?.opening ? ` · ${summary.opening}` : ""}
+            {opening.text ? <span title={opening.title}>{` · ${opening.text}`}</span> : ""}
           </span>
         </span>
         {summary && (
@@ -43,6 +55,11 @@ function Row({ item, onDelete, busy }) {
         {failed && <span className="games__state games__state--bad">не удался</span>}
         {running && <span className="games__state">идёт разбор…</span>}
       </a>
+      {!failed && !running && (
+        <button type="button" className="games__copy" aria-label={`Скопировать ссылку на разбор ${title(game)}`} title={copied ? "Ссылка скопирована" : "Скопировать ссылку на разбор"} onClick={copyLink}>
+          <Icon name={copied ? "check" : "link"} size={18} />
+        </button>
+      )}
       <button
         type="button"
         className="games__delete"
@@ -124,6 +141,7 @@ export default function GamesPage({ embedded = false }) {
       )}
 
       {embedded && user && <OnlineGames />}
+      {embedded && user && <VariantGames />}
       {embedded && user && <h2 className="games__h">Разборы</h2>}
 
       {error && <div className="banner banner--error">{error}</div>}

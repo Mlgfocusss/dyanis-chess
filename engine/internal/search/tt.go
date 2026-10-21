@@ -328,6 +328,12 @@ type TranspositionTable struct {
 	// carries it over; nil means "no history known" (a bare FEN).
 	gameHistory []uint64
 
+	// rootSkip lists root moves the search must not consider (MultiPV: the
+	// lines already found are skipped to find the next best one). Empty in
+	// every ordinary search, which then behaves exactly as before. See
+	// SetRootSkip.
+	rootSkip []board.Move
+
 	// pawnCache is eval.Evaluate's per-search pawn-structure cache —
 	// see eval.PawnCache's own doc comment for what it caches and why
 	// it lives here (one per top-level search call) rather than as a
@@ -393,6 +399,21 @@ func NewTranspositionTableMB(mb int) *TranspositionTable {
 		history:   make([]int, historySize),
 		pawnCache: eval.NewPawnCache(),
 	}
+}
+
+// SetRootSkip makes the next searches ignore the given moves at the root, so
+// the best move of what is left is found. The caller keeps at least one legal
+// move out of the list. Pass nil to search everything again.
+func (tt *TranspositionTable) SetRootSkip(ms []board.Move) { tt.rootSkip = ms }
+
+// skipsRoot says whether m is one of the root moves to ignore.
+func (tt *TranspositionTable) skipsRoot(m board.Move) bool {
+	for _, s := range tt.rootSkip {
+		if s == m {
+			return true
+		}
+	}
+	return false
 }
 
 // pawnCacheOrNil safely fetches tt's pawn cache whether tt itself is a

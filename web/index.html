@@ -5,6 +5,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Dyanis Chess</title>
     <link rel="icon" href="data:," />
+    <!-- The theme chosen before ("Настройки → Интерфейс → Тема", kept in the saved settings) is put on
+         <html> before the first paint, so a light page does not start dark. Dark is the page without the
+         attribute. Keep the key and the values in step with src/settings/model.js: theme.test.js runs
+         this very script. No CSP is set (see deploy/nginx.conf), so an inline script is allowed. -->
+    <script>
+      (function () {
+        try {
+          var t = JSON.parse(localStorage.getItem("dyanis.settings.v1")).theme;
+          if (t === "light" || t === "system") document.documentElement.setAttribute("data-theme", t);
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

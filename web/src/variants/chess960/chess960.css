@@ -1,0 +1,20 @@
+/* Chess960: the lobby form for the setup number and the setup card of the room. Tokens only. */
+.c960-opts { display: flex; flex-direction: column; gap: 10px; }
+.c960-opts__row { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
+.c960-opts__num { display: flex; flex-direction: column; gap: 4px; }
+.c960-opts__lab { color: var(--text-2); font-size: 0.78rem; }
+.c960-opts__input { width: 110px; }
+.c960-opts__input[aria-invalid="true"] { border-color: var(--danger); }
+.c960-opts__note { margin: 0; color: var(--text-2); font-size: 0.88rem; }
+.c960-opts__note--bad { color: var(--danger-text); }
+
+.c960-card h2 { display: flex; align-items: center; gap: 8px; }
+.c960-card p { margin: 8px 0 0; color: var(--text-2); font-size: 0.88rem; }
+.c960-card__over { color: var(--info-text); }
+.c960-rank { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 4px; margin-top: 10px; }
+.c960-rank__cell {
+  display: grid; place-items: center; aspect-ratio: 1; border-radius: 6px;
+  background: var(--surface-2); border: 1px solid var(--border); color: var(--text); font-weight: 700; font-size: 0.85rem;
+}
+.c960-card { padding: 16px 18px; }
+.c960-card h2 { font-size: 1rem; font-weight: 700; }

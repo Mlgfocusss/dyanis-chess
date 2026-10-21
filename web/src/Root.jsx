@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import App from "./App.jsx";
+import HomePage from "./home/HomePage.jsx";
 import ReviewPage from "./review/ReviewPage.jsx";
+import AnalysisPage from "./review/AnalysisPage.jsx";
 import SettingsPage from "./settings/SettingsPage.jsx";
 import AccountPage from "./auth/AccountPage.jsx";
 import ProfilePage from "./profile/ProfilePage.jsx";
@@ -10,6 +12,12 @@ import PuzzlesPage from "./puzzles/PuzzlesPage.jsx";
 import RushPage from "./puzzles/RushPage.jsx";
 import DuelPage from "./puzzles/DuelPage.jsx";
 import OpeningsPage from "./openings/OpeningsPage.jsx";
+import LessonsPage from "./lessons/LessonsPage.jsx";
+import TrainerPage from "./trainer/TrainerPage.jsx";
+import LeadersPage from "./leaders/LeadersPage.jsx";
+import UserPage from "./leaders/UserPage.jsx";
+import VariantsPage from "./variants/VariantsPage.jsx";
+import { VARIANTS } from "./variants/registry.js";
 import AccountCard from "./auth/AccountCard.jsx";
 import { AuthProvider, useAuth } from "./auth/AuthContext.jsx";
 import { SettingsProvider, useSettings } from "./settings/SettingsContext.jsx";
@@ -23,6 +31,7 @@ import "./Root.css";
 // shape of the product is visible. The profile sits at the bottom left, in the
 // account card (see auth/AccountCard.jsx).
 const NAV = [
+  { id: "home", label: "Главная", icon: "home" },
   {
     id: "play-menu",
     label: "Играть",
@@ -31,6 +40,17 @@ const NAV = [
       { id: "online", label: "Играть онлайн", icon: "online" },
       { id: "bots", label: "Играть с ботами", icon: "bots" },
       { id: "play", label: "Играть против движка", icon: "bot" },
+      { id: "leaders", label: "Таблица лидеров", icon: "trophy" },
+    ],
+  },
+  {
+    // "Другие шахматы": the pages of the variants come from their folders (web/src/variants/<id>/)
+    id: "variants-menu",
+    label: "Другие шахматы",
+    icon: "variants",
+    children: [
+      { id: "variants", label: "Все виды", icon: "list" },
+      ...VARIANTS.map((v) => ({ id: `variant:${v.id}`, label: v.name, icon: v.icon })),
     ],
   },
   {
@@ -46,14 +66,16 @@ const NAV = [
     ],
   },
   { id: "openings", label: "Дебюты", icon: "openings" },
-  { id: "lessons", label: "Уроки", icon: "lessons", soon: true },
+  { id: "lessons", label: "Уроки", icon: "lessons" },
   { id: "review", label: "Разбор партии", icon: "review" },
-  { id: "coach", label: "Тренер", icon: "coach", soon: true },
+  { id: "analysis", label: "Доска анализа", icon: "board", noMobile: true }, // on the bottom bar there is no room: the review page links to it
+  { id: "coach", label: "Тренер", icon: "coach" },
 ];
 const SETTINGS_ITEM = { id: "settings", label: "Настройки", icon: "sliders" };
-const PAGES = ["review", "online", "bots", "play", "puzzles", "openings", "profile", "account", "settings"];
-// The puzzle pages share one page and differ in the hash: [page, hash] of a menu item.
+const PAGES = ["home", "review", "analysis", "lessons", "coach", "online", "bots", "play", "puzzles", "variants", "openings", "leaders", "user", "profile", "account", "settings"];
+// The puzzle pages share one page and differ in the hash: [page, hash] of a menu item. So do the variants.
 const SUB_PAGES = {
+  ...Object.fromEntries(VARIANTS.map((v) => [`variant:${v.id}`, ["variants", `variants/${v.id}`]])),
   "puzzles-themes": ["puzzles", "puzzles/themes"],
   "puzzles-daily": ["puzzles", "puzzles/daily"],
   "puzzles-rush": ["puzzles", "puzzles/rush"],
@@ -68,11 +90,16 @@ const ALIASES = { games: "profile" };
 function initialPage() {
   const raw = window.location.hash.slice(1).split("/")[0];
   const h = ALIASES[raw] || raw;
-  return PAGES.includes(h) ? h : "review";
+  return PAGES.includes(h) ? h : "home";
 }
 
 // The menu item a page lights up: the puzzle tabs have their own.
 function menuId(page) {
+  if (page === "user") return "leaders"; // a player's page belongs to the leaderboard
+  if (page === "variants") {
+    const part = window.location.hash.slice(1).split("/")[1];
+    return VARIANTS.some((v) => v.id === part) ? `variant:${part}` : "variants";
+  }
   if (page !== "puzzles") return page;
   const part = window.location.hash.slice(1).split("/")[1];
   return part === "themes" || part === "daily" || part === "rush" || part === "duel" ? `puzzles-${part}` : "puzzles";
@@ -120,7 +147,7 @@ function NavList({ items, page, select, className = "", flyout, setFlyout }) {
   return (
     <ul className={"nav__list " + className}>
       {items.map((it) => {
-        const li = it.soon ? "nav__soon-item" : it.mobileOnly ? "nav__mobile-only" : undefined;
+        const li = it.soon || it.noMobile ? "nav__soon-item" : it.mobileOnly ? "nav__mobile-only" : undefined;
         if (!it.children) {
           return (
             <li key={it.id} className={li}>
@@ -158,9 +185,10 @@ function NavList({ items, page, select, className = "", flyout, setFlyout }) {
 // Pages with a board that the focus mode makes sense for: the game pages only
 // while a game is on (#online/<id>, #bots/<id>), not in their lobbies.
 function pageHasBoard(page) {
-  if (page === "review" || page === "play" || page === "puzzles") return true;
+  if (page === "review" || page === "analysis" || page === "play" || page === "puzzles") return true;
   if (page === "openings") return !!window.location.hash.slice(1).split("/")[1];
   if (page === "online" || page === "bots") return !!window.location.hash.slice(1).split("/")[1];
+  if (page === "variants") return window.location.hash.slice(1).split("/")[1] === "game"; // a game, not the lobby
   return false;
 }
 
@@ -234,12 +262,12 @@ function Shell() {
         </button>
       )}
       <nav className="nav" aria-label="Основное меню">
-        <div className="nav__brand">
+        <a className="nav__brand" href="#home" onClick={() => setFlyout(null)} aria-label="Dyanis Chess, на главную">
           <span className="nav__logo">
             <Icon name="crown" size={22} />
           </span>
           <span className="nav__name">Dyanis Chess</span>
-        </div>
+        </a>
 
         <NavList items={NAV} page={menuId(page)} select={select} flyout={flyout} setFlyout={setFlyout} />
         <NavList items={[accountItem, SETTINGS_ITEM]} page={page} select={select} flyout={flyout} setFlyout={setFlyout} className="nav__list--bottom" />
@@ -253,13 +281,20 @@ function Shell() {
 
       <main className="main">
         {/* Only the visible page is mounted: the play page owns a Web Worker. */}
+        {page === "home" && <HomePage />}
         {page === "review" && <ReviewPage />}
+        {page === "analysis" && <AnalysisPage />}
         {page === "profile" && <ProfilePage />}
         {page === "online" && <OnlinePage />}
         {page === "bots" && <BotsPage />}
+        {page === "variants" && <VariantsPage />}
         {page === "play" && <App />}
         {page === "puzzles" && (puzzleSection() === "rush" ? <RushPage /> : puzzleSection() === "duel" ? <DuelPage /> : <PuzzlesPage />)}
         {page === "openings" && <OpeningsPage />}
+        {page === "lessons" && <LessonsPage />}
+        {page === "coach" && <TrainerPage />}
+        {page === "leaders" && <LeadersPage />}
+        {page === "user" && <UserPage />}
         {page === "account" && <AccountPage />}
         {page === "settings" && <SettingsPage />}
       </main>

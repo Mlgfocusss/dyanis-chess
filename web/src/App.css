@@ -40,8 +40,8 @@
   font-size: 0.82rem;
   font-weight: 600;
 }
-.status__flag--warn { background: var(--danger-soft); color: #fecaca; }
-.status__flag--thinking { background: rgba(96, 165, 250, 0.16); color: #bfdbfe; }
+.status__flag--warn { background: var(--danger-soft); color: var(--danger-text); }
+.status__flag--thinking { background: rgba(var(--info-rgb), 0.16); color: var(--info-text); }
 .status__note { margin-top: 8px; font-size: 0.85rem; color: var(--muted); }
 
 .controls { display: flex; flex-direction: column; gap: 18px; }
@@ -51,10 +51,10 @@
 .controls__confirm { flex: 1 1 0; display: flex; gap: 8px; }
 .controls__confirm .btn { flex: 1 1 0; padding: 0 8px; }
 
-.btn--danger { background: var(--danger-soft); border-color: rgba(248, 113, 113, 0.5); color: #fecaca; }
-.btn--danger:hover:not(:disabled) { background: rgba(248, 113, 113, 0.26); }
+.btn--danger { background: var(--danger-soft); border-color: rgba(var(--danger-rgb), 0.5); color: var(--danger-text); }
+.btn--danger:hover:not(:disabled) { background: rgba(var(--danger-rgb), 0.26); }
 .btn--danger-ghost { background: transparent; color: var(--text-2); }
-.btn--danger-ghost:hover:not(:disabled) { background: var(--danger-soft); border-color: rgba(248, 113, 113, 0.5); color: #fecaca; }
+.btn--danger-ghost:hover:not(:disabled) { background: var(--danger-soft); border-color: rgba(var(--danger-rgb), 0.5); color: var(--danger-text); }
 
 .fen-controls { display: flex; flex-direction: column; gap: 8px; }
 .fen-controls__row { display: flex; flex-direction: column; gap: 6px; font-size: 0.85rem; color: var(--text-2); }

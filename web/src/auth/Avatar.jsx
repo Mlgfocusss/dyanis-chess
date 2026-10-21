@@ -1,20 +1,35 @@
 import { useState } from "react";
 import Icon from "../ui/Icon.jsx";
+import { parseAvatar, presetGradient } from "./avatarPresets.js";
 
-// Round picture of a person: their Google photo when there is one that
-// loads, otherwise the first letter of the name.
+// Round picture of a person, the only place that draws one: the avatar they chose (user.avatarUrl is
+// "preset:<id>" for a ready-made one, a photo address for the Google photo, or empty), and the first
+// letter of the name when there is none or the photo does not load.
 export default function Avatar({ user, size = 28 }) {
-  const [broken, setBroken] = useState(false);
+  const [brokenUrl, setBrokenUrl] = useState("");
   const style = { width: size, height: size, fontSize: size * 0.46 };
-  if (user?.avatarUrl && !broken) {
+  const avatar = parseAvatar(user?.avatarUrl);
+  if (avatar.kind === "preset") {
+    return (
+      <span
+        className="avatar avatar--preset"
+        aria-hidden="true"
+        data-preset={avatar.preset.id}
+        style={{ ...style, background: presetGradient(avatar.preset) }}
+      >
+        <Icon name={avatar.preset.icon} size={size * 0.56} />
+      </span>
+    );
+  }
+  if (avatar.kind === "photo" && brokenUrl !== avatar.url) {
     return (
       <img
         className="avatar"
         style={style}
-        src={user.avatarUrl}
+        src={avatar.url}
         alt=""
         referrerPolicy="no-referrer"
-        onError={() => setBroken(true)}
+        onError={() => setBrokenUrl(avatar.url)}
       />
     );
   }

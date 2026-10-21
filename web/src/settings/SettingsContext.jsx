@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "../auth/AuthContext.jsx";
 import { saveSettings } from "../auth/api.js";
 import { backgroundCss, getBackground } from "../themes/index.js";
@@ -10,11 +10,11 @@ import { soundKindForSan } from "../sound/kinds.js";
 // the server as well (User.settings), so the choice follows them to another
 // device: at sign-in the server's copy wins; a user who has none yet gets
 // this browser's settings uploaded.
-import { ANIMATION_MS, DEFAULTS, defaultsOf, sanitize } from "./model.js";
+import { ANIMATION_MS, DEFAULTS, SETTINGS_KEY, applyInterface, defaultsOf, sanitize } from "./model.js";
 
 export { ANIMATION_MS, DEFAULTS, defaultsOf, sanitize };
 
-const KEY = "dyanis.settings.v1";
+const KEY = SETTINGS_KEY;
 
 function load() {
   try {
@@ -113,6 +113,13 @@ export function SettingsProvider({ children }) {
     s.backgroundAttachment = "fixed";
     s.backgroundPosition = "center";
   }, [settings.background]);
+
+  // Theme, text size, reduced motion and contrast belong to the whole document: attributes on <html>
+  // (the settings page previews unsaved choices the same way, see SettingsPage). The theme is also
+  // put there by a script in index.html before the first paint, from the same saved settings.
+  useLayoutEffect(() => {
+    applyInterface(document.documentElement, settings);
+  }, [settings.theme, settings.textSize, settings.reduceMotion, settings.highContrast]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const value = useMemo(() => ({ settings, save }), [settings, save]);
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

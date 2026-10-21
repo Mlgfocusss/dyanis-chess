@@ -46,6 +46,14 @@ export function dayLabel(date) {
   return d.toLocaleDateString("ru-RU", { day: "numeric", month: "long", timeZone: "UTC" });
 }
 
+// "1 очко", "2 очка", "5 очков" (the points mode).
+export function pointsText(n) {
+  const m10 = Math.abs(n) % 10;
+  const m100 = Math.abs(n) % 100;
+  const word = m10 === 1 && m100 !== 11 ? "очко" : m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14) ? "очка" : "очков";
+  return `${n} ${word}`;
+}
+
 // "+18" / "-12" / "0" for a change of rating.
 export function signed(n) {
   return n > 0 ? `+${n}` : n < 0 ? `−${-n}` : "0";

@@ -9,6 +9,7 @@ import { scrollWithin } from "../ui/scroll.js";
 import { addMove, deleteMove, exportUrl, getRepertoire, renameRepertoire } from "./api.js";
 import PgnImport, { summaryOf } from "./PgnImport.jsx";
 import Suggestions from "./Suggestions.jsx";
+import { openingName, openingTitle } from "./names.js";
 import { buildTree, childWith, countsOf, fenAt, gapsOf, learnedPercent, lineText, pathTo, statusOf, subtreeIds, whoMoves } from "./tree.js";
 
 const STATUS_TEXT = { opponent: "ход соперника", new: "новый", due: "пора повторить", learning: "учится", learned: "выучен" };
@@ -345,8 +346,8 @@ export default function Builder({ id, start }) {
           <section className="card openings__pos">
             <p className="room__state">{turn === "mine" ? "Ваш ход" : "Ход соперника"}</p>
             {opening && (
-              <p className="room__opening">
-                <span className="review__eco">{opening.eco}</span> {opening.name}
+              <p className="room__opening" title={openingTitle(opening)}>
+                <span className="review__eco">{opening.eco}</span> {openingName(opening)}
               </p>
             )}
             {path.length > 0 && <p className="openings__line">{lineText(path)}</p>}

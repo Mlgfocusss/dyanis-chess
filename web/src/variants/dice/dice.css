@@ -1,0 +1,99 @@
+/* Dice chess: the three dice of the turn above the board, the big roll button, the pieces that may move.
+   Tokens from index.css only. */
+
+/* the pieces the dice allow: a ring inside their squares (the board puts the class on the square's box) */
+.dice-movable { box-shadow: inset 0 0 0 3px rgba(var(--primary-rgb), 0.8); }
+
+.dice-bar {
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  padding: 8px 12px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  min-height: 102px; /* the same with the button and with the dice, so the board does not jump after the press */
+}
+.dice-bar--roll { padding: 8px; align-items: stretch; }
+
+/* the cells of the list hold up to three moves each: keep the two columns apart */
+.vroom[data-variant="dice"] .vmoves__row .moves__san { padding-right: 10px; }
+
+/* the roll button: one wide, tall target */
+.dice-bar .dice-roll {
+  width: 100%; min-height: 84px; height: auto; display: flex; align-items: center; justify-content: center; gap: 14px;
+  padding: 10px 18px; text-align: left;
+}
+.dice-roll .icon { flex: none; }
+.dice-roll__text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.dice-roll__text strong { font-size: 1.3rem; }
+.dice-roll__text span { font-size: 0.8rem; font-weight: 400; opacity: 0.9; }
+
+.dice-bar__dice { display: flex; gap: 10px; }
+.dice-bar__slot { display: flex; flex-direction: column; align-items: center; gap: 1px; min-width: 66px; }
+.dice-bar__name { font-size: 0.82rem; font-weight: 600; color: var(--text); line-height: 1.2; text-transform: capitalize; white-space: nowrap; }
+.dice-bar__cap { font-size: 0.68rem; color: var(--muted); height: 0.9rem; line-height: 0.9rem; text-align: center; white-space: nowrap; }
+.dice-bar__slot--used .dice-bar__name, .dice-bar__slot--skip .dice-bar__name { color: var(--muted); font-weight: 400; }
+.dice-bar__text { display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1 1 200px; }
+.dice-bar__now { color: var(--text-2); font-size: 0.9rem; }
+.dice-bar__lost { color: var(--warn-text); font-size: 0.82rem; display: flex; gap: 6px; align-items: flex-start; }
+.dice-bar__lost .icon { margin-top: 2px; }
+
+/* a die with a piece on its face: white pieces on a dark face, black pieces on a light one */
+.pdie {
+  display: flex; align-items: center; justify-content: center; flex: none; position: relative;
+  border-radius: 22%; border: 2px solid var(--border-strong); box-shadow: var(--shadow-small);
+}
+.pdie--white { background: var(--side-black-2); color: var(--side-white); }
+.pdie--black { background: var(--side-white-2); color: var(--side-black); }
+.pdie .icon { width: 68%; height: 68%; stroke-width: 1.4; }
+.pdie--free { border-color: var(--primary); border-width: 3px; }
+.pdie--used { opacity: 0.5; }
+.pdie--used::after {
+  content: ""; position: absolute; width: 26%; height: 14%; left: 50%; top: 50%;
+  border-left: 4px solid var(--primary); border-bottom: 4px solid var(--primary);
+  transform: translate(-50%, -60%) rotate(-45deg); border-radius: 1px;
+}
+.pdie--skip { opacity: 0.5; border-style: dashed; }
+.pdie--skip::after {
+  content: ""; position: absolute; left: 8%; right: 8%; top: 50%; height: 0;
+  border-top: 4px solid var(--danger); transform: rotate(-35deg); border-radius: 2px;
+}
+.pdie--empty { background: none; border-style: dashed; box-shadow: none; opacity: 0.6; }
+
+/* the big roll in the middle of the screen */
+.dice-veil {
+  position: fixed; inset: 0; z-index: 70; display: flex; align-items: center; justify-content: center;
+  background: var(--scrim); cursor: pointer; animation: veil-in 0.18s ease-out;
+  transition: opacity 0.38s ease;
+}
+.dice-veil--leaving { opacity: 0; }
+.dice-veil__row { display: flex; gap: clamp(14px, 4vw, 40px); align-items: flex-start; justify-content: center; padding: 0 12px; }
+.dice-veil__slot { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.dice-veil__name { font-size: 1.15rem; font-weight: 700; color: var(--on-dark); text-transform: capitalize; text-shadow: 0 1px 4px var(--scrim-strong); min-height: 1.5rem; }
+.dice-veil__cap { font-size: 0.82rem; color: var(--on-dark); text-shadow: 0 1px 4px var(--scrim-strong); min-height: 1.1rem; max-width: 130px; text-align: center; }
+.dice-veil .pdie { box-shadow: var(--shadow-pop); width: min(112px, 27vw) !important; height: min(112px, 27vw) !important; }
+.dice-veil--leaving .dice-veil__row { transform: translateY(40vh) scale(0.25); transition: transform 0.38s ease-in; }
+@keyframes veil-in { from { opacity: 0; } to { opacity: 1; } }
+
+.pdie--rolling { animation: pdie-roll 0.5s linear infinite; }
+.pdie--landing { animation: pdie-land 0.32s ease-out; }
+@keyframes pdie-roll {
+  0% { transform: translateX(-26px) rotate(0deg) scale(0.96); }
+  50% { transform: translateX(26px) rotate(180deg) scale(1.04); }
+  100% { transform: translateX(-26px) rotate(360deg) scale(0.96); }
+}
+@keyframes pdie-land {
+  0% { transform: scale(1.12) rotate(-10deg); }
+  60% { transform: scale(0.94) rotate(3deg); }
+  100% { transform: scale(1) rotate(0deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pdie--rolling, .pdie--landing, .dice-veil { animation: none; }
+}
+
+@media (max-width: 560px) {
+  .dice-bar { gap: 8px; padding: 8px 10px; }
+  .dice-bar__dice { gap: 6px; width: 100%; justify-content: space-between; }
+  .dice-bar__dice .pdie { width: 46px !important; height: 46px !important; }
+  .dice-bar__dice .pdie .icon { width: 32px; height: 32px; }
+  .dice-bar__slot { min-width: 0; flex: 1 1 0; }
+  .dice-bar__cap { white-space: normal; height: auto; min-height: 0.9rem; }
+  .dice-bar .dice-roll { min-height: 78px; padding: 10px 12px; gap: 10px; }
+  .dice-bar { min-height: 96px; }
+}

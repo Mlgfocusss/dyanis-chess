@@ -159,3 +159,51 @@ func TestLoadNetworkErrors(t *testing.T) {
 		t.Error("missing file accepted")
 	}
 }
+
+func TestSearchLines(t *testing.T) {
+	// A position with a clear best move (the queen is hanging) and many others.
+	p, err := ParseFEN("rnb1kbnr/pppp1ppp/8/4p3/4P2q/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3")
+	if err != nil {
+		t.Fatal(err)
+	}
+	lim := Limits{Depth: 6, HashMB: 8}
+	single, err := Search(p, nil, lim)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lines, err := SearchLines(p, nil, lim, 3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(lines) != 3 {
+		t.Fatalf("got %d lines, want 3", len(lines))
+	}
+	// The first line is the ordinary search; the others start with other moves and are no better.
+	if lines[0].Best != single.Best || lines[0].Score != single.Score {
+		t.Errorf("first line %v (%d) differs from Search %v (%d)", lines[0].Best, lines[0].Score, single.Best, single.Score)
+	}
+	seen := map[Move]bool{}
+	for i, l := range lines {
+		if seen[l.Best] {
+			t.Errorf("line %d repeats the move %v", i+1, l.Best)
+		}
+		seen[l.Best] = true
+		if len(l.PV) == 0 || l.PV[0] != l.Best {
+			t.Errorf("line %d: PV %v does not start with %v", i+1, l.PV, l.Best)
+		}
+		if i > 0 && l.Score > lines[0].Score {
+			t.Errorf("line %d (%d) is better than the first (%d)", i+1, l.Score, lines[0].Score)
+		}
+	}
+	if p.FEN() != "rnb1kbnr/pppp1ppp/8/4p3/4P2q/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3" {
+		t.Error("SearchLines modified the position")
+	}
+
+	// Fewer legal moves than lines: as many lines as moves, each a different move.
+	two, _ := ParseFEN("7k/8/5K2/8/8/8/8/6R1 b - - 0 1") // a black king in a corner with few moves
+	legal := len(two.LegalMoves())
+	got, err := SearchLines(two, nil, Limits{Depth: 3, HashMB: 1}, 10)
+	if err != nil || len(got) != legal {
+		t.Fatalf("lines = %d (err %v), legal moves = %d", len(got), err, legal)
+	}
+}

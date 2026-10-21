@@ -29,7 +29,8 @@ type Store interface {
 	RushBests(ctx context.Context, userID string) (map[string]store.RushBest, error)
 	PuzzleThemes(ctx context.Context) ([]store.ThemeCount, error)
 	PuzzleRatingOf(ctx context.Context, userID string) (store.PuzzleRating, error)
-	RecordPuzzleAttempt(ctx context.Context, userID, puzzleID string, solved bool, update func(rating, attempts int) int) (store.PuzzleAttempt, error)
+	RecordPuzzleAttempt(ctx context.Context, userID, puzzleID string, solved bool, update func(rating, attempts int) int, award func(streak int) int) (store.PuzzleAttempt, error)
+	PuzzlePointsOf(ctx context.Context, userID, day string) (store.PuzzlePoints, error)
 }
 
 // Config tunes a Service.
@@ -152,6 +153,8 @@ type nextResponse struct {
 	Puzzle PuzzleJSON `json:"puzzle"`
 	You    *Record    `json:"you,omitempty"`   // nil for nobody signed in
 	Daily  *DailyInfo `json:"daily,omitempty"` // set for the puzzle of the day
+	// Points is the person's points, asked for with ?mode=points.
+	Points *PointsJSON `json:"points,omitempty"`
 }
 
 // DailyInfo says which day's puzzle this is and how the person did on it.
@@ -204,7 +207,13 @@ func (s *Service) next(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "не удалось выбрать задачу")
 		return
 	}
-	respond(w, p, userID, rec, nil)
+	pts, err := s.pointsFor(r, userID)
+	if err != nil {
+		log.Printf("puzzles: points: %v", err)
+		writeError(w, http.StatusInternalServerError, "не удалось прочитать очки")
+		return
+	}
+	respond(w, p, userID, rec, nil, pts)
 }
 
 // levelRating is the rating the next puzzle is looked for near: the person's own, or a little lower
@@ -258,17 +267,35 @@ func (s *Service) byID(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	respond(w, p, userID, rec, nil)
+	pts, err := s.pointsFor(r, userID)
+	if err != nil {
+		log.Printf("puzzles: points: %v", err)
+		writeError(w, http.StatusInternalServerError, "не удалось прочитать очки")
+		return
+	}
+	respond(w, p, userID, rec, nil, pts)
 }
 
-func respond(w http.ResponseWriter, p *store.Puzzle, userID string, rec store.PuzzleRating, daily *DailyInfo) {
+// pointsFor reads the person's points when the request asks for them (?mode=points); nil otherwise.
+func (s *Service) pointsFor(r *http.Request, userID string) (*PointsJSON, error) {
+	if userID == "" || r.URL.Query().Get("mode") != "points" {
+		return nil, nil
+	}
+	p, err := s.cfg.Store.PuzzlePointsOf(r.Context(), userID, s.cfg.Now().UTC().Format("2006-01-02"))
+	if err != nil {
+		return nil, err
+	}
+	return pointsJSON(p, 0), nil
+}
+
+func respond(w http.ResponseWriter, p *store.Puzzle, userID string, rec store.PuzzleRating, daily *DailyInfo, pts *PointsJSON) {
 	pj, err := render(p)
 	if err != nil {
 		log.Printf("puzzles: %s: %v", p.ID, err)
 		writeError(w, http.StatusInternalServerError, "задача повреждена")
 		return
 	}
-	resp := nextResponse{Puzzle: pj, Daily: daily}
+	resp := nextResponse{Puzzle: pj, Daily: daily, Points: pts}
 	if userID != "" {
 		resp.You = &Record{Rating: rec.Rating, Attempts: rec.Attempts, Solved: rec.Solved}
 	}
@@ -347,7 +374,7 @@ func (s *Service) daily(w http.ResponseWriter, r *http.Request) {
 			info.Status = "failed"
 		}
 	}
-	respond(w, p, userID, rec, info)
+	respond(w, p, userID, rec, info, nil)
 }
 
 // dailyResult takes the first try at the puzzle of the day. It is practice:
@@ -391,6 +418,10 @@ func (s *Service) dailyResult(w http.ResponseWriter, r *http.Request) {
 
 type resultRequest struct {
 	Solved bool `json:"solved"`
+	// Mode is "" for the rating or "points" for the points mode; Hint says the hint was used (the
+	// browser knows, the server cannot). The server counts the points itself.
+	Mode string `json:"mode"`
+	Hint bool   `json:"hint"`
 }
 
 type resultResponse struct {
@@ -398,6 +429,21 @@ type resultResponse struct {
 	Before  int    `json:"before"`
 	After   int    `json:"after"`
 	You     Record `json:"you"`
+	// Points is set in the points mode (counted or not): the person's points after this try.
+	Points *PointsJSON `json:"points,omitempty"`
+}
+
+// PointsJSON is a person's puzzle points as the browser sees them.
+type PointsJSON struct {
+	Total  int `json:"total"`
+	Streak int `json:"streak"`
+	Best   int `json:"best"`
+	Today  int `json:"today"`
+	Gained int `json:"gained"` // earned by this try, 0 for a failed or repeated one
+}
+
+func pointsJSON(p store.PuzzlePoints, gained int) *PointsJSON {
+	return &PointsJSON{Total: p.Total, Streak: p.Streak, Best: p.BestStreak, Today: p.Today, Gained: gained}
 }
 
 // result takes the outcome of a person's first try. The browser reports it:
@@ -424,18 +470,41 @@ func (s *Service) result(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "не удалось загрузить задачу")
 		return
 	}
-	at, err := s.cfg.Store.RecordPuzzleAttempt(ctx, userID, p.ID, req.Solved, func(rating, attempts int) int {
-		return NewRating(rating, attempts, p.Rating, req.Solved)
-	})
+	if req.Mode != "" && req.Mode != "points" {
+		writeError(w, http.StatusBadRequest, "неизвестный режим")
+		return
+	}
+	update := func(rating, attempts int) int { return NewRating(rating, attempts, p.Rating, req.Solved) }
+	var award func(streak int) int
+	if req.Mode == "points" {
+		// the points mode keeps the rating as it is; the try is still recorded as the first one
+		update = func(rating, _ int) int { return rating }
+		award = func(streak int) int { return PuzzlePoints(p.Rating, streak, req.Hint) }
+	}
+	at, err := s.cfg.Store.RecordPuzzleAttempt(ctx, userID, p.ID, req.Solved, update, award)
 	if err != nil {
 		log.Printf("puzzles: record: %v", err)
 		writeError(w, http.StatusInternalServerError, "не удалось записать результат")
 		return
 	}
-	writeJSON(w, http.StatusOK, resultResponse{
+	resp := resultResponse{
 		Counted: at.Counted, Before: at.Before, After: at.After,
 		You: Record{Rating: at.Record.Rating, Attempts: at.Record.Attempts, Solved: at.Record.Solved},
-	})
+	}
+	if req.Mode == "points" {
+		pts := at.Points
+		if pts == nil { // a puzzle tried before: nothing earned, show where the person stands
+			cur, err := s.cfg.Store.PuzzlePointsOf(ctx, userID, s.cfg.Now().UTC().Format("2006-01-02"))
+			if err != nil {
+				log.Printf("puzzles: points: %v", err)
+				writeError(w, http.StatusInternalServerError, "не удалось прочитать очки")
+				return
+			}
+			pts = &cur
+		}
+		resp.Points = pointsJSON(*pts, at.Gained)
+	}
+	writeJSON(w, http.StatusOK, resp)
 }
 
 type themeJSON struct {

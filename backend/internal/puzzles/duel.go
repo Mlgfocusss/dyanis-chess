@@ -332,5 +332,5 @@ func (s *Service) duelPuzzle(w http.ResponseWriter, r *http.Request) {
 		}
 		d.puzzles = append(d.puzzles, p)
 	}
-	respond(w, d.puzzles[k], "", store.PuzzleRating{}, nil)
+	respond(w, d.puzzles[k], "", store.PuzzleRating{}, nil, nil)
 }

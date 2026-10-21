@@ -158,11 +158,42 @@ type Result struct {
 // copy of p), and a single call uses one thread. It fails if p has no
 // legal move.
 func Search(p *Position, history []uint64, lim Limits) (Result, error) {
+	return searchSkipping(p, history, lim, nil)
+}
+
+// SearchLines finds the n best lines of play, best first (MultiPV): the
+// first is what Search finds, each next one is the best that is left when the
+// first moves of the lines before it are set aside. lim bounds every line
+// separately, so n lines take about n times as long. It returns fewer than n
+// lines when the position has fewer legal moves, and fails if it has none.
+// Scores of the lines are comparable (all from the side to move's point of
+// view) but a later line is searched on a narrower choice, so with a timed
+// search the order is not guaranteed to be strictly descending.
+func SearchLines(p *Position, history []uint64, lim Limits, n int) ([]Result, error) {
+	if legal := len(p.LegalMoves()); n > legal {
+		n = legal
+	}
+	var skip []board.Move
+	var out []Result
+	for i := 0; i < n; i++ {
+		r, err := searchSkipping(p, history, lim, skip)
+		if err != nil {
+			return out, err
+		}
+		out = append(out, r)
+		skip = append(skip, r.Best.m)
+	}
+	return out, nil
+}
+
+// searchSkipping is Search that leaves the moves in skip out of the root.
+func searchSkipping(p *Position, history []uint64, lim Limits, skip []board.Move) (Result, error) {
 	work := p.b.Copy()
 	tt := search.NewTranspositionTableMB(lim.HashMB)
 	if len(history) > 0 {
 		tt.SetGameHistory(history)
 	}
+	tt.SetRootSkip(skip)
 	var last search.SearchInfo
 	onInfo := func(si search.SearchInfo) { last = si }
 

@@ -11,6 +11,7 @@ import { useAuth } from "./auth/AuthContext.jsx";
 import ReviewInline from "./review/ReviewInline.jsx";
 import { playSound } from "./sound/sound.js";
 import * as engine from "./engine/dyanisEngine.js";
+import { openingName, openingTitle } from "./openings/names.js";
 import "./App.css";
 
 const DEFAULT_DEPTH = 4;
@@ -365,8 +366,8 @@ export default function App() {
       )}
       {thinking && <p className="status__flag status__flag--thinking">движок думает… (страница не зависает)</p>}
       {opening.opening && (
-        <p className="status__opening">
-          <span className="review__eco">{opening.opening.eco}</span> {opening.opening.name}
+        <p className="status__opening" title={openingTitle(opening.opening)}>
+          <span className="review__eco">{opening.opening.eco}</span> {openingName(opening.opening)}
           {opening.book && <span className="status__theory">теория</span>}
         </p>
       )}

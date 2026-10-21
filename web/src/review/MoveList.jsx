@@ -1,13 +1,22 @@
 import { useEffect, useRef } from "react";
 import ClassBadge from "./ClassBadge.jsx";
-import { scrollWithin } from "../ui/scroll.js";
+import { nextScrollTop } from "../ui/scroll.js";
 import { useSettings } from "../settings/SettingsContext.jsx";
 
-function Cell({ move, active, onSelect }) {
+// The list scrolls by itself to keep the active move in view, and only the list: the panel around it
+// (with the lines and the coach above) must not be moved, which scrollWithin would do when the list is short.
+function keepInView(el, box) {
+  if (!el || !box || box.scrollHeight <= box.clientHeight) return;
+  const b = box.getBoundingClientRect();
+  const r = el.getBoundingClientRect();
+  box.scrollTop = nextScrollTop({ viewTop: b.top, viewHeight: box.clientHeight, itemTop: r.top, itemHeight: r.height, scrollTop: box.scrollTop });
+}
+
+function Cell({ move, active, onSelect, boxRef }) {
   const ref = useRef(null);
   const { settings } = useSettings();
   useEffect(() => {
-    if (active) scrollWithin(ref.current); // only the list, never the page
+    if (active) keepInView(ref.current, boxRef.current); // only the list, never the panel or the page
   }, [active]);
   if (!move) return <span className="move-cell move-cell--empty" />;
   return (
@@ -26,6 +35,7 @@ function Cell({ move, active, onSelect }) {
 // Moves in rows of one full move each. The first row may start with
 // Black (a game set up from a FEN).
 export default function MoveList({ moves, ply, onSelect }) {
+  const boxRef = useRef(null);
   const rows = [];
   let i = 0;
   if (moves.length && moves[0].color === "black") {
@@ -36,12 +46,12 @@ export default function MoveList({ moves, ply, onSelect }) {
     rows.push({ no: Math.ceil(moves[i].ply / 2), white: moves[i], black: moves[i + 1] || null });
   }
   return (
-    <div className="move-list card">
+    <div className="move-list card" ref={boxRef}>
       {rows.map((r) => (
         <div className="move-row" key={r.no}>
           <span className="move-row__no">{r.no}.</span>
-          <Cell move={r.white} active={r.white?.ply === ply} onSelect={onSelect} />
-          <Cell move={r.black} active={r.black?.ply === ply} onSelect={onSelect} />
+          <Cell move={r.white} active={r.white?.ply === ply} onSelect={onSelect} boxRef={boxRef} />
+          <Cell move={r.black} active={r.black?.ply === ply} onSelect={onSelect} boxRef={boxRef} />
         </div>
       ))}
     </div>

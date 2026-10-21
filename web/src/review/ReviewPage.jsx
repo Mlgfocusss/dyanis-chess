@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAnalysis } from "./useAnalysis.js";
 import ReviewView from "./ReviewView.jsx";
 import Icon from "../ui/Icon.jsx";
@@ -13,9 +13,12 @@ const SAMPLE = `[White "Анна"]
 // "Разбор партии": paste a PGN, wait for the server, browse the result.
 // The address of a finished review is #review/<id>: the server keeps the
 // result, so the link works after a reload and for anyone it is sent to.
-function idFromHash() {
-  const [tab, id] = window.location.hash.slice(1).split("/");
-  return tab === "review" && id ? id : "";
+// #review/<id>/<n> opens it on the n-th half-move (the "copy link" of the panel adds it).
+function fromHash() {
+  const [tab, id, n] = window.location.hash.slice(1).split("/");
+  if (tab !== "review" || !id) return { id: "", ply: 0 };
+  const ply = Number.parseInt(n, 10);
+  return { id, ply: ply > 0 ? ply : 0 };
 }
 
 export default function ReviewPage() {
@@ -24,15 +27,36 @@ export default function ReviewPage() {
   const [depth, setDepth] = useState(14);
   const { job, error, busy, start, attach, reset } = useAnalysis();
 
+  // the review and the move a link pointed at: used for that review only
+  const [linked, setLinked] = useState(fromHash);
+  const shownId = useRef("");
+  shownId.current = job?.id || "";
+
+  // The address changed by hand or by a link while this page is open (another review pasted into the
+  // bar, the menu item pressed): the page follows it. replaceState makes no such event.
   useEffect(() => {
-    const id = idFromHash();
+    const onHash = () => {
+      const l = fromHash();
+      if (l.id && l.id !== shownId.current) {
+        setLinked(l);
+        reset();
+        attach(l.id);
+      } else if (!l.id && shownId.current) reset(); // "#review": the form for a new one
+    };
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    const { id } = fromHash();
     if (id) attach(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // A finished review gets its own address, so a reload or a shared link finds it.
   useEffect(() => {
-    if (job?.status === "done") window.history.replaceState(null, "", `#review/${job.id}`);
+    if (job?.status === "done" && fromHash().id !== job.id) window.history.replaceState(null, "", `#review/${job.id}`);
   }, [job]);
 
   function startReview() {
@@ -100,6 +124,9 @@ export default function ReviewPage() {
               </span>
             </div>
           )}
+          <p className="review-form__note">
+            Нужна свободная доска без партии, чтобы проверить позицию или идею? <a href="#analysis">Откройте доску анализа</a>.
+          </p>
           {authStatus === "ready" && !user && (
             <p className="review-form__note">
               Вы не вошли, поэтому партия не попадёт в ваш профиль (по ссылке она всё равно откроется).{" "}
@@ -111,22 +138,15 @@ export default function ReviewPage() {
       )}
 
       {done && (
-        <>
-          <div className="page__bar">
-            <button
-              type="button"
-              className="btn btn--ghost"
-              onClick={() => {
-                reset();
-                window.history.replaceState(null, "", "#review");
-              }}
-            >
-              <Icon name="back" size={16} />
-              Другая партия
-            </button>
-          </div>
-          <ReviewView key={job.id} job={job} />
-        </>
+        <ReviewView
+          key={job.id}
+          job={job}
+          startPly={job.id === linked.id ? linked.ply : 0}
+          onNew={() => {
+            reset();
+            window.history.replaceState(null, "", "#review");
+          }}
+        />
       )}
     </div>
   );

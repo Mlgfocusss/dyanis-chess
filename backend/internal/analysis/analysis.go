@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"math"
 	"runtime"
+	"sort"
 	"sync"
 	"time"
 
@@ -211,6 +212,9 @@ type Report struct {
 	Opening   *eco.Opening  `json:"opening,omitempty"`
 	BookPlies int           `json:"bookPlies"`
 	Options   ReportOptions `json:"options"`
+	// Variant is set for a game of a chess variant ("chess960"): there is no
+	// opening book for it and the engine never recommends a castling (variant.go).
+	Variant string `json:"variant,omitempty"`
 }
 
 // ReportOptions records how the analysis was made.
@@ -317,11 +321,34 @@ func playerAccuracy(accs, weights []float64) float64 {
 	return (sum/wsum + float64(len(accs))/inv) / 2
 }
 
+// playedMove is one half-move of the game under review, however it came
+// (a PGN, a game of a variant).
+type playedMove struct {
+	SAN, UCI string
+	// Move is the engine's move, valid when HasMove: a move the engine cannot
+	// make (the Chess960 castling) has none and is judged by the position after it.
+	Move    engine.Move
+	HasMove bool
+	// ClockMs is the mover's time left, -1 when unknown.
+	ClockMs int64
+	// Legal is how many moves the mover had (1 means a forced move).
+	Legal int
+}
+
+// timeline is a game ready to be searched: the board before each move and after
+// the last, the hash history and the moves.
+type timeline struct {
+	boards, spare []*engine.Position // spare: touched by nothing but Copy
+	hashes        []uint64
+	moves         []playedMove
+	startBlack    bool // Black moves first
+	book          bool // opening theory applies
+}
+
 // Analyze reviews g. It returns an error only if the game's own moves
 // can't be replayed; a game with zero moves yields an empty report with
 // one evaluated position.
 func Analyze(g *pgn.Game, opt Options) (*Report, error) {
-	opt.fill()
 	start, err := g.Position()
 	if err != nil {
 		return nil, err
@@ -329,18 +356,38 @@ func Analyze(g *pgn.Game, opt Options) (*Report, error) {
 
 	// Replay: one board snapshot and one hash history per position.
 	n := len(g.Moves)
-	boards := make([]*engine.Position, n+1)
-	// spare is a second set of the same boards, touched by nothing but
-	// Copy: the search of position i uses boards[i] (and writes caches in
-	// it), while the only-move test of position i+1 needs to look at it too.
-	spare := make([]*engine.Position, n+1)
-	hashes := make([]uint64, n+1)
-	cur := start.Copy()
-	boards[0], spare[0], hashes[0] = cur.Copy(), cur.Copy(), cur.Hash()
-	for i, m := range g.Moves {
-		cur.Play(m.Move)
-		boards[i+1], spare[i+1], hashes[i+1] = cur.Copy(), cur.Copy(), cur.Hash()
+	tl := &timeline{
+		boards: make([]*engine.Position, n+1),
+		// spare is a second set of the same boards, touched by nothing but
+		// Copy: the search of position i uses boards[i] (and writes caches in
+		// it), while the only-move test of position i+1 needs to look at it too.
+		spare:      make([]*engine.Position, n+1),
+		hashes:     make([]uint64, n+1),
+		moves:      make([]playedMove, n),
+		startBlack: startsBlack(g),
+		book:       g.StartFEN == "" || g.StartFEN == engine.StartFEN,
 	}
+	cur := start.Copy()
+	tl.boards[0], tl.spare[0], tl.hashes[0] = cur.Copy(), cur.Copy(), cur.Hash()
+	for i, m := range g.Moves {
+		tl.moves[i] = playedMove{
+			SAN: m.SAN, UCI: m.Move.String(), Move: m.Move, HasMove: true,
+			ClockMs: -1, Legal: len(cur.LegalMoves()),
+		}
+		if m.Clock >= 0 {
+			tl.moves[i].ClockMs = m.Clock.Milliseconds()
+		}
+		cur.Play(m.Move)
+		tl.boards[i+1], tl.spare[i+1], tl.hashes[i+1] = cur.Copy(), cur.Copy(), cur.Hash()
+	}
+	return review(tl, opt), nil
+}
+
+// review searches every position of the timeline and judges the moves.
+func review(tl *timeline, opt Options) *Report {
+	opt.fill()
+	n := len(tl.moves)
+	boards, spare, hashes := tl.boards, tl.spare, tl.hashes
 
 	rep := &Report{
 		Evals: make([]PositionEval, n+1),
@@ -358,7 +405,7 @@ func Analyze(g *pgn.Game, opt Options) (*Report, error) {
 	// Opening theory: which plies are book, and what the opening is called.
 	// (Known before the search so that theory moves are not examined.)
 	var book *eco.Book
-	if !opt.NoBook && (g.StartFEN == "" || g.StartFEN == engine.StartFEN) {
+	if !opt.NoBook && tl.book {
 		book = opt.Book
 		if book == nil {
 			book = eco.Default()
@@ -379,7 +426,7 @@ func Analyze(g *pgn.Game, opt Options) (*Report, error) {
 			for i := range jobs {
 				rep.Evals[i] = evalPosition(boards[i], hashes[:i+1], i, &opt)
 				if i < n && !opt.NoSpecial && i+1 > bookPlies {
-					testOnlyMove(&rep.Evals[i], spare, hashes, g.Moves, i, &opt)
+					testOnlyMove(&rep.Evals[i], spare, hashes, tl.moves, i, &opt)
 				}
 				if opt.Progress != nil {
 					mu.Lock()
@@ -405,9 +452,9 @@ func Analyze(g *pgn.Game, opt Options) (*Report, error) {
 	var accs, accWeights [2][]float64
 	var played [2]int // moves per player, book ones included
 	rep.Counts = [2]map[Class]int{{}, {}}
-	for i, m := range g.Moves {
+	for i, m := range tl.moves {
 		color := i % 2
-		if startsBlack(g) {
+		if tl.startBlack {
 			color = 1 - color
 		}
 		before, after := rep.Evals[i], rep.Evals[i+1]
@@ -417,19 +464,15 @@ func Analyze(g *pgn.Game, opt Options) (*Report, error) {
 		}
 		loss := math.Max(0, moverBefore-moverAfter)
 
-		uci := m.Move.String()
-		legalCount := len(boards[i].LegalMoves())
+		uci := m.UCI
 		mr := MoveReport{
 			Ply: i + 1, SAN: m.SAN, UCI: uci, Loss: loss,
-			Forced: legalCount == 1, ClockMs: -1,
+			Forced: m.Legal == 1, ClockMs: m.ClockMs,
 		}
 		if color == 0 {
 			mr.Color = "white"
 		} else {
 			mr.Color = "black"
-		}
-		if m.Clock >= 0 {
-			mr.ClockMs = m.Clock.Milliseconds()
 		}
 		mates := givesMate(after)
 		switch {
@@ -440,7 +483,8 @@ func Analyze(g *pgn.Game, opt Options) (*Report, error) {
 			// preferred (another mate, or a mate it saw as a few plies faster).
 			mr.Class = Best
 			mr.Loss = 0
-		case mr.Forced || before.BestUCI == uci:
+		case mr.Forced || before.BestUCI == uci || (!m.HasMove && loss == 0):
+			// (a move the engine cannot make was no worse than the engine's choice)
 			mr.Class = Best
 			mr.Loss = 0
 		default:
@@ -486,7 +530,7 @@ func Analyze(g *pgn.Game, opt Options) (*Report, error) {
 		}
 	}
 	rep.Key = keyMoments(rep.Moves, 5, opt.Thresholds.Inaccuracy)
-	return rep, nil
+	return rep
 }
 
 // givesMate reports whether the position is checkmate: the move that led to
@@ -578,27 +622,87 @@ func evalPosition(b *engine.Position, history []uint64, ply int, opt *Options) P
 		return ev
 	}
 
-	stm := res.Score
-	if !white {
-		stm = -stm
-	}
-	ev.Score = stm
-	ev.WinPct = WinPercent(stm, opt.WinK)
+	ev.Score, ev.Mate, ev.WinPct = whiteView(res.Score, white, opt.WinK)
 	ev.Depth = res.Depth
 	ev.Nodes = res.Nodes
-	if abs := absInt(stm); abs >= mateThreshold {
-		plies := engine.MateScore - abs
-		moves := (plies + 1) / 2
-		if stm < 0 {
-			moves = -moves
-		}
-		ev.Mate = moves
-	}
 	ev.BestUCI = res.Best.String()
 	ev.BestSAN = b.SAN(res.Best)
 	ev.PV = pvToSAN(b, res.PV, res.Best)
 	ev.pvBal, ev.pvCap = pvTrace(b, res.PV)
 	return ev
+}
+
+// whiteView turns a search score (centipawns for the side to move) into
+// White's point of view: the score, the moves to a forced mate (positive when
+// White mates, negative when Black does, 0 for none) and White's win
+// probability.
+func whiteView(score int, whiteToMove bool, winK float64) (cp, mate int, winPct float64) {
+	if !whiteToMove {
+		score = -score
+	}
+	cp, winPct = score, WinPercent(score, winK)
+	if abs := absInt(score); abs >= mateThreshold {
+		plies := engine.MateScore - abs
+		mate = (plies + 1) / 2
+		if score < 0 {
+			mate = -mate
+		}
+	}
+	return cp, mate, winPct
+}
+
+// LineEval is one of the best lines of a position (MultiPV): the engine's
+// first choice and the next best moves it would play if that one were not
+// there. Scores are White's, as in PositionEval.
+type LineEval struct {
+	Rank    int      `json:"rank"` // 1 = the best line
+	Score   int      `json:"score"`
+	Mate    int      `json:"mate,omitempty"`
+	WinPct  float64  `json:"winPct"`
+	Depth   int      `json:"depth"`
+	BestUCI string   `json:"bestUci"`
+	BestSAN string   `json:"bestSan"`
+	PV      []string `json:"pv"` // the line in SAN, starting with BestSAN
+}
+
+// MaxLines is the most lines AnalyzeLines gives.
+const MaxLines = 5
+
+// AnalyzeLines searches a position for its n best lines, best first. history
+// is as in AnalyzePosition. A finished game or a position with a single legal
+// move gives fewer lines (none, or one). Every line is searched as deeply as
+// opt says, so n lines cost about n searches.
+func AnalyzeLines(b *engine.Position, history []uint64, opt Options, n int) ([]LineEval, error) {
+	opt.fill()
+	n = min(max(n, 1), MaxLines)
+	if b.Outcome(history).Over {
+		return nil, nil
+	}
+	results, err := engine.SearchLines(b, history, engine.Limits{
+		Depth: opt.Depth, MoveTime: opt.MoveTime, MaxDepth: opt.MaxDepth, HashMB: opt.HashMB,
+	}, n)
+	if err != nil {
+		return nil, err
+	}
+	white := b.SideToMove() == engine.White
+	out := make([]LineEval, 0, len(results))
+	for _, r := range results {
+		l := LineEval{Depth: r.Depth, BestUCI: r.Best.String(), BestSAN: b.SAN(r.Best), PV: pvToSAN(b, r.PV, r.Best)}
+		l.Score, l.Mate, l.WinPct = whiteView(r.Score, white, opt.WinK)
+		out = append(out, l)
+	}
+	// Each line was searched without the first moves of the ones before it, so at a finite depth a
+	// later line can come out a little better than an earlier one: the best for the side to move goes first.
+	sort.SliceStable(out, func(i, j int) bool {
+		if white {
+			return out[i].Score > out[j].Score
+		}
+		return out[i].Score < out[j].Score
+	})
+	for i := range out {
+		out[i].Rank = i + 1
+	}
+	return out, nil
 }
 
 // pvToSAN renders a principal variation in SAN, replaying it on a copy
@@ -643,7 +747,10 @@ func (r *Report) String() string {
 // when it is worth running: the move is the engine's own choice, the position
 // is not decided, the mover is not just answering a check or recapturing, and
 // there is a real choice of moves. The result is left in ev.
-func testOnlyMove(ev *PositionEval, boards []*engine.Position, hashes []uint64, moves []pgn.Move, i int, opt *Options) {
+func testOnlyMove(ev *PositionEval, boards []*engine.Position, hashes []uint64, moves []playedMove, i int, opt *Options) {
+	if !moves[i].HasMove {
+		return
+	}
 	played := moves[i].Move
 	if ev.Terminal != "" || ev.BestUCI != played.String() {
 		return
@@ -657,13 +764,17 @@ func testOnlyMove(ev *PositionEval, boards []*engine.Position, hashes []uint64, 
 		return
 	}
 	if i > 0 {
-		prev := moves[i-1].Move
-		if san := boards[i-1].Copy().SAN(prev); len(san) > 0 && (san[len(san)-1] == '+' || san[len(san)-1] == '#') {
+		prev := moves[i-1]
+		san := prev.SAN
+		if prev.HasMove {
+			san = boards[i-1].Copy().SAN(prev.Move)
+		}
+		if len(san) > 0 && (san[len(san)-1] == '+' || san[len(san)-1] == '#') {
 			return // answering a check
 		}
 		_, before := material(boards[i-1].Copy().FEN())
 		_, now := material(boards[i].Copy().FEN())
-		if now < before && prev.String()[2:4] == played.String()[2:4] {
+		if now < before && prev.HasMove && prev.UCI[2:4] == played.String()[2:4] {
 			return // a recapture
 		}
 	}

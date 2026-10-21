@@ -23,6 +23,8 @@ function Player({ name, side, score, you }) {
 //   white,black display names; you: the viewer's colour or "" for a spectator
 //   rematch     { label, onClick, disabled } to replace the "Реванш" button
 //   newLabel    text of the second button ("Новая партия" by default)
+//   onReview    the analysis of the game; without it (the chess variants are not analysed) the
+//               button and the line under it are left out
 export default function GameSummary({
   info,
   white,
@@ -89,10 +91,12 @@ export default function GameSummary({
         {error && <div className="banner banner--error">{error}</div>}
 
         <div className="summary__actions">
-          <button type="button" className="btn btn--primary btn--block" onClick={onReview} disabled={busy || moves === 0}>
-            <Icon name="review" size={18} />
-            {busy ? "Отправляю на разбор…" : "Смотреть отчёт"}
-          </button>
+          {onReview && (
+            <button type="button" className="btn btn--primary btn--block" onClick={onReview} disabled={busy || moves === 0}>
+              <Icon name="review" size={18} />
+              {busy ? "Отправляю на разбор…" : "Смотреть отчёт"}
+            </button>
+          )}
           <div className="summary__row">
             <button type="button" className="btn" onClick={onNew}>
               {newLabel}
@@ -105,14 +109,16 @@ export default function GameSummary({
           </div>
         </div>
 
-        <p className="summary__hint">
-          {hint ||
-            (moves === 0
-              ? "В партии не было ходов, разбирать нечего."
-              : signedIn
-                ? "Отчёт откроется в «Разборе», а партия сохранится в вашем профиле."
-                : "Отчёт откроется в «Разборе». Войдите в аккаунт, чтобы партии сохранялись в профиле.")}
-        </p>
+        {(onReview || hint) && (
+          <p className="summary__hint">
+            {hint ||
+              (moves === 0
+                ? "В партии не было ходов, разбирать нечего."
+                : signedIn
+                  ? "Отчёт откроется в «Разборе», а партия сохранится в вашем профиле."
+                  : "Отчёт откроется в «Разборе». Войдите в аккаунт, чтобы партии сохранялись в профиле.")}
+          </p>
+        )}
       </section>
     </div>
   );

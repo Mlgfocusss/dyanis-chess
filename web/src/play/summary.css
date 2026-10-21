@@ -1,7 +1,7 @@
 /* The end-of-game card over the board. */
 .summary__backdrop {
   position: absolute; inset: 0; z-index: 5; display: grid; place-items: center; padding: 12px;
-  background: rgba(8, 13, 24, 0.55); border-radius: 10px; backdrop-filter: blur(2px);
+  background: var(--scrim); border-radius: 10px; backdrop-filter: blur(2px);
 }
 .summary {
   position: relative; width: min(100%, 400px); padding: 22px 22px 18px;
@@ -28,8 +28,8 @@
   border: 1px solid var(--border); border-radius: var(--radius-sm);
 }
 .summary__piece { width: 18px; height: 18px; border-radius: 4px; flex: none; border: 1px solid var(--border-strong); }
-.summary__piece--white { background: #f1f5f9; }
-.summary__piece--black { background: #0f172a; }
+.summary__piece--white { background: var(--side-white); }
+.summary__piece--black { background: var(--side-black-2); }
 .summary__pname { flex: 1; min-width: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .summary__you { margin-left: 8px; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
 .summary__score { font-size: 1.2rem; font-weight: 700; font-variant-numeric: tabular-nums; }
@@ -48,5 +48,5 @@
 .summary--neutral .summary__title { color: var(--info); }
 .summary__reward {
   display: flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 12px; border-radius: var(--radius-sm);
-  background: rgba(251, 191, 36, 0.14); border: 1px solid rgba(251, 191, 36, 0.5); color: var(--warn); font-weight: 700;
+  background: rgba(var(--warn-rgb), 0.14); border: 1px solid rgba(var(--warn-rgb), 0.5); color: var(--warn); font-weight: 700;
 }

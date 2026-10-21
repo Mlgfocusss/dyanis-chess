@@ -1,9 +1,10 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ChessboardDnDProvider, SparePiece } from "react-chessboard";
 import Icon from "../ui/Icon.jsx";
 import Segmented from "../ui/Segmented.jsx";
 import ThemedBoard from "../components/ThemedBoard.jsx";
 import { defaultsOf, useSettings } from "./SettingsContext.jsx";
+import { applyInterface } from "./model.js";
 import { playSound } from "../sound/sound.js";
 import {
   backgroundCss,
@@ -16,6 +17,9 @@ import {
   soundThemes,
 } from "../themes/index.js";
 import GameplayPanel from "./GameplayPanel.jsx";
+import InterfacePanel from "./InterfacePanel.jsx";
+import ProfilePanel from "./ProfilePanel.jsx";
+import AccountPanel from "./AccountPanel.jsx";
 import { Row, SaveBar, Switch } from "./controls.jsx";
 import "./settings.css";
 
@@ -32,21 +36,34 @@ const TABS = [
 const SECTIONS = [
   { id: "board", label: "Доска и фигуры", icon: "board" },
   { id: "play", label: "Игровой процесс", icon: "bot" },
-  { id: "interface", label: "Интерфейс", icon: "review", soon: true },
-  { id: "profile", label: "Профиль", icon: "online", soon: true },
-  { id: "account", label: "Учётная запись", icon: "coach", soon: true },
+  { id: "interface", label: "Интерфейс", icon: "monitor" },
+  { id: "profile", label: "Профиль", icon: "user" },
+  { id: "account", label: "Учётная запись", icon: "lock" },
 ];
+
+// "#settings/play" opens the gameplay page and so on; anything else is the board page.
+function sectionFromHash() {
+  const id = window.location.hash.split("/")[1];
+  return SECTIONS.some((s) => s.id === id && s.id !== "board") ? id : "board";
+}
 
 export default function SettingsPage() {
   const { settings, save } = useSettings();
   const [draft, setDraft] = useState(settings);
   const [tab, setTab] = useState("boards");
-  // "#settings/play" opens the gameplay page
-  const [section, setSection] = useState(() => (window.location.hash.split("/")[1] === "play" ? "play" : "board"));
+  const [section, setSection] = useState(sectionFromHash);
   function openSection(id) {
     setSection(id);
-    window.history.replaceState(null, "", id === "play" ? "#settings/play" : "#settings");
+    window.history.replaceState(null, "", id === "board" ? "#settings" : `#settings/${id}`);
   }
+  // a link to another section (#settings/profile) while the settings are open
+  useEffect(() => {
+    const onHash = () => {
+      if (window.location.hash.split("/")[0] === "#settings") setSection(sectionFromHash());
+    };
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
   const [justSaved, setJustSaved] = useState(false);
 
   const dirty = useMemo(() => JSON.stringify(draft) !== JSON.stringify(settings), [draft, settings]);
@@ -54,6 +71,15 @@ export default function SettingsPage() {
     setJustSaved(false);
     setDraft((d) => ({ ...d, ...patch }));
   };
+
+  // While the interface page is open its unsaved choices are shown on the whole site; otherwise
+  // (and when the page is left) the saved ones.
+  const savedRef = useRef(settings);
+  savedRef.current = settings;
+  useEffect(() => {
+    applyInterface(document.documentElement, section === "interface" ? draft : savedRef.current);
+    return () => applyInterface(document.documentElement, savedRef.current);
+  }, [section, draft.theme, draft.textSize, draft.reduceMotion, draft.highContrast]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function onSave() {
     save(draft);
@@ -88,7 +114,22 @@ export default function SettingsPage() {
           ))}
         </nav>
 
-        {section === "play" ? (
+        {section === "interface" ? (
+          <section className="settings__body card">
+            <InterfacePanel draft={draft} set={set} dirty={dirty} justSaved={justSaved} onSave={onSave} onCancel={onCancel} />
+            <button type="button" className="settings__reset" onClick={() => set(defaultsOf("interface"))}>
+              Вернуть стандартные настройки интерфейса
+            </button>
+          </section>
+        ) : section === "profile" ? (
+          <section className="settings__body card">
+            <ProfilePanel />
+          </section>
+        ) : section === "account" ? (
+          <section className="settings__body card">
+            <AccountPanel />
+          </section>
+        ) : section === "play" ? (
           <section className="settings__body card">
             <GameplayPanel draft={draft} set={set} dirty={dirty} justSaved={justSaved} onSave={onSave} onCancel={onCancel} />
             <button type="button" className="settings__reset" onClick={() => set(defaultsOf(true))}>

@@ -1,0 +1,11 @@
+/* King of the Hill: the four central squares and the card with the kings' distances. Tokens from index.css only. */
+.sq-hill {
+  box-shadow: inset 0 0 0 999px rgba(var(--warn-rgb), 0.1), inset 0 0 0 3px rgba(var(--warn-rgb), 0.75);
+}
+
+.vhill__card { padding: 16px 18px; }
+.vhill__card h2 { font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-2); margin-bottom: 8px; }
+.vhill__text { margin: 0 0 8px; color: var(--text-2); font-size: 0.9rem; }
+.vhill__list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 2px; color: var(--text-2); font-size: 0.92rem; }
+.vhill__list strong { color: var(--text); }
+.vhill__me { font-weight: 500; }

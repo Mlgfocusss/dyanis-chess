@@ -113,6 +113,7 @@ type fakeStore struct {
 	rating   store.PuzzleRating
 	recorded []bool
 	tried    bool
+	points   store.PuzzlePoints
 	// the puzzle of the day
 	dailySeeds  []uint64
 	attemptSolv bool
@@ -184,14 +185,32 @@ func (f *fakeStore) PuzzleRatingOf(context.Context, string) (store.PuzzleRating,
 	return f.rating, nil
 }
 
-func (f *fakeStore) RecordPuzzleAttempt(_ context.Context, _, _ string, solved bool, update func(int, int) int) (store.PuzzleAttempt, error) {
+func (f *fakeStore) RecordPuzzleAttempt(_ context.Context, _, _ string, solved bool, update func(int, int) int, award func(int) int) (store.PuzzleAttempt, error) {
 	if f.tried {
 		return store.PuzzleAttempt{Before: f.rating.Rating, After: f.rating.Rating, Record: f.rating}, nil
 	}
 	f.recorded = append(f.recorded, solved)
 	after := update(f.rating.Rating, f.rating.Attempts)
 	rec := store.PuzzleRating{Rating: after, Attempts: f.rating.Attempts + 1, Solved: f.rating.Solved}
-	return store.PuzzleAttempt{Counted: true, Before: f.rating.Rating, After: after, Record: rec}, nil
+	at := store.PuzzleAttempt{Counted: true, Before: f.rating.Rating, After: after, Record: rec}
+	if award != nil {
+		p := f.points
+		if solved {
+			at.Gained = award(p.Streak)
+			p.Total += at.Gained
+			p.Streak++
+			p.BestStreak = max(p.BestStreak, p.Streak)
+		} else {
+			p.Streak = 0
+		}
+		f.points = p
+		at.Points = &p
+	}
+	return at, nil
+}
+
+func (f *fakeStore) PuzzlePointsOf(context.Context, string, string) (store.PuzzlePoints, error) {
+	return f.points, nil
 }
 
 func newTest(user string) (*fakeStore, http.Handler) {

@@ -1,30 +1,13 @@
 import { useState } from "react";
 import { useAuth } from "./AuthContext.jsx";
-import { GOOGLE_LOGIN_URL } from "./api.js";
-import Avatar, { GoogleLogo } from "./Avatar.jsx";
+import Avatar from "./Avatar.jsx";
+import { GoogleButton, GoogleUpgrade, SignOut } from "./AccountParts.jsx";
 import "./auth.css";
 
-function GoogleButton({ enabled, children }) {
-  if (!enabled) {
-    return (
-      <button type="button" className="btn btn--block" disabled title="Вход через Google не настроен на сервере">
-        <GoogleLogo /> {children}
-      </button>
-    );
-  }
-  // A plain link: the browser leaves for Google and comes back signed in.
-  return (
-    <a className="btn btn--block btn--google" href={GOOGLE_LOGIN_URL}>
-      <GoogleLogo /> {children}
-    </a>
-  );
-}
-
 export default function AccountPage() {
-  const { status, user, google, authError, guest, logout } = useAuth();
+  const { status, user, google, authError, guest } = useAuth();
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const [confirmOut, setConfirmOut] = useState(false);
 
   async function run(fn) {
     setError("");
@@ -99,38 +82,16 @@ export default function AccountPage() {
         </div>
       </section>
 
-      {isGuest && (
-        <section className="card account__option account__upgrade">
-          <h2>Не потеряйте партии</h2>
-          <p>
-            Гость живёт, пока в браузере есть его cookie: очистите данные сайта или зайдите с другого устройства, и
-            всё пропадёт. Войдите через Google, и этот аккаунт (с партиями и настройками) станет вашим постоянным.
-          </p>
-          <GoogleButton enabled={google}>Привязать Google</GoogleButton>
-        </section>
-      )}
+      {isGuest && <GoogleUpgrade />}
 
       <div className="account__actions">
-        {isGuest && confirmOut ? (
-          <>
-            <span className="account__warn">Гостя после выхода не вернуть. Выйти?</span>
-            <button type="button" className="btn btn--danger" disabled={busy} onClick={() => run(logout)}>
-              Да, выйти
-            </button>
-            <button type="button" className="btn btn--ghost" onClick={() => setConfirmOut(false)}>
-              Отмена
-            </button>
-          </>
-        ) : (
-          <button
-            type="button"
-            className="btn btn--ghost"
-            disabled={busy}
-            onClick={() => (isGuest ? setConfirmOut(true) : run(logout))}
-          >
-            Выйти
-          </button>
-        )}
+        <a className="btn" href="#settings/profile">
+          Изменить имя
+        </a>
+        <a className="btn" href="#settings/account">
+          Учётная запись и удаление
+        </a>
+        <SignOut />
       </div>
     </div>
   );

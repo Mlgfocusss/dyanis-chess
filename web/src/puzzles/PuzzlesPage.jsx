@@ -6,8 +6,9 @@ import { useAuth } from "../auth/AuthContext.jsx";
 import { useSettings } from "../settings/SettingsContext.jsx";
 import { playSound, soundKindForSan } from "../sound/sound.js";
 import Icon from "../ui/Icon.jsx";
+import { recordPractice } from "../trainer/trainer.js";
 import { fetchPuzzle, fetchThemes, sendDailyResult, sendResult } from "./api.js";
-import { dayLabel, hintSquare, judgeMove, legalFor, signed, squaresOf } from "./puzzle.js";
+import { dayLabel, hintSquare, judgeMove, legalFor, pointsText, signed, squaresOf } from "./puzzle.js";
 import { ideaThemes, themeName } from "./themes.js";
 import PuzzleTabs, { chooseMode } from "./PuzzleTabs.jsx";
 import "./puzzles.css";
@@ -39,11 +40,15 @@ export default function PuzzlesPage() {
   const { settings } = useSettings();
 
   const [mode, setMode] = useState(() => fromHash().mode); // rated | themes | daily
+  // The points mode (settings → Игровой процесс → Задачи) is for the rated puzzles: they earn points
+  // and the rating stays. The other tabs are practice either way.
+  const pointsMode = settings.puzzlePoints && mode === "rated";
   const [theme, setTheme] = useState(savedTheme);
   const [themes, setThemes] = useState([]);
   const [puzzle, setPuzzle] = useState(null);
   const [daily, setDaily] = useState(null); // { date, status } while the puzzle of the day is on the board
   const [you, setYou] = useState(null); // { rating, attempts, solved }
+  const [pts, setPts] = useState(null); // { total, streak, best, today, gained } in the points mode
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
 
@@ -61,6 +66,7 @@ export default function PuzzlesPage() {
   const [elapsed, setElapsed] = useState(0); // seconds spent on it
   const timers = useRef([]);
   const reported = useRef(false);
+  const hintUsed = useRef(false); // the hint was asked for on this puzzle (halves the points)
   const request = useRef(0);
 
   const later = useCallback((fn, ms) => {
@@ -92,6 +98,7 @@ export default function PuzzlesPage() {
     (p) => {
       clearTimers();
       reported.current = false;
+      hintUsed.current = false;
       setStartedAt(Date.now());
       setElapsed(0);
       setPuzzle(p);
@@ -122,9 +129,10 @@ export default function PuzzlesPage() {
       setError("");
       try {
         if (!user) await guest(); // a guest account keeps the rating
-        const d = await fetchPuzzle({ level: settings.puzzleLevel, ...opts });
+        const d = await fetchPuzzle({ level: settings.puzzleLevel, points: settings.puzzlePoints && !opts.theme && !opts.daily, ...opts });
         if (mine !== request.current) return;
         setYou(d.you || null);
+        setPts(d.points || null);
         setDaily(d.daily || null);
         start(d.puzzle);
       } catch (e) {
@@ -133,7 +141,7 @@ export default function PuzzlesPage() {
         if (mine === request.current) setLoading(false);
       }
     },
-    [user, guest, start, settings.puzzleLevel]
+    [user, guest, start, settings.puzzleLevel, settings.puzzlePoints]
   );
 
   useEffect(() => {
@@ -199,7 +207,10 @@ export default function PuzzlesPage() {
   function report(p, solved) {
     if (reported.current) return;
     reported.current = true;
-    if (mode === "themes") return;
+    if (mode === "themes") {
+      recordPractice(p.id, solved); // practice does not move the rating, but the trainer's plan counts it
+      return;
+    }
     if (mode === "daily") {
       sendDailyResult(solved).then(
         (r) => setDaily((d) => (d ? { ...d, status: r.status } : d)),
@@ -207,10 +218,11 @@ export default function PuzzlesPage() {
       );
       return;
     }
-    sendResult(p.id, solved).then(
+    sendResult(p.id, solved, pointsMode ? { mode: "points", hint: hintUsed.current } : {}).then(
       (r) => {
         setResult(r);
         setYou(r.you);
+        if (r.points) setPts(r.points);
       },
       (e) => setError(e.message)
     );
@@ -264,6 +276,7 @@ export default function PuzzlesPage() {
   }
 
   function showHint() {
+    hintUsed.current = true;
     setHint(hintSquare(puzzle, idx));
   }
 
@@ -326,7 +339,8 @@ export default function PuzzlesPage() {
     headline = `Ваш ход. Найдите лучший ход за ${mySide === "white" ? "белых" : "чёрных"}`;
   }
 
-  const delta = result?.counted ? result.after - result.before : null;
+  const delta = !pointsMode && result?.counted ? result.after - result.before : null;
+  const gained = pointsMode && result?.counted ? result.points?.gained ?? 0 : null;
 
   return (
     <div className="room puzzles">
@@ -371,7 +385,12 @@ export default function PuzzlesPage() {
                 <Captured fen={fen} side={mySide} leadOnly />
               </span>
             </div>
-            {you && settings.puzzleRating && (
+            {pointsMode && pts && (
+              <span className="puzzles__rating" title="Ваши очки в задачах">
+                Очки: {pts.total}
+              </span>
+            )}
+            {!pointsMode && you && settings.puzzleRating && (
               <span className="puzzles__rating" title="Ваш рейтинг в задачах">
                 {you.rating}
               </span>
@@ -391,8 +410,17 @@ export default function PuzzlesPage() {
                 {signed(delta)} <span>рейтинг {result.before} → {result.after}</span>
               </p>
             )}
-            {result && !result.counted && <p className="room__meta">Эту задачу вы уже решали, рейтинг не изменился.</p>}
-            {failed && !result && phase !== "shown" && mode === "rated" && <p className="room__meta">Рейтинг за эту задачу уже учтён.</p>}
+            {gained !== null && (
+              <p className={`puzzles__delta puzzles__delta--${gained > 0 ? "up" : "same"}`}>
+                {gained > 0 ? `+${gained}` : "0"} <span>{gained > 0 ? "за эту задачу" : "очков за эту задачу"}</span>
+              </p>
+            )}
+            {result && !result.counted && (
+              <p className="room__meta">Эту задачу вы уже решали, {pointsMode ? "очков за повторную попытку нет" : "рейтинг не изменился"}.</p>
+            )}
+            {failed && !result && phase !== "shown" && mode === "rated" && (
+              <p className="room__meta">{pointsMode ? "Очки за эту задачу уже не получить." : "Рейтинг за эту задачу уже учтён."}</p>
+            )}
             {finished && mode !== "rated" && (
               <p className="room__meta">Это тренировка: рейтинг не меняется. Он считается только в рейтинговых задачах.</p>
             )}
@@ -446,7 +474,18 @@ export default function PuzzlesPage() {
             )}
           </section>
 
-          {you && settings.puzzleRating && (
+          {pointsMode && pts && (
+            <section className="card puzzles__you">
+              <h2>Очки</h2>
+              <p className="puzzles__big">{pts.total}</p>
+              <p className="room__meta">
+                Серия верных подряд: {pts.streak}. Сегодня: {pointsText(pts.today)}.
+                {user?.kind === "guest" ? " Войдите через Google, чтобы очки не потерялись." : ""}
+              </p>
+            </section>
+          )}
+
+          {!pointsMode && you && settings.puzzleRating && (
             <section className="card puzzles__you">
               <h2>Ваш рейтинг</h2>
               <p className="puzzles__big">{you.rating}</p>

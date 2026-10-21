@@ -10,15 +10,15 @@
 .account__option h2 { font-size: 1.05rem; font-weight: 700; }
 .account__option p { color: var(--text-2); font-size: 0.92rem; flex: 1; }
 .account__option .btn { margin-top: 6px; text-decoration: none; }
-.btn--google { background: #fff; border-color: #fff; color: #1f2937; font-weight: 600; }
-.btn--google:hover:not(:disabled) { background: #e5e7eb; border-color: #e5e7eb; }
-.btn--danger { background: var(--danger-soft); border-color: rgba(248, 113, 113, 0.5); color: #fecaca; }
-.btn--danger:hover:not(:disabled) { background: rgba(248, 113, 113, 0.26); }
+.btn--google { background: var(--google-bg); border-color: var(--google-border); color: var(--google-ink); font-weight: 600; }
+.btn--google:hover:not(:disabled) { background: var(--google-hover); border-color: var(--google-hover); }
+.btn--danger { background: var(--danger-soft); border-color: rgba(var(--danger-rgb), 0.5); color: var(--danger-text); }
+.btn--danger:hover:not(:disabled) { background: rgba(var(--danger-rgb), 0.26); }
 
 .account__me { display: flex; align-items: center; gap: 16px; padding: 20px; margin-bottom: 16px; }
 .account__name { font-size: 1.2rem; font-weight: 700; letter-spacing: -0.01em; }
 .account__meta { color: var(--muted); font-size: 0.9rem; }
-.account__upgrade { margin-bottom: 16px; border-color: rgba(52, 211, 153, 0.4); }
+.account__upgrade { margin-bottom: 16px; border-color: rgba(var(--primary-rgb), 0.4); }
 .account__actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
 .account__warn { color: var(--text-2); font-size: 0.92rem; }
 
@@ -37,3 +37,7 @@
 .acard__who { display: flex; flex-direction: column; min-width: 0; }
 .acard__name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .acard__kind { color: var(--muted); font-size: 0.78rem; }
+
+/* account screens shared by #account and the settings (AccountParts.jsx) */
+.account__warn--error { color: var(--danger); }
+.account__actions .btn { text-decoration: none; }

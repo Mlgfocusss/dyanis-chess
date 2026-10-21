@@ -97,3 +97,60 @@ test("several premoves are chosen one after another, each on the position the ea
   assert.equal(previewPlacement("4k3/8/8/8/8/8/PN6/4K3 w - - 0 1", "a2b3").split("/")[6], "1N6");
   assert.equal(previewPlacement("4k3/8/8/8/8/8/PP6/4K3 w - - 0 1", "a2b3").split("/")[6], "1P6");
 });
+
+// ------------------------------------------------------------ Chess960 castling
+
+// A castling is written as the king taking its own rook; the king ends on the g or c file.
+const FISCHER = "4k3/8/8/8/8/8/8/1R2K1R1 w GB - 0 1";
+
+test("Chess960: a king onto its own rook is a castling", () => {
+  assert.deepEqual(castlingOf(FISCHER, "e1g1"), { rook: "g1", to: "f1", king: "g1" });
+  assert.deepEqual(castlingOf(FISCHER, "e1b1"), { rook: "b1", to: "d1", king: "c1" });
+  assert.deepEqual(castlingOf("4k3/8/8/8/8/8/8/6KR w H - 0 1", "g1h1"), { rook: "h1", to: "f1", king: "g1" }); // the king stays
+  assert.deepEqual(castlingOf("1r2k1r1/8/8/8/8/8/8/4K3 b - - 0 1", "e8g8"), { rook: "g8", to: "f8", king: "g8" });
+  assert.equal(castlingOf(FISCHER, "e1f1"), null); // an empty square
+  assert.equal(castlingOf("4k3/8/8/8/8/8/8/4KN1R w - - 0 1", "e1f1"), null); // not a rook
+  assert.equal(castlingOf("4k3/8/8/8/8/8/8/4KrR1 w - - 0 1", "e1f1"), null); // the other side's rook
+  assert.equal(castlingOf("4k3/8/8/8/8/8/R7/4K3 w - - 0 1", "e1a2"), null); // another rank
+  // the standard castling is unchanged
+  assert.deepEqual(castlingOf(CASTLE, "e1g1"), { rook: "h1", to: "f1" });
+});
+
+test("Chess960: the rook and the king's destination both mean the castling, in every way", () => {
+  const legal = [{ uci: "e1g1" }, { uci: "e1b1" }, { uci: "e1f1" }, { uci: "e1d1" }];
+  for (const mode of ["standard", "rook", "both"]) {
+    assert.deepEqual(castlingSquares(FISCHER, "e1b1", mode, legal), ["c1", "b1"]);
+    // the king's destination is the rook's square: one square, not two
+    assert.deepEqual(castlingSquares(FISCHER, "e1g1", mode, legal), ["g1"]);
+    assert.equal(resolveMove(legal, FISCHER, "e1", "c1", mode), "e1b1");
+    assert.equal(resolveMove(legal, FISCHER, "e1", "b1", mode), "e1b1");
+    assert.equal(resolveMove(legal, FISCHER, "e1", "g1", mode), "e1g1");
+    assert.equal(resolveMove(legal, FISCHER, "e1", "f1", mode), "e1f1"); // an ordinary king move
+  }
+  assert.deepEqual(sorted(targetSquares(legal, FISCHER, "e1", "standard")), ["b1", "c1", "d1", "f1", "g1"]);
+});
+
+test("Chess960: the square an ordinary king move also goes to is that move's, the rook makes the castling", () => {
+  // king d1, rooks a1 and h1: the king may step to c1, which is also where it ends after castling long
+  const fen = "4k3/8/8/8/8/8/8/R2K3R w HA - 0 1";
+  const legal = [{ uci: "d1a1" }, { uci: "d1h1" }, { uci: "d1c1" }, { uci: "d1e1" }];
+  assert.equal(resolveMove(legal, fen, "d1", "c1", "standard"), "d1c1");
+  assert.equal(resolveMove(legal, fen, "d1", "a1", "standard"), "d1a1"); // the rook is the way left
+  assert.equal(resolveMove(legal, fen, "d1", "g1", "standard"), "d1h1");
+  assert.equal(resolveMove(legal, fen, "d1", "h1", "both"), "d1h1");
+  assert.deepEqual(sorted(targetSquares(legal, fen, "d1", "standard")), ["a1", "c1", "e1", "g1", "h1"]);
+  // the king stays on g1: no square to click but the rook's, in every way
+  const stay = "4k3/8/8/8/8/8/8/6KR w H - 0 1";
+  const legalStay = [{ uci: "g1h1" }, { uci: "g1f1" }];
+  for (const mode of ["standard", "rook", "both"]) assert.equal(resolveMove(legalStay, stay, "g1", "h1", mode), "g1h1");
+  assert.equal(resolveMove(legalStay, stay, "g1", "g1", "standard"), null);
+});
+
+test("Chess960: a preview puts the king and the rook where the castling leaves them", () => {
+  assert.equal(previewPlacement(FISCHER, "e1g1"), "4k3/8/8/8/8/8/8/1R3RK1");
+  assert.equal(previewPlacement(FISCHER, "e1b1"), "4k3/8/8/8/8/8/8/2KR2R1");
+  assert.equal(previewPlacement("4k3/8/8/8/8/8/8/6KR w H - 0 1", "g1h1"), "4k3/8/8/8/8/8/8/5RK1"); // the king stays
+  assert.equal(previewPlacement("4k3/8/8/8/8/8/8/4KR2 w F - 0 1", "e1f1"), "4k3/8/8/8/8/8/8/5RK1"); // the rook stays
+  assert.equal(previewPlacement("1r2k1r1/8/8/8/8/8/8/4K3 b - - 0 1", "e8g8"), "1r3rk1/8/8/8/8/8/8/4K3");
+  assert.equal(previewPlacement("4k3/8/8/8/8/8/8/R2K3R w HA - 0 1", "d1c1"), "4k3/8/8/8/8/8/8/R1K4R"); // an ordinary step
+});

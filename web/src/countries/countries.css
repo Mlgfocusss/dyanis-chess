@@ -1,0 +1,21 @@
+/* The country field (CountryPicker). Colours come from the tokens in index.css. */
+.cpick { position: relative; width: 100%; }
+.cpick__input { width: 100%; padding-right: 40px; text-overflow: ellipsis; }
+.cpick__chev {
+  position: absolute; top: 0; right: 12px; bottom: 0; display: grid; place-items: center; color: var(--muted); pointer-events: none;
+  transition: transform 0.15s;
+}
+.cpick__chev--open { transform: rotate(180deg); }
+.cpick__list {
+  position: absolute; z-index: 30; top: calc(100% + 4px); left: 0; right: 0; max-height: 288px; overflow-y: auto; margin: 0; padding: 4px;
+  list-style: none; background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--radius-sm); box-shadow: var(--shadow-pop);
+}
+.cpick__opt {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 40px; padding: 6px 10px;
+  border-radius: 6px; color: var(--text); cursor: pointer;
+}
+.cpick__opt--active { background: var(--surface-3); }
+.cpick__opt--selected { color: var(--primary); font-weight: 600; }
+.cpick__none { color: var(--text-2); }
+.cpick__code { flex: none; color: var(--muted); font: 0.78rem var(--mono); }
+.cpick__empty { padding: 12px 10px; color: var(--muted); }

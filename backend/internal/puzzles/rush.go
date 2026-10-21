@@ -55,7 +55,7 @@ func (s *Service) rushNext(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "не удалось выбрать задачу")
 		return
 	}
-	respond(w, p, "", store.PuzzleRating{}, nil)
+	respond(w, p, "", store.PuzzleRating{}, nil, nil)
 }
 
 type rushRequest struct {

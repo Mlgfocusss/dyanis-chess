@@ -11,11 +11,11 @@
   font: 600 1.2rem/1.2 var(--mono); font-variant-numeric: tabular-nums; color: var(--text-2);
 }
 
-.puzzles__state--ok { border-color: rgba(52, 211, 153, 0.5); }
+.puzzles__state--ok { border-color: rgba(var(--primary-rgb), 0.5); }
 .puzzles__state--ok .room__state { color: var(--primary); }
-.puzzles__state--bad { border-color: rgba(248, 113, 113, 0.5); }
+.puzzles__state--bad { border-color: rgba(var(--danger-rgb), 0.5); }
 .puzzles__state--bad .room__state { color: var(--danger); }
-.puzzles__state--warn { border-color: rgba(251, 191, 36, 0.5); }
+.puzzles__state--warn { border-color: rgba(var(--warn-rgb), 0.5); }
 .puzzles__state--warn .room__state { color: var(--warn); }
 
 .puzzles__delta { font: 700 1.6rem/1.2 var(--mono); display: flex; align-items: baseline; gap: 10px; }
@@ -62,7 +62,7 @@
 .duelroom__score--opp { background: var(--surface-2); color: var(--text); }
 .duelroom__cover {
   position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
-  background: rgba(8, 12, 20, 0.78); color: var(--text-2); border-radius: var(--radius-sm); z-index: 5;
+  background: var(--scrim-strong); color: var(--text-2); border-radius: var(--radius-sm); z-index: 5;
 }
 .duelroom__count { font: 800 6rem/1 var(--mono); color: var(--text); }
 .duelroom__timer { display: flex; align-items: center; gap: 10px; font: 700 1.8rem/1.2 var(--mono); font-variant-numeric: tabular-nums; }

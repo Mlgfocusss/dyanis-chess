@@ -565,3 +565,53 @@ func TestOpeningEndpoint(t *testing.T) {
 		t.Errorf("a game of 124 plies: %d", code)
 	}
 }
+
+// The link of a review (#review/<id>) is for sharing: another person, signed in or not, gets the whole
+// review, from memory and from the store after a restart, and the answer names no account (no user id,
+// no e-mail): only the players' names of the PGN, which the review shows anyway.
+func TestStrangerOpensTheLinkAndSeesNoAccount(t *testing.T) {
+	db := &memStore{}
+	s := New(userCfg(db))
+	h := s.Handler()
+	rec := serve(h, as("alice-account-id", "POST", "/api/analyses", jsonBody(foolsMate, `,"depth":3`)))
+	var out struct{ ID string }
+	json.Unmarshal(rec.Body.Bytes(), &out)
+	waitFor(t, h, out.ID, StatusDone)
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		db.mu.Lock()
+		n := len(db.rows)
+		db.mu.Unlock()
+		if n == 1 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("analysis never reached the store")
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	check := func(h http.Handler) {
+		t.Helper()
+		for _, who := range []string{"", "bob-account-id", "alice-account-id"} {
+			rec := serve(h, as(who, "GET", "/api/analyses/"+out.ID, ""))
+			if rec.Code != http.StatusOK {
+				t.Fatalf("as %q: %d %s", who, rec.Code, rec.Body)
+			}
+			var j Job
+			if err := json.Unmarshal(rec.Body.Bytes(), &j); err != nil || j.Report == nil || len(j.Report.Moves) != 4 || j.Game.White != "Анна" {
+				t.Fatalf("as %q: not the whole review: %v %s", who, err, rec.Body)
+			}
+			body := rec.Body.String()
+			for _, secret := range []string{"alice-account-id", "userId", "user_id", "email", "@"} {
+				if strings.Contains(body, secret) {
+					t.Errorf("the review given to %q contains %q", who, secret)
+				}
+			}
+		}
+	}
+	check(h)
+	s.Close()
+	s2 := New(userCfg(db))
+	defer s2.Close()
+	check(s2.Handler())
+}

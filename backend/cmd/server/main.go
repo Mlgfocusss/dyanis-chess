@@ -23,15 +23,33 @@ import (
 
 	"dyanis-chess/backend/internal/api"
 	"dyanis-chess/backend/internal/auth"
+	"dyanis-chess/backend/internal/coach"
+	"dyanis-chess/backend/internal/countries"
 	"dyanis-chess/backend/internal/explorer"
+	"dyanis-chess/backend/internal/lessons"
 	"dyanis-chess/backend/internal/match"
 	"dyanis-chess/backend/internal/play"
+	"dyanis-chess/backend/internal/profiles"
 	"dyanis-chess/backend/internal/puzzles"
 	"dyanis-chess/backend/internal/ratings"
 	"dyanis-chess/backend/internal/repertoire"
+	"dyanis-chess/backend/internal/stats"
 	"dyanis-chess/backend/internal/store"
+	"dyanis-chess/backend/internal/trainer"
+	"dyanis-chess/backend/internal/vplay"
 	"dyanis-chess/engine"
 )
+
+// splitList reads a comma-separated list ("a, b,c"); empty text gives nil.
+func splitList(s string) []string {
+	var out []string
+	for _, p := range strings.Split(s, ",") {
+		if p = strings.TrimSpace(p); p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
+}
 
 func main() {
 	addr := flag.String("addr", "127.0.0.1:8080", "address to listen on")
@@ -56,11 +74,17 @@ func main() {
 	cfg := api.Config{DefaultDepth: *depth, MaxDepth: *maxDepth}
 	var accounts *auth.Service
 	var games *play.Hub
+	var variantGames *vplay.Hub
 	var rated *ratings.Service
+	var profilesAPI *profiles.Service
 	var matcher *match.Service
 	var puzzleAPI *puzzles.Service
+	var statsAPI *stats.Service
+	var lessonsAPI *lessons.Service
+	var trainerAPI *trainer.Service
 	var repertoireAPI *repertoire.Service
 	var explorerAPI *explorer.Service
+	var coachNotes coach.Store // where explanations are kept; nil without a database
 	if *dsn != "" {
 		ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 		db, err := store.Open(ctx, *dsn, 60*time.Second)
@@ -70,6 +94,7 @@ func main() {
 		}
 		defer db.Close()
 		cfg.Store = db
+		coachNotes = db
 		if err := db.PurgeExpiredSessions(context.Background()); err != nil {
 			log.Printf("purge sessions: %v", err)
 		}
@@ -84,9 +109,21 @@ func main() {
 		})
 		cfg.UserID = accounts.UserID
 		rated = ratings.New(db, nil)
+		profilesAPI = profiles.New(db, rated, nil)
 		games = play.New(play.Config{Store: db, User: accounts.UserFromRequest, Ratings: rated})
 		defer games.Close()
+		// Games of the chess variants ("Другие шахматы"): people only, no rating, no engine.
+		variantGames = vplay.New(vplay.Config{Store: db, User: accounts.UserFromRequest})
+		defer variantGames.Close()
 		puzzleAPI = puzzles.New(puzzles.Config{Store: db, UserID: accounts.UserID, Ratings: rated})
+		statsAPI = stats.New(stats.Config{Store: db, Ratings: rated, UserID: accounts.UserID})
+		// The lessons are written by hand and checked at start-up: a broken lesson stops the server.
+		lessonLibrary, err := lessons.Load()
+		if err != nil {
+			log.Fatalf("lessons: %v", err)
+		}
+		lessonsAPI = lessons.New(lessons.Config{Store: db, UserID: accounts.UserID, Library: lessonLibrary})
+		trainerAPI = trainer.New(trainer.Config{Store: db, UserID: accounts.UserID})
 		// Matchmaking brings two people together for a game with a clock or a puzzle duel.
 		matcher = match.New(match.Config{
 			User:   accounts.UserFromRequest,
@@ -115,11 +152,38 @@ func main() {
 	} else {
 		log.Printf("no -dsn: results are kept in memory only, and there are no accounts")
 	}
+	// The AI coach explains moves of a review. The key and the model come from the environment
+	// (not flags: those show up in process lists); without a key the coach stays off.
+	cfg.Coach = coach.New(coach.Config{
+		APIKey: os.Getenv("OPENROUTER_API_KEY"),
+		Models: splitList(os.Getenv("OPENROUTER_MODELS")),
+		Site:   *publicURL,
+		Store:  coachNotes,
+	})
+	if cfg.Coach.Enabled() {
+		log.Printf("AI coach on (OpenRouter)")
+	} else {
+		log.Printf("no OPENROUTER_API_KEY: the AI coach is off (see DEVELOPERS.md)")
+	}
+	if variantGames != nil {
+		// The review of a finished Chess960 game takes its actions from the variants hub.
+		cfg.VariantGame = func(ctx context.Context, id string) (*api.VariantSource, error) {
+			g, err := variantGames.ReviewGame(ctx, id)
+			if errors.Is(err, vplay.ErrNoGame) {
+				return nil, api.ErrNoVariantGame
+			}
+			if err != nil {
+				return nil, err
+			}
+			return &api.VariantSource{Variant: g.Variant, Options: g.Options, Actions: g.Actions, Status: g.Status, Result: g.Result, White: g.White, Black: g.Black}, nil
+		}
+	}
 	srv := api.New(cfg)
 	defer srv.Close()
 
 	mux := http.NewServeMux()
 	mux.Handle("/api/", srv.Handler())
+	mux.Handle("/api/countries", countries.Handler()) // public and needs no database
 	if accounts != nil {
 		mux.Handle("/api/me", accounts.Handler())
 		mux.Handle("/api/me/", accounts.Handler())
@@ -127,10 +191,19 @@ func main() {
 		mux.Handle("/api/games", games.Handler())
 		mux.Handle("/api/games/", games.Handler())
 		mux.Handle("/api/bots", games.Handler())
+		mux.Handle("/api/variants", variantGames.Handler())
+		mux.Handle("/api/variants/", variantGames.Handler())
 		mux.Handle("/api/puzzles/", puzzleAPI.Handler())
 		mux.Handle("/api/duels/", puzzleAPI.Handler())
 		mux.Handle("/api/match/", matcher.Handler())
 		mux.Handle("/api/ratings", rated.Handler(accounts.UserID))
+		mux.Handle("/api/stats", statsAPI.Handler())
+		mux.Handle("/api/lessons", lessonsAPI.Handler())
+		mux.Handle("/api/lessons/", lessonsAPI.Handler())
+		mux.Handle("/api/trainer", trainerAPI.Handler())
+		mux.Handle("/api/trainer/", trainerAPI.Handler())
+		mux.Handle("/api/leaderboard", profilesAPI.Handler())
+		mux.Handle("/api/users/", profilesAPI.Handler())
 		mux.Handle("/api/repertoires", repertoireAPI.Handler())
 		mux.Handle("/api/repertoires/", repertoireAPI.Handler())
 		mux.Handle("/api/explorer", explorerAPI.Handler())

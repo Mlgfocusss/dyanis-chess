@@ -362,3 +362,60 @@ func TestMateIsAlwaysBest(t *testing.T) {
 		}
 	}
 }
+
+func TestAnalyzeLines(t *testing.T) {
+	opt := Options{Depth: 6, HashMB: 8}
+	// White's queen can take on h4 for free: a clear first choice, many other moves.
+	pos, err := engine.ParseFEN("rnb1kbnr/pppp1ppp/8/4p3/4P2q/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3")
+	if err != nil {
+		t.Fatal(err)
+	}
+	lines, err := AnalyzeLines(pos, nil, opt, 3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(lines) != 3 {
+		t.Fatalf("got %d lines, want 3", len(lines))
+	}
+	single := AnalyzePosition(pos, nil, opt)
+	if lines[0].BestUCI != single.BestUCI || lines[0].Score != single.Score {
+		t.Errorf("first line %s (%d) is not the single search's %s (%d)", lines[0].BestUCI, lines[0].Score, single.BestUCI, single.Score)
+	}
+	seen := map[string]bool{}
+	for i, l := range lines {
+		if l.Rank != i+1 || seen[l.BestUCI] || len(l.PV) == 0 || l.PV[0] != l.BestSAN {
+			t.Errorf("line %d malformed: %+v", i+1, l)
+		}
+		seen[l.BestUCI] = true
+		if i > 0 && l.WinPct > lines[i-1].WinPct {
+			t.Errorf("line %d (%.1f%%) is better for White than line %d (%.1f%%): lines must come best first", i+1, l.WinPct, i, lines[i-1].WinPct)
+		}
+	}
+
+	// Black to move: scores stay White's, so the later lines are higher, not lower.
+	blk, _ := engine.ParseFEN("rnbqkbnr/pppp1ppp/8/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq - 1 2")
+	bl, err := AnalyzeLines(blk, nil, opt, 3)
+	if err != nil || len(bl) != 3 {
+		t.Fatalf("black lines: %d, %v", len(bl), err)
+	}
+	if bl[1].WinPct < bl[0].WinPct-0.01 {
+		t.Errorf("black to move: line 2 (%.1f%% for White) is Black's second choice, so it cannot be better for Black than line 1 (%.1f%%)", bl[1].WinPct, bl[0].WinPct)
+	}
+
+	// A mate is reported as one, with its length.
+	mate, _ := engine.ParseFEN("7k/8/5KQ1/8/8/8/8/8 w - - 0 1")
+	ml, _ := AnalyzeLines(mate, nil, Options{Depth: 4, HashMB: 2}, 2)
+	if len(ml) == 0 || ml[0].Mate != 1 {
+		t.Errorf("mate in one not reported: %+v", ml)
+	}
+
+	// Finished game: no lines. Too many asked for: capped by the legal moves.
+	over, _ := engine.ParseFEN("7k/5Q2/6K1/8/8/8/8/8 b - - 0 1")
+	if got, err := AnalyzeLines(over, nil, opt, 3); err != nil || len(got) != 0 {
+		t.Errorf("stalemate gave %d lines, err %v", len(got), err)
+	}
+	few, _ := engine.ParseFEN("k7/8/1K6/8/8/8/8/7R b - - 0 1")
+	if got, _ := AnalyzeLines(few, nil, opt, 5); len(got) != len(few.LegalMoves()) {
+		t.Errorf("got %d lines for %d legal moves", len(got), len(few.LegalMoves()))
+	}
+}

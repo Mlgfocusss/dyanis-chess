@@ -1,0 +1,57 @@
+/* Bughouse: two boards side by side, a panel under them. Tokens from index.css only. */
+.bug { padding: 12px 32px 24px; display: flex; flex-direction: column; gap: 18px; }
+.bug__boards { position: relative; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 28px; align-items: start; }
+.bug__col {
+  display: flex; flex-direction: column; gap: 8px; justify-self: center;
+  width: min(100%, calc(100vh - 300px)); min-width: min(100%, 300px);
+}
+.bug__col--mine { outline: 2px solid rgba(var(--primary-rgb), 0.7); outline-offset: 8px; border-radius: var(--radius); }
+.bug__title { display: flex; align-items: center; gap: 10px; min-height: 28px; }
+.bug__name { font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.bug__tag { font-size: 0.72rem; font-weight: 600; padding: 2px 8px; border-radius: 999px; background: var(--primary-soft); color: var(--primary); }
+.bug__switch { margin-left: auto; min-height: 30px; padding: 0 10px; font-size: 0.8rem; }
+.bug__board { position: relative; }
+
+.bug__panel { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; align-items: start; }
+.bug__panel .bug__moves { grid-column: span 2; }
+.bug__lists { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.bug__listh { font-size: 0.78rem; font-weight: 600; color: var(--muted); margin-bottom: 4px; }
+.bug__moves .moves { max-height: 240px; }
+
+.bug__seats { gap: 10px; }
+.bug__team { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border-radius: var(--radius-sm); background: var(--surface-2); border: 1px solid var(--border); }
+.bug__teamh { font-size: 0.78rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
+.bug__seat { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 36px; }
+.bug__seatl { color: var(--text-2); font-size: 0.9rem; }
+.bug__seatwho { font-weight: 600; }
+.bug__take { min-height: 34px; padding: 0 14px; }
+
+/* while the game waits, the seats and the link come first */
+.bug--waiting .bug__panel { order: -1; }
+
+@media (min-width: 1560px) {
+  .bug--waiting .bug__panel { order: 0; }
+  .bug { flex-direction: row; align-items: flex-start; }
+  .bug__boards { flex: 1; min-width: 0; }
+  .bug__panel { width: 340px; flex: none; grid-template-columns: 1fr; }
+  .bug__panel .bug__moves { grid-column: auto; }
+}
+
+/* a narrow screen: the board in play is big, the other one small under it, switched by a button */
+@media (max-width: 860px) {
+  .bug { padding: 12px 12px 40px; }
+  .bug__boards { grid-template-columns: minmax(0, 1fr); gap: 14px; }
+  .bug__col { width: 100%; }
+  .bug__col--active { order: 0; }
+  .bug__col--mini { order: 1; width: min(62%, 280px); min-width: 0; }
+  .bug__col--mine { outline-offset: 5px; }
+  .bug__col--mini .pocket__label,
+  .bug__col--mini .pocket__note,
+  .bug__col--mini .pocket__none { display: none; }
+  .bug__col--mini .pbar { gap: 8px; }
+  .bug__col--mini .pbar__clock { font-size: 0.95rem; min-width: 64px; padding: 2px 8px; }
+  .bug__col--mini .pbar__sub { display: none; }
+  .bug__panel { grid-template-columns: minmax(0, 1fr); }
+  .bug__panel .bug__moves { grid-column: auto; }
+  .bug__lists { grid-template-columns: 1fr; }
+}

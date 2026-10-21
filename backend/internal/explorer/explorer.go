@@ -23,6 +23,7 @@ import (
 	"sync"
 	"time"
 
+	"dyanis-chess/backend/internal/eco"
 	"dyanis-chess/engine"
 )
 
@@ -107,6 +108,8 @@ func (s *Service) Handler() http.Handler {
 type Opening struct {
 	ECO  string `json:"eco"`
 	Name string `json:"name"`
+	// NameRU is Name in Russian (eco.TranslateName), added by normalize.
+	NameRU string `json:"nameRu,omitempty"`
 }
 
 // Move is one move played from the position in the games of the explorer.
@@ -318,6 +321,9 @@ func (s *Service) fetch(ctx context.Context, fen, ratings, speeds string) (Respo
 func normalize(up upstream) Response {
 	out := Response{Available: true, White: up.White, Draws: up.Draws, Black: up.Black, Total: up.White + up.Draws + up.Black, Moves: []Move{}}
 	for _, m := range up.Moves {
+		if m.Opening != nil {
+			m.Opening.NameRU = eco.TranslateName(m.Opening.Name)
+		}
 		out.Moves = append(out.Moves, Move{
 			UCI: fixCastling(m.UCI, m.SAN), SAN: m.SAN, Games: m.White + m.Draws + m.Black,
 			White: m.White, Draws: m.Draws, Black: m.Black, AverageRating: m.AverageRating, Opening: m.Opening,

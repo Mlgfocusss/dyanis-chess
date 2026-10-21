@@ -405,11 +405,11 @@ func TestPuzzles(t *testing.T) {
 		t.Fatalf("new person: %+v (%v)", r, err)
 	}
 	up := func(rating, attempts int) int { return rating + 20 }
-	at, err := s.RecordPuzzleAttempt(ctx, anna.ID, "tZaAa", true, up)
+	at, err := s.RecordPuzzleAttempt(ctx, anna.ID, "tZaAa", true, up, nil)
 	if err != nil || !at.Counted || at.Before != 1000 || at.After != 1020 || at.Record.Solved != 1 {
 		t.Fatalf("first attempt: %+v (%v)", at, err)
 	}
-	at, err = s.RecordPuzzleAttempt(ctx, anna.ID, "tZaAa", false, up)
+	at, err = s.RecordPuzzleAttempt(ctx, anna.ID, "tZaAa", false, up, nil)
 	if err != nil || at.Counted || at.After != 1020 || at.Record.Attempts != 1 {
 		t.Fatalf("repeat attempt: %+v (%v)", at, err)
 	}
@@ -500,8 +500,8 @@ func TestPuzzles(t *testing.T) {
 	}
 
 	// Merging adds the records up and keeps the rating of the one with more attempts.
-	s.RecordPuzzleAttempt(ctx, boris.ID, "tzaaa", false, func(r, n int) int { return r - 10 })
-	s.RecordPuzzleAttempt(ctx, boris.ID, "other", false, func(r, n int) int { return r - 10 })
+	s.RecordPuzzleAttempt(ctx, boris.ID, "tzaaa", false, func(r, n int) int { return r - 10 }, nil)
+	s.RecordPuzzleAttempt(ctx, boris.ID, "other", false, func(r, n int) int { return r - 10 }, nil)
 	if err := s.MergeUsers(ctx, anna.ID, boris.ID); err != nil {
 		t.Fatal(err)
 	}
@@ -517,7 +517,7 @@ func TestPuzzles(t *testing.T) {
 	if tried, solved, _ := s.DailyPuzzleResult(ctx, boris.ID, "2026-10-15"); !tried || !solved {
 		t.Error("a daily result of the merged-away account was lost")
 	}
-	if at, _ := s.RecordPuzzleAttempt(ctx, boris.ID, "tZaAa", true, up); at.Counted {
+	if at, _ := s.RecordPuzzleAttempt(ctx, boris.ID, "tZaAa", true, up, nil); at.Counted {
 		t.Error("the attempt of the merged-away account was forgotten")
 	}
 }
@@ -643,5 +643,25 @@ func TestRepertoires(t *testing.T) {
 	}
 	if err := s.DeleteRepertoire(ctx, boris.ID, rep.ID); !errors.Is(err, ErrNotFound) {
 		t.Errorf("delete again: %v", err)
+	}
+}
+
+func TestCoachNotes(t *testing.T) {
+	s := openTest(t)
+	ctx := context.Background()
+	hash := fmt.Sprintf("%064x", time.Now().UnixNano())
+	if _, ok, err := s.LoadCoachNote(ctx, hash); ok || err != nil {
+		t.Fatalf("unknown note: %v %v", ok, err)
+	}
+	text := "Ферзь без защиты: 12…Qxb2 😀"
+	if err := s.SaveCoachNote(ctx, hash, "some/model", text); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SaveCoachNote(ctx, hash, "other/model", "second"); err != nil { // the first one stays
+		t.Fatal(err)
+	}
+	got, ok, err := s.LoadCoachNote(ctx, hash)
+	if err != nil || !ok || got != text {
+		t.Errorf("got %q %v %v", got, ok, err)
 	}
 }

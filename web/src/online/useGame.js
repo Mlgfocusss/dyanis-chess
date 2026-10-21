@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getGame, socketUrl } from "./api.js";
 
+// Where a game is read and its socket opened: the online games by default; the chess variants
+// (variants/api.js) give their own. Keep the object the same between renders.
+const ONLINE_API = { getGame, socketUrl };
+
 // One online game: its latest state from the server and the means to act on
 // it. The state comes over a WebSocket; if the connection drops (a phone
 // changing network, a restarted server) the hook reconnects by itself and the
@@ -15,7 +19,7 @@ import { getGame, socketUrl } from "./api.js";
 //
 // userId makes the socket start over when the person signs in (the server
 // learns who is on the other end when the connection opens).
-export function useGame(id, userId) {
+export function useGame(id, userId, api = ONLINE_API) {
   const [snap, setSnap] = useState(null);
   const [status, setStatus] = useState("loading");
   const [notice, setNotice] = useState("");
@@ -33,7 +37,7 @@ export function useGame(id, userId) {
     async function open() {
       if (closed) return;
       try {
-        take(await getGame(id)); // the page is useful before the socket is up
+        take(await api.getGame(id)); // the page is useful before the socket is up
       } catch (e) {
         if (e.status === 404) return setStatus("notfound");
         setStatus("reconnecting");
@@ -41,7 +45,7 @@ export function useGame(id, userId) {
         return;
       }
       if (closed) return;
-      const sock = new WebSocket(socketUrl(id));
+      const sock = new WebSocket(api.socketUrl(id));
       ws.current = sock;
       sock.onopen = () => {
         attempt = 0;
@@ -90,7 +94,7 @@ export function useGame(id, userId) {
       ws.current = null;
       sock?.close();
     };
-  }, [id, userId]);
+  }, [id, userId, api]);
 
   const send = useCallback((type, extra = {}) => {
     const sock = ws.current;

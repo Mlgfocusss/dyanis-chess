@@ -1,0 +1,39 @@
+/* Pockets of Crazyhouse and Bughouse. Tokens from index.css only. */
+.pocket {
+  display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 3px 8px;
+  border-radius: var(--radius-sm); background: var(--surface-2); border: 1px solid var(--border);
+  user-select: none;
+}
+.pocket--mine { border-color: var(--border-strong); }
+.pocket__label { color: var(--muted); font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; }
+.pocket__slots { display: flex; gap: 4px; }
+.pocket__slot {
+  position: relative; display: grid; place-items: center; flex: none;
+  border-radius: var(--radius-sm); border: 2px solid transparent;
+}
+.pocket__piece { display: grid; place-items: center; }
+.pocket__slot--zero .pocket__piece { opacity: 0.22; filter: grayscale(1); }
+.pocket__slot--use { cursor: grab; background: rgba(var(--ink-rgb), 0.1); }
+.pocket__slot--use:hover { background: rgba(var(--ink-rgb), 0.22); }
+.pocket__slot--use:active { cursor: grabbing; }
+.pocket__slot--sel, .pocket__slot--sel:hover { background: var(--primary-soft); border-color: var(--primary); }
+.pocket__slot:focus-visible { outline: 2px solid var(--info); outline-offset: 1px; }
+.pocket__n {
+  position: absolute; right: -3px; bottom: -3px; min-width: 18px; height: 18px; padding: 0 4px;
+  display: grid; place-items: center; border-radius: 9px; font-size: 0.72rem; font-weight: 700; line-height: 1;
+  background: var(--primary); color: var(--on-primary); pointer-events: none;
+}
+.pocket__none { color: var(--muted); font-size: 0.82rem; }
+.pocket__note { margin-left: auto; color: var(--muted); font-size: 0.8rem; text-align: right; }
+
+/* a piece that came from a pawn by promotion (it goes back to a pocket as a pawn when taken) */
+.sq-promoted::after {
+  content: "~"; position: absolute; left: 3px; top: 0; z-index: 3; pointer-events: none;
+  font-weight: 800; line-height: 1.1; font-size: clamp(11px, 1.8vw, 18px);
+  color: var(--warn); text-shadow: 0 0 2px var(--side-black-2), 0 0 2px var(--side-black-2);
+}
+
+@media (max-width: 560px) {
+  .pocket { gap: 6px; padding: 2px 6px; min-height: 44px; }
+  .pocket__label { display: none; }
+}

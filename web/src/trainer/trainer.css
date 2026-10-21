@@ -1,0 +1,144 @@
+/* "Тренер" page (TrainerPage.jsx). Colours come from the tokens in index.css only. */
+.coach { max-width: 1100px; display: flex; flex-direction: column; gap: 28px; min-width: 0; }
+.coach h1, .coach h2, .coach h3 { overflow-wrap: anywhere; }
+
+.coach__status { padding: 22px; color: var(--text-2); display: flex; flex-direction: column; gap: 14px; align-items: flex-start; }
+.coach__welcome { flex-direction: row; align-items: flex-start; gap: 18px; }
+.coach__welcome > div { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.coach__welcome p { max-width: 62ch; }
+
+/* ---- hero: Dionis and what he says ---- */
+.coach__hero {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 22px; align-items: center; padding: 26px 28px;
+  border-radius: calc(var(--radius) + 6px);
+  background: radial-gradient(60% 120% at 100% 0%, var(--primary-soft), transparent 70%), var(--surface);
+}
+.coach__hero .bot-avatar { box-shadow: 0 0 0 4px var(--primary-soft); }
+.coach__say { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.coach__say p { color: var(--text-2); max-width: 62ch; }
+.coach__who { font-size: 0.78rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--primary); }
+.coach__hello { font-size: 1.6rem; font-weight: 700; letter-spacing: -0.02em; line-height: 1.2; margin-bottom: 4px; }
+.coach__chips { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.coach__chip {
+  display: flex; align-items: center; gap: 10px; min-width: 150px; padding: 8px 14px; border-radius: var(--radius-sm);
+  background: var(--surface-2); border: 1px solid var(--border); color: var(--muted);
+}
+.coach__chip span { display: flex; flex-direction: column; line-height: 1.2; }
+.coach__chip b { font: 700 1.2rem var(--mono); color: var(--text); font-variant-numeric: tabular-nums; }
+.coach__chip i { font-style: normal; font-size: 0.78rem; color: var(--muted); }
+.coach__chip--warm { color: var(--warn); }
+.coach__chip--done { color: var(--primary); border-color: rgba(var(--primary-rgb), 0.5); }
+
+/* ---- sections ---- */
+.coach__sec { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.coach__sechead { display: flex; justify-content: space-between; align-items: baseline; gap: 4px 12px; flex-wrap: wrap; }
+.coach__sechead h2 { font-size: 1.3rem; font-weight: 700; letter-spacing: -0.01em; }
+.coach__hint { color: var(--muted); font-size: 0.9rem; }
+.coach__note { color: var(--muted); font-size: 0.84rem; max-width: 76ch; }
+.coach__sub { color: var(--text-2); }
+.coach__lead { font-size: 1.05rem; }
+.coach__actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.coach__actions .btn, .plan__go { text-decoration: none; }
+.coach__empty { display: flex; flex-direction: column; gap: 10px; padding: 20px 22px; border-style: dashed; border-color: var(--border-strong); align-items: flex-start; }
+
+/* bars */
+.coach__bar { height: 8px; border-radius: 4px; background: var(--surface-3); overflow: hidden; min-width: 0; flex: 1; }
+.coach__bar i { display: block; height: 100%; border-radius: 4px; background: var(--primary); transition: width 0.3s; }
+.coach__bar--day { height: 10px; border-radius: 5px; }
+
+/* ---- plan ---- */
+.plan { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.plan__item { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 16px; align-items: center; padding: 16px 18px; }
+.plan__item--done { border-color: rgba(var(--primary-rgb), 0.5); background: linear-gradient(90deg, var(--primary-soft), transparent 60%), var(--surface); }
+.plan__ico { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 12px; background: var(--primary-soft); color: var(--primary); flex: none; }
+.plan__item--done .plan__ico { background: var(--primary); color: var(--on-primary); }
+.plan__main { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.plan__titlerow { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
+.plan__titlerow h3 { font-size: 1.02rem; font-weight: 600; }
+.plan__tag { display: inline-flex; align-items: center; gap: 4px; padding: 1px 9px 1px 7px; border-radius: 999px; background: var(--primary-soft); color: var(--primary); font-size: 0.76rem; font-weight: 600; }
+.plan__main p { color: var(--text-2); font-size: 0.92rem; }
+.plan__prog { display: flex; align-items: center; gap: 12px; margin-top: 4px; }
+.plan__prog span { color: var(--text-2); font: 600 0.84rem var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.plan__go { white-space: nowrap; }
+
+/* ---- the picture of the play ---- */
+.coach__tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; }
+.coach__tile { display: flex; flex-direction: column; gap: 2px; min-width: 0; padding: 14px 16px; }
+.coach__tlabel { display: inline-flex; align-items: center; gap: 6px; font-size: 0.76rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.coach__tvalue { font: 700 1.6rem/1.25 var(--mono); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.coach__tsub { color: var(--muted); font-size: 0.82rem; }
+.coach__tile--up .coach__tvalue { color: var(--primary); }
+.coach__tile--down .coach__tvalue, .coach__tile--bad .coach__tvalue { color: var(--danger); }
+.coach__tile--warn .coach__tvalue { color: var(--warn); }
+
+.coach__cols { align-items: start; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); gap: 14px; }
+.coach__panel { display: flex; flex-direction: column; gap: 12px; padding: 18px 20px; min-width: 0; }
+.coach__panel h3 { font-size: 1rem; font-weight: 600; }
+
+/* the stages of the game as columns */
+.phases { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; align-items: end; }
+.phases__col { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 0; text-align: center; }
+.phases__val { font: 700 1.1rem var(--mono); font-variant-numeric: tabular-nums; }
+.phases__col--none .phases__val { font: 500 0.82rem var(--font); color: var(--muted); }
+.phases__plot { display: flex; align-items: flex-end; width: 100%; max-width: 76px; height: 140px; border-radius: 8px; background: var(--surface-3); overflow: hidden; }
+.phases__plot i { display: block; width: 100%; border-radius: 8px 8px 0 0; background: var(--info); }
+.phases__col--best .phases__plot i { background: var(--primary); }
+.phases__col--weak .phases__plot i { background: var(--danger); }
+.phases__col--weak .phases__val { color: var(--danger); }
+.phases__name { font-size: 0.86rem; font-weight: 600; overflow-wrap: anywhere; }
+.phases__moves { color: var(--muted); font-size: 0.76rem; }
+
+/* the line of the accuracy */
+.dyn { position: relative; width: 100%; height: 200px; touch-action: pan-y; }
+.dyn svg { display: block; overflow: visible; }
+.dyn__grid { stroke: var(--border); stroke-width: 1; }
+.dyn__axis { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.dyn__avg { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 4 4; }
+.dyn__line { fill: none; stroke: var(--primary); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.dyn__pt { fill: var(--primary); stroke: var(--surface); stroke-width: 2; }
+.dyn__hit { fill: transparent; cursor: pointer; }
+.dyn a:focus-visible { outline: none; }
+.dyn a:focus-visible .dyn__pt { stroke: var(--info); }
+.dyn__tip { position: absolute; transform: translateX(-50%); display: flex; flex-direction: column; padding: 6px 10px; border-radius: var(--radius-sm); background: var(--surface-3); border: 1px solid var(--border-strong); box-shadow: var(--shadow); font-size: 0.8rem; color: var(--text-2); pointer-events: none; white-space: nowrap; z-index: 2; }
+.dyn__tip b { font: 700 1.05rem var(--mono); color: var(--text); }
+
+/* the costly moves */
+.costly { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.costly li { border-top: 1px solid var(--border); }
+.costly li:first-child { border-top: none; }
+.costly__row { display: grid; grid-template-columns: 84px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 10px 6px; color: var(--text); text-decoration: none; border-radius: var(--radius-sm); }
+.costly__row:hover { background: var(--surface-2); }
+.costly__move { font: 700 1.05rem var(--mono); }
+.costly__main { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; min-width: 0; color: var(--text-2); font-size: 0.92rem; }
+.costly__class { font-weight: 600; color: var(--warn); }
+.costly__class--blunder { color: var(--danger); }
+.costly__cap { color: var(--muted); font-size: 0.84rem; }
+.costly__loss { font: 700 1.1rem var(--mono); color: var(--danger); font-variant-numeric: tabular-nums; }
+
+/* ---- advice ---- */
+.advice { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; }
+.advice__card { display: flex; flex-direction: column; gap: 8px; padding: 18px 20px; min-width: 0; border-left: 3px solid var(--primary); }
+.advice__card h3 { font-size: 1.02rem; font-weight: 600; }
+.advice__card p { color: var(--text-2); font-size: 0.93rem; flex: 1; }
+.advice__card .coach__actions { margin-top: 6px; }
+
+@media (max-width: 900px) {
+  .coach__hero { grid-template-columns: auto minmax(0, 1fr); }
+  .coach__chips { grid-column: 1 / -1; flex-direction: row; flex-wrap: wrap; }
+  .coach__cols { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (max-width: 560px) {
+  .coach { gap: 22px; }
+  .coach__hero { padding: 18px 16px; gap: 14px; grid-template-columns: minmax(0, 1fr); }
+  .coach__hero .bot-avatar { width: 56px !important; height: 56px !important; }
+  .coach__hello { font-size: 1.3rem; }
+  .coach__welcome { flex-direction: column; }
+  .plan__item { grid-template-columns: auto minmax(0, 1fr); padding: 14px; gap: 12px; }
+  .plan__go { grid-column: 1 / -1; }
+  .coach__panel { padding: 16px 14px; }
+  .coach__tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .advice { grid-template-columns: minmax(0, 1fr); }
+  .costly__row { grid-template-columns: 70px minmax(0, 1fr) auto; gap: 8px; }
+  .phases { gap: 8px; }
+}

@@ -7,6 +7,8 @@ import { useBots } from "../bots/api.js";
 import { fetchRatings } from "../online/api.js";
 import { ratingText } from "../online/rating.js";
 import Icon from "../ui/Icon.jsx";
+import StatsTab, { useStats } from "./StatsTab.jsx";
+import { streakBadge } from "./stats.js";
 import "./profile.css";
 
 // Tabs of the profile. Only "Партии" has content so far; the rest is
@@ -113,6 +115,10 @@ export default function ProfilePage() {
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
 
+  // the numbers of the statistics tab; the streak tag in the head comes from the same answer
+  const stats = useStats(user?.id);
+  const badge = streakBadge(stats.stats?.streak);
+
   function select(id) {
     setTab(id);
     window.history.replaceState(null, "", `#profile/${id}`);
@@ -129,7 +135,15 @@ export default function ProfilePage() {
       <section className="card profile__head">
         <Avatar user={user} size={88} />
         <div className="profile__who">
-          <h1 className="profile__name">{user.name}</h1>
+          <div className="profile__namerow">
+            <h1 className="profile__name">{user.name}</h1>
+            {badge && (
+              <span className="profile__streak" title="Дней подряд с задачами">
+                <Icon name="flame" size={14} />
+                {badge}
+              </span>
+            )}
+          </div>
           <p className="profile__meta">
             {user.kind === "guest" ? "Гостевой аккаунт" : "Вход через Google"}
             {since ? ` · с нами с ${since}` : ""}
@@ -162,15 +176,7 @@ export default function ProfilePage() {
           <BotsOverview userId={user.id} />
         </>
       )}
-      {tab === "stats" && (
-        <section className="card profile__soon">
-          <h2>Статистика</h2>
-          <p>
-            Здесь появятся рейтинги, серия дней, точность по партиям и динамика. Профиль будет доработан позже, а
-            пока все ваши партии лежат во вкладке «Партии».
-          </p>
-        </section>
-      )}
+      {tab === "stats" && <StatsTab {...stats} />}
     </div>
   );
 }

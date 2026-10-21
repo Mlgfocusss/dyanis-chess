@@ -38,16 +38,45 @@ function placementOf(pieces) {
   return rows.join("/");
 }
 
+// ------------------------------------------------- a position given as an object
+
+// The chess variants send a position as an object, square to piece code: {"e4": "wP", "c3": "xD"}
+// (w and b for the sides, x for a piece of no side, the duck). The board works on FEN placements, so
+// the object is turned into one (a piece of no side is written "x") and back. Pure, with tests.
+export function fenFromBoard(board) {
+  const pieces = {};
+  for (const [sq, code] of Object.entries(board || {})) {
+    pieces[sq] = code[0] === "w" ? code[1].toUpperCase() : code[0] === "b" ? code[1].toLowerCase() : "x";
+  }
+  return placementOf(pieces);
+}
+
+// The object of a FEN placement (or of a longer FEN: only its first field is read).
+export function boardFromPlacement(placement) {
+  const out = {};
+  for (const [sq, c] of Object.entries(piecesOf(placement))) {
+    out[sq] = c === "x" ? "xD" : (c === c.toUpperCase() ? "w" : "b") + c.toUpperCase();
+  }
+  return out;
+}
+
 // ------------------------------------------------------------------ castling
 
 // The rook of a castling made by `uci` ("e1g1": the king of the first rank two squares to the side):
 // { rook: "h1" (where the rook stands), to: "f1" } or null when the move is no castling.
+// Chess960 writes a castling as the king taking its own rook ("e1h1", "g1h1"); then the answer also
+// has `king`, the square the king ends on (g or c file): { rook: "h1", to: "f1", king: "g1" }.
 export function castlingOf(fen, uci) {
   const from = uci.slice(0, 2);
   const to = uci.slice(2, 4);
-  const p = piecesOf(fen)[from];
+  const pieces = piecesOf(fen);
+  const p = pieces[from];
   if (p !== "K" && p !== "k") return null;
   const rank = p === "K" ? "1" : "8";
+  if (uci.length === 4 && from[1] === rank && to[1] === rank && pieces[to] === (p === "K" ? "R" : "r")) {
+    const east = to[0] > from[0];
+    return east ? { rook: to, to: "f" + rank, king: "g" + rank } : { rook: to, to: "d" + rank, king: "c" + rank };
+  }
   if (from !== "e" + rank || to[1] !== rank) return null;
   if (to[0] === "g") return { rook: "h" + rank, to: "f" + rank };
   if (to[0] === "c") return { rook: "a" + rank, to: "d" + rank };
@@ -56,13 +85,24 @@ export function castlingOf(fen, uci) {
 
 // The square a person clicks or drops the king on to make the castling `uci`, as the way of castling
 // ("standard": the king two squares, "rook": the king onto its rook, "both") allows. null: not that way.
-export function castlingSquares(fen, uci, mode) {
+export function castlingSquares(fen, uci, mode, legal) {
   const c = castlingOf(fen, uci);
   if (!c) return null;
+  if (c.king) return fischerSquares(fen, c, uci.slice(0, 2), legal);
   const squares = [];
   if (mode !== "rook") squares.push(uci.slice(2, 4));
   if (mode !== "standard") squares.push(c.rook);
   return squares;
+}
+
+// The squares that mean a Chess960 castling c (made by the king on `from`): the rook (the king onto its own
+// rook) and the square the king will stand on, in every way of castling the settings name (that choice is
+// about the two squares of the standard game). The king's destination is left out when the king does not move
+// there, or when an ordinary move of it goes to that square too (a king on d1 steps to c1, and also castles
+// there): the rook's square makes that castling, as on Lichess.
+function fischerSquares(fen, c, from, legal) {
+  const plain = (legal || []).some((m) => m.uci.slice(0, 2) === from && m.uci.slice(2, 4) === c.king && !castlingOf(fen, m.uci));
+  return [...new Set([...(c.king !== from && !plain ? [c.king] : []), c.rook])];
 }
 
 // The legal move (uci) a person means by taking the piece on `from` to `to`, or null. A castling
@@ -70,7 +110,7 @@ export function castlingSquares(fen, uci, mode) {
 export function resolveMove(legal, fen, from, to, mode = "standard") {
   for (const m of legal) {
     if (m.uci.slice(0, 2) !== from) continue;
-    const squares = castlingSquares(fen, m.uci, mode);
+    const squares = castlingSquares(fen, m.uci, mode, legal);
     if (squares) {
       if (squares.includes(to)) return m.uci;
     } else if (m.uci.slice(2, 4) === to) {
@@ -86,7 +126,7 @@ export function targetSquares(legal, fen, from, mode = "standard") {
   const out = new Set();
   for (const m of legal) {
     if (m.uci.slice(0, 2) !== from) continue;
-    const squares = castlingSquares(fen, m.uci, mode);
+    const squares = castlingSquares(fen, m.uci, mode, legal);
     if (squares) squares.forEach((s) => out.add(s));
     else out.add(m.uci.slice(2, 4));
   }
@@ -104,6 +144,15 @@ export function previewPlacement(fen, uci) {
   let p = pieces[from];
   if (!p) return placementOf(pieces);
   const castle = castlingOf(fen, uci);
+  if (castle?.king) {
+    // Chess960: the king ends on its own square, not on the rook's, and the rook may start where it ends
+    const rook = pieces[castle.rook];
+    delete pieces[castle.rook];
+    delete pieces[from];
+    pieces[castle.to] = rook;
+    pieces[castle.king] = p;
+    return placementOf(pieces);
+  }
   if (castle) {
     pieces[castle.to] = pieces[castle.rook];
     delete pieces[castle.rook];

@@ -25,6 +25,7 @@ type lineRequest struct {
 	FEN   string   `json:"fen"`
 	Moves []string `json:"moves"` // UCI ("e2e4") or SAN ("Nf3"), played from FEN in turn
 	Eval  bool     `json:"eval"`  // also search the last position
+	Lines int      `json:"lines"` // also find this many best lines of the last position (MultiPV, up to 3)
 	Depth int      `json:"depth"` // search depth for Eval; 0 = the server default
 }
 
@@ -42,7 +43,15 @@ type lineResponse struct {
 	// Status is "" while the game goes on, else "checkmate" or "draw".
 	Status string                 `json:"status,omitempty"`
 	Eval   *analysis.PositionEval `json:"eval,omitempty"`
+	Lines  []analysis.LineEval    `json:"lines,omitempty"`
 }
+
+// maxLines is the most best lines the line endpoint gives.
+const maxLines = 3
+
+// linesDepth caps the depth of a MultiPV request that names none: every line is a
+// search of its own, so the default review depth would make three lines slow.
+const linesDepth = 14
 
 // uciOrSAN finds the legal move a request item means.
 func uciOrSAN(pos *engine.Position, item string) (engine.Move, error) {
@@ -94,10 +103,13 @@ func (s *Server) line(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if req.Eval {
+	if req.Eval || req.Lines > 0 {
 		depth := req.Depth
 		if depth <= 0 {
 			depth = s.cfg.DefaultDepth
+			if req.Lines > 0 {
+				depth = min(depth, linesDepth)
+			}
 		}
 		depth = min(depth, s.cfg.MaxDepth)
 		select {
@@ -109,14 +121,34 @@ func (s *Server) line(w http.ResponseWriter, r *http.Request) {
 		case <-r.Context().Done():
 			return
 		}
-		ev, err := s.safeEval(pos, analysis.Options{Depth: depth})
-		if err != nil {
-			writeError(w, http.StatusInternalServerError, "не удалось оценить позицию")
-			return
+		if req.Eval {
+			ev, err := s.safeEval(pos, analysis.Options{Depth: depth})
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, "не удалось оценить позицию")
+				return
+			}
+			resp.Eval = &ev
 		}
-		resp.Eval = &ev
+		if req.Lines > 0 {
+			lines, err := s.safeLines(pos, analysis.Options{Depth: depth}, min(req.Lines, maxLines))
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, "не удалось найти линии движка")
+				return
+			}
+			resp.Lines = lines
+		}
 	}
 	writeJSON(w, http.StatusOK, resp)
+}
+
+// safeLines is safeEval for the best lines.
+func (s *Server) safeLines(pos *engine.Position, opt analysis.Options, n int) (lines []analysis.LineEval, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = errors.New("search panicked")
+		}
+	}()
+	return s.cfg.EvalLines(pos, nil, opt, n)
 }
 
 // safeEval evaluates a position, turning a panic in the engine into an error

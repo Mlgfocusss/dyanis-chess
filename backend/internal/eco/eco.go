@@ -27,6 +27,9 @@ var dataFS embed.FS
 type Opening struct {
 	ECO  string `json:"eco"`  // "B12"
 	Name string `json:"name"` // "Caro-Kann Defense: Advance Variation"
+	// NameRU is the Russian rendering of Name (see TranslateName); it equals
+	// Name when some piece of the name has no translation.
+	NameRU string `json:"nameRu"`
 	// Plies is the length of the reference line, in half-moves.
 	Plies int `json:"plies"`
 }
@@ -154,7 +157,7 @@ func (b *Book) load(tsv string) error {
 				b.through[h]++
 			}
 		}
-		o := Opening{ECO: f[0], Name: f[1], Plies: len(g.Moves)}
+		o := Opening{ECO: f[0], Name: f[1], NameRU: TranslateName(f[1]), Plies: len(g.Moves)}
 		h := pos.Hash()
 		if old, dup := b.byHash[h]; dup && old.Plies <= o.Plies {
 			continue

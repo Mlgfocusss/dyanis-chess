@@ -1,0 +1,21 @@
+/* Fog of war: the squares the player does not see are covered with a veil (the page's own scrim token, so
+   it is dark on the dark theme and grey on the light one). Nothing but the class says what is under it. */
+.sq-fog::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  pointer-events: none;
+  background-image: linear-gradient(var(--scrim), var(--scrim)), linear-gradient(var(--scrim), var(--scrim));
+}
+
+/* the card of the rules in the side column, set like the other small cards there */
+.fog-note { padding: 14px 16px; }
+.fog-note h2 {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 8px;
+  font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted);
+}
+.fog-note p { margin: 0 0 8px; color: var(--text-2); font-size: 0.88rem; }
+.fog-note p:last-child { margin-bottom: 0; }
+.fog-note p:first-of-type { color: var(--text); }
+.fog-note__over { color: var(--info); }

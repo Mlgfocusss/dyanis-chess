@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"dyanis-chess/backend/internal/analysis"
+	"dyanis-chess/backend/internal/coach"
 	"dyanis-chess/backend/internal/eco"
 	"dyanis-chess/backend/internal/pgn"
 	"dyanis-chess/backend/internal/store"
@@ -37,6 +38,9 @@ import (
 
 // Analyzer reviews one game; analysis.Analyze in production, a stub in tests.
 type Analyzer func(g *pgn.Game, opt analysis.Options) (*analysis.Report, error)
+
+// VariantAnalyzer reviews a game of a chess variant; analysis.AnalyzeVariant in production, a stub in tests.
+type VariantAnalyzer func(g *analysis.VariantGame, opt analysis.Options) (*analysis.Report, error)
 
 // Store persists finished analyses; *store.Store in production. nil keeps
 // results in memory only.
@@ -50,9 +54,19 @@ type Store interface {
 // Config tunes a Server. Zero values get the defaults noted.
 type Config struct {
 	Analyze Analyzer // default analysis.Analyze
+	// AnalyzeVariant reviews a game of Chess960 (variant.go); default analysis.AnalyzeVariant.
+	AnalyzeVariant VariantAnalyzer
+	// VariantGame finds a finished game of a variant by its id for POST /api/analyses/variant;
+	// nil leaves that route answering 404. It returns ErrNoVariantGame for an unknown id.
+	VariantGame func(ctx context.Context, id string) (*VariantSource, error)
 	// EvalPosition judges one position for the "try a line" endpoint;
 	// default analysis.AnalyzePosition, a stub in tests.
 	EvalPosition func(*engine.Position, []uint64, analysis.Options) analysis.PositionEval
+	// EvalLines finds the best lines of a position (MultiPV); default
+	// analysis.AnalyzeLines, a stub in tests.
+	EvalLines func(*engine.Position, []uint64, analysis.Options, int) ([]analysis.LineEval, error)
+	// Coach explains moves of a review in words; nil leaves the coach off.
+	Coach        *coach.Service
 	DefaultDepth int   // search depth when the request names none; default 14
 	MaxDepth     int   // largest depth a request may ask for; default 20
 	MaxPlies     int   // longest game accepted, in half-moves; default 400
@@ -70,8 +84,14 @@ func (c *Config) fill() {
 	if c.Analyze == nil {
 		c.Analyze = analysis.Analyze
 	}
+	if c.AnalyzeVariant == nil {
+		c.AnalyzeVariant = analysis.AnalyzeVariant
+	}
 	if c.EvalPosition == nil {
 		c.EvalPosition = analysis.AnalyzePosition
+	}
+	if c.EvalLines == nil {
+		c.EvalLines = analysis.AnalyzeLines
 	}
 	if c.DefaultDepth <= 0 {
 		c.DefaultDepth = 14
@@ -115,6 +135,8 @@ type GameInfo struct {
 	Date     string `json:"date,omitempty"`
 	Event    string `json:"event,omitempty"`
 	StartFEN string `json:"startFen"`
+	// Variant is the id of the chess variant of a game played on the site ("chess960"); empty for a PGN.
+	Variant string `json:"variant,omitempty"`
 }
 
 // Job is the public state of one analysis.
@@ -129,6 +151,7 @@ type Job struct {
 	Created time.Time        `json:"created"`
 
 	game   *pgn.Game
+	vgame  *analysis.VariantGame // a game of a variant, instead of game
 	depth  int
 	userID string
 }
@@ -137,8 +160,11 @@ type Job struct {
 type Summary struct {
 	Accuracy [2]float64 `json:"accuracy"`
 	Opening  string     `json:"opening,omitempty"`
-	ECO      string     `json:"eco,omitempty"`
-	Plies    int        `json:"plies"`
+	// OpeningRU is Opening in Russian. Summaries stored before it existed lack
+	// it; list fills it in from the English name.
+	OpeningRU string `json:"openingRu,omitempty"`
+	ECO       string `json:"eco,omitempty"`
+	Plies     int    `json:"plies"`
 }
 
 // Listed is one row of "my games".
@@ -190,12 +216,15 @@ func (s *Server) Close() {
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /api/analyses", s.create)
+	mux.HandleFunc("POST /api/analyses/variant", s.createVariant)
 	mux.HandleFunc("GET /api/analyses/{id}", s.get)
 	mux.HandleFunc("GET /api/analyses", s.list)
 	mux.HandleFunc("DELETE /api/analyses/{id}", s.remove)
 	mux.HandleFunc("GET /api/opening", s.opening)
 	mux.HandleFunc("POST /api/line", s.line)
 	mux.HandleFunc("POST /api/continuations", s.continuations)
+	mux.HandleFunc("GET /api/coach", s.coachStatus)
+	mux.HandleFunc("POST /api/coach", s.coachExplain)
 	mux.HandleFunc("GET /api/health", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	})
@@ -348,6 +377,9 @@ func (s *Server) list(w http.ResponseWriter, r *http.Request) {
 			if a.Summary != nil {
 				var sm Summary
 				if json.Unmarshal(a.Summary, &sm) == nil {
+					if sm.OpeningRU == "" && sm.Opening != "" {
+						sm.OpeningRU = eco.TranslateName(sm.Opening)
+					}
 					l.Summary = &sm
 				}
 			}
@@ -403,6 +435,7 @@ func summarize(rep *analysis.Report) *Summary {
 	sm := &Summary{Accuracy: rep.Accuracy, Plies: len(rep.Moves)}
 	if rep.Opening != nil {
 		sm.Opening, sm.ECO = rep.Opening.Name, rep.Opening.ECO
+		sm.OpeningRU = rep.Opening.NameRU
 	}
 	return sm
 }
@@ -429,10 +462,46 @@ func (s *Server) loadStored(ctx context.Context, id string) (*Job, error) {
 		if err := json.Unmarshal(a.Report, j.Report); err != nil {
 			return nil, fmt.Errorf("stored report: %w", err)
 		}
+		localizeOpenings(j.Report)
 		j.Total = len(j.Report.Evals)
 		j.Done = j.Total
 	}
 	return j, nil
+}
+
+// localizeOpenings fills in the Russian opening names of a report read from
+// the database: reports saved before the names were translated carry only the
+// English ones. The report is freshly decoded, so changing it is safe.
+func localizeOpenings(rep *analysis.Report) {
+	fill := func(o *eco.Opening) {
+		if o != nil && o.NameRU == "" {
+			o.NameRU = eco.TranslateName(o.Name)
+		}
+	}
+	fill(rep.Opening)
+	for i := range rep.Moves {
+		fill(rep.Moves[i].Opening)
+	}
+}
+
+// reportOf is the report of a finished review, from memory or the database;
+// nil when there is none (unknown, still running, or failed).
+func (s *Server) reportOf(r *http.Request, id string) (*analysis.Report, error) {
+	s.mu.Lock()
+	job, ok := s.jobs[id]
+	var rep *analysis.Report
+	if ok {
+		rep = job.Report // immutable once set
+	}
+	s.mu.Unlock()
+	if ok {
+		return rep, nil
+	}
+	loaded, err := s.loadStored(r.Context(), id)
+	if err != nil || loaded == nil {
+		return nil, err
+	}
+	return loaded.Report, nil
 }
 
 // persist writes a finished job to the database. A failure is logged, not
@@ -479,7 +548,7 @@ func (s *Server) worker() {
 func (s *Server) run(job *Job) {
 	s.mu.Lock()
 	job.Status = StatusRunning
-	g, depth := job.game, job.depth
+	g, vg, depth := job.game, job.vgame, job.depth
 	s.mu.Unlock()
 
 	opt := analysis.Options{
@@ -490,10 +559,10 @@ func (s *Server) run(job *Job) {
 			s.mu.Unlock()
 		},
 	}
-	rep, err := s.safeAnalyze(g, opt)
+	rep, err := s.safeAnalyze(g, vg, opt)
 
 	s.mu.Lock()
-	job.game = nil // the parsed game is no longer needed
+	job.game, job.vgame = nil, nil // the parsed game is no longer needed
 	if err != nil {
 		job.Status, job.Error = StatusError, err.Error()
 	} else {
@@ -506,12 +575,15 @@ func (s *Server) run(job *Job) {
 
 // safeAnalyze turns a panic inside the analysis into an error, so one bad
 // game cannot kill the worker (and with it every later analysis).
-func (s *Server) safeAnalyze(g *pgn.Game, opt analysis.Options) (rep *analysis.Report, err error) {
+func (s *Server) safeAnalyze(g *pgn.Game, vg *analysis.VariantGame, opt analysis.Options) (rep *analysis.Report, err error) {
 	defer func() {
 		if p := recover(); p != nil {
 			rep, err = nil, fmt.Errorf("внутренняя ошибка разбора: %v", p)
 		}
 	}()
+	if vg != nil {
+		return s.cfg.AnalyzeVariant(vg, opt)
+	}
 	return s.cfg.Analyze(g, opt)
 }
 

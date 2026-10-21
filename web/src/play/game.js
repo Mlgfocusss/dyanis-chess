@@ -108,9 +108,10 @@ const TERMINATION = {
 // The same description as describeResult, for a finished online game: result
 // is the PGN result, termination what the server says ("checkmate", "resign",
 // "timeout", ...), you is the viewer's colour or "" for a spectator (then
-// outcome is "neutral" and the title names the winner).
-export function describeFinished({ result, termination, you }) {
-  const [reason, how] = TERMINATION[termination] || [termination || "", ""];
+// outcome is "neutral" and the title names the winner). reasons: more endings, key -> [reason, how]
+// (the chess variants have their own).
+export function describeFinished({ result, termination, you, reasons }) {
+  const [reason, how] = (reasons && reasons[termination]) || TERMINATION[termination] || [termination || "", ""];
   const winner = result === "1-0" ? "white" : result === "0-1" ? "black" : null;
   if (!winner) {
     return {

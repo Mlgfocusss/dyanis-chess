@@ -15,9 +15,11 @@ import Chat from "./Chat.jsx";
 import { fetchPgn, inviteUrl, joinGame } from "./api.js";
 import { describeTC, formatClock } from "./clock.js";
 import { changeLine, ratingText } from "./rating.js";
+import { userHash } from "../leaders/leaders.js";
 import { LOW_MS, beepDue } from "./lowtime.js";
 import { colourLetter, premoveToPlay } from "../components/boardrules.js";
 import { useClocks, useGame } from "./useGame.js";
+import { openingName, openingTitle } from "../openings/names.js";
 import "./online.css";
 
 const MAX_PREMOVES = 30; // how many premoves may wait
@@ -25,7 +27,18 @@ const SIDE_NAME = { white: "белые", black: "чёрные" };
 const SIDE_GEN = { white: "белых", black: "чёрных" }; // "ход белых"
 const SIDE_INS = { white: "белыми", black: "чёрными" }; // "играете белыми"
 
-function PlayerBar({ player, side, ms, running, present, you, fen, warn }) {
+// A person's name links to their public profile; a bot, or a seat with no account, is plain text.
+export function PlayerName({ player, fallback }) {
+  if (!player) return fallback;
+  if (player.bot || !player.id || player.id.startsWith("bot:")) return player.name;
+  return (
+    <a className="pbar__link" href={userHash(player.id)}>
+      {player.name}
+    </a>
+  );
+}
+
+export function PlayerBar({ player, side, ms, running, present, you, fen, warn }) {
   const low = warn && running && ms !== null && ms < LOW_MS;
   return (
     <div className={`pbar${running ? " pbar--turn" : ""}`}>
@@ -38,7 +51,7 @@ function PlayerBar({ player, side, ms, running, present, you, fen, warn }) {
       )}
       <div className="pbar__who">
         <span className="pbar__name">
-          {player ? player.name : "Ждём соперника…"}
+          <PlayerName player={player} fallback="Ждём соперника…" />
           {player?.elo ? <span className="pbar__elo"> ({ratingText(player.elo, player.prov)})</span> : null}
           {you && <span className="pbar__you">вы</span>}
         </span>
@@ -405,8 +418,8 @@ export default function GameRoom({ id, backHash = "online", backLabel = "Нов�
             {ended && showSummary && info && (
               <GameSummary
                 info={info}
-                white={game.white?.name || "Белые"}
-                black={game.black?.name || "Чёрные"}
+                white={<PlayerName player={game.white} fallback="Белые" />}
+                black={<PlayerName player={game.black} fallback="Чёрные" />}
                 you={you}
                 moves={moves.length}
                 signedIn={!!user}
@@ -444,8 +457,8 @@ export default function GameRoom({ id, backHash = "online", backLabel = "Нов�
               {game.presence.watching > 0 ? ` · смотрят: ${game.presence.watching}` : ""}
             </p>
             {game.opening && (
-              <p className="room__opening">
-                <span className="review__eco">{game.opening.eco}</span> {game.opening.name}
+              <p className="room__opening" title={openingTitle(game.opening)}>
+                <span className="review__eco">{game.opening.eco}</span> {openingName(game.opening)}
                 {game.book && <span className="room__theory">теория</span>}
               </p>
             )}

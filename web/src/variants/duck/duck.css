@@ -1,0 +1,21 @@
+/* Duck chess: the duck piece and the card of the two steps of a turn. Tokens from index.css only. */
+
+.duck { display: block; filter: drop-shadow(0 2px 2px rgba(var(--ink-rgb), 0.35)); }
+.duck__line { fill: var(--side-black-2); stroke: var(--side-black-2); stroke-width: 7; stroke-linejoin: round; }
+.duck__body { fill: var(--warn); stroke: none; }
+.duck__beak { fill: var(--danger); stroke: none; }
+.duck__wing { fill: var(--warn-text); stroke: var(--side-black-2); stroke-width: 2.5; stroke-linejoin: round; }
+.duck__eye { fill: var(--side-black); }
+
+.duck-steps { padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+.duck-steps__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.duck-steps__item { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: var(--radius-sm); color: var(--muted); border: 1px solid transparent; }
+.duck-steps__item.is-done { color: var(--text-2); }
+.duck-steps__item.is-now { color: var(--text); background: var(--primary-soft); border-color: rgba(var(--primary-rgb), 0.45); font-weight: 600; }
+.duck-steps__no {
+  flex: none; display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%;
+  background: var(--surface-3); color: var(--text-2); font-size: 0.8rem; font-weight: 700;
+}
+.duck-steps__item.is-now .duck-steps__no { background: var(--primary); color: var(--on-primary); }
+.duck-steps__who { margin: 0; color: var(--text-2); font-size: 0.9rem; }
+.duck-steps__confirm { flex-wrap: wrap; }
