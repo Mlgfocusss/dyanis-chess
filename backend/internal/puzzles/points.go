@@ -1,8 +1,10 @@
 package puzzles
 
-// The points mode (settings → Игровой процесс → Задачи → "Собирать очки за решение задач"): a
-// first try that is solved earns points, a failed one earns nothing and takes nothing away, and
-// the puzzle rating does not move. These numbers are our own rules; chess.com does not publish its.
+// The puzzle points go next to the rating in the rated puzzles: a first try that is solved earns
+// points, a failed one earns nothing and takes nothing away (it ends the series), and the puzzle
+// rating moves as usual. The setting "Собирать очки за решение задач" only decides which of the
+// two the page shows as the main number. These numbers are our own rules; chess.com does not
+// publish its.
 const (
 	// PointsPerRating: the base is the puzzle's rating divided by this, rounded.
 	PointsPerRating = 100

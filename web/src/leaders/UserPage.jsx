@@ -1,10 +1,14 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../auth/AuthContext.jsx";
 import Avatar from "../auth/Avatar.jsx";
-import { placeLine } from "../countries/countryList.js";
+import { countryName, placeLine } from "../countries/countryList.js";
+import useCountries from "../countries/useCountries.js";
 import Icon from "../ui/Icon.jsx";
+import RelationBar from "../community/RelationBar.jsx";
+import RecentAchievements from "../achievements/RecentAchievements.jsx";
 import { fetchUser } from "./api.js";
 import { botsLine, joinedText, kindLabel, leadersHash, profileRatings, userFromHash } from "./leaders.js";
+import { useLang, useT } from "../i18n/index.js";
 import "./leaders.css";
 
 // The public profile of another player (#user/<id>): who they are, ratings with their places in the
@@ -23,7 +27,10 @@ export default function UserPage() {
 }
 
 function UserView({ id, from, country }) {
+  const t = useT();
   const { user } = useAuth();
+  const lang = useLang();
+  const { countries } = useCountries();
   const [state, setState] = useState({ profile: null, error: "", missing: false });
 
   useEffect(() => {
@@ -46,7 +53,7 @@ function UserView({ id, from, country }) {
   const back = (
     <a className="btn btn--ghost uprof__back" href={leadersHash(from, country)}>
       <Icon name="back" size={18} />
-      Назад к таблице
+      {t("userPage.1")}
     </a>
   );
 
@@ -54,8 +61,8 @@ function UserView({ id, from, country }) {
     return (
       <div className="page uprof">
         <div className="card uprof__empty">
-          <h1>{missing ? "Игрок не найден" : "Не удалось загрузить профиль"}</h1>
-          <p>{missing ? "Такого игрока нет: возможно, ссылка устарела." : error}</p>
+          <h1>{missing ? t("userPage.2") : t("userPage.3")}</h1>
+          <p>{missing ? t("userPage.4") : error}</p>
           {back}
         </div>
       </div>
@@ -64,14 +71,15 @@ function UserView({ id, from, country }) {
   if (!profile) {
     return (
       <div className="page uprof">
-        <p className="leaders__note">Загрузка…</p>
+        <p className="leaders__note">{t("leadersPage.loading")}</p>
       </div>
     );
   }
 
   const mine = user && user.id === profile.id;
   const since = joinedText(profile.createdAt);
-  const place = placeLine(profile.location, profile.countryName);
+  const cname = (profile.country && countries.length ? countryName(countries, profile.country, lang) : "") || profile.countryName;
+  const place = placeLine(profile.location, cname);
   const ratings = profileRatings(profile);
   return (
     <div className="page uprof">
@@ -82,31 +90,33 @@ function UserView({ id, from, country }) {
         <div className="uprof__who">
           <h1 className="uprof__name" title={profile.name}>
             {profile.name}
-            {mine && <span className="leaders__you">вы</span>}
+            {mine && <span className="leaders__you">{t("leadersPage.13")}</span>}
           </h1>
           {profile.fullName && <p className="uprof__real">{profile.fullName}</p>}
           {place && (
             <p className="uprof__place-line">
-              {profile.country && <span className="uprof__code" title={profile.countryName}>{profile.country}</span>}
+              {profile.country && <span className="uprof__code" title={cname}>{profile.country}</span>}
               {place}
             </p>
           )}
           <p className="uprof__meta">
             {kindLabel(profile.kind)}
-            {since && ` · на сайте с ${since}`}
+            {since && t("profilePanel.6", { since })}
           </p>
         </div>
         {mine && (
           <a className="btn btn--ghost" href="#profile">
-            Мой профиль
+            {t("userPage.8")}
           </a>
         )}
       </section>
 
+      <RelationBar person={profile} />
+
       {profile.about && (
         <section className="card uprof__card">
           <header>
-            <h2>Обо мне</h2>
+            <h2>{t("profilePanel.19")}</h2>
           </header>
           {/* plain text: React escapes it, the line breaks are kept by CSS */}
           <p className="uprof__about">{profile.about}</p>
@@ -115,8 +125,8 @@ function UserView({ id, from, country }) {
 
       <section className="card uprof__card">
         <header>
-          <h2>Рейтинги</h2>
-          <span className="uprof__hint">Партии между людьми, Glicko-2. «?» значит, что рейтинг ещё примерный.</span>
+          <h2>{t("profile.ratingsTitle")}</h2>
+          <span className="uprof__hint">{t("userPage.11")}</span>
         </header>
         <ul className="uprof__ratings">
           {ratings.map((r) => (
@@ -130,7 +140,7 @@ function UserView({ id, from, country }) {
                   {r.placeLine}
                 </a>
               ) : (
-                <span className="uprof__rsub">{r.games ? "вне таблицы" : " "}</span>
+                <span className="uprof__rsub">{r.games ? t("userPage.12") : " "}</span>
               )}
             </li>
           ))}
@@ -139,26 +149,28 @@ function UserView({ id, from, country }) {
 
       <section className="card uprof__card">
         <header>
-          <h2>Партии и боты</h2>
+          <h2>{t("userPage.13")}</h2>
         </header>
         <dl className="uprof__stats">
           <div>
-            <dt>Партий сыграно</dt>
+            <dt>{t("userPage.14")}</dt>
             <dd>{profile.games}</dd>
           </div>
           <div>
-            <dt>Очки у ботов</dt>
+            <dt>{t("userPage.15")}</dt>
             <dd className="uprof__points">
               <Icon name="star" size={18} />
               {profile.bots?.points || 0}
             </dd>
           </div>
           <div>
-            <dt>Боты</dt>
+            <dt>{t("avatar.bots")}</dt>
             <dd>{botsLine(profile.bots) || "—"}</dd>
           </div>
         </dl>
       </section>
+
+      <RecentAchievements userId={profile.id} mine={mine} />
     </div>
   );
 }

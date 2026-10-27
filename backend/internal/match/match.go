@@ -57,7 +57,10 @@ type Config struct {
 	Rating func(ctx context.Context, userID, category string) (ratings.Entry, error)
 	// Chess and Duel make the games.
 	Chess, Duel Maker
-	Now         func() time.Time
+	// Avoid returns the people the person has a block with (either way); they are never paired with
+	// them. Read when the person joins the queue. nil: nobody is avoided.
+	Avoid func(ctx context.Context, userID string) (map[string]bool, error)
+	Now   func() time.Time
 }
 
 // Timing.
@@ -78,7 +81,8 @@ type seek struct {
 	category string
 	joined   time.Time
 	lastSeen time.Time
-	found    string // the id of the game made for the pair, once paired
+	avoid    map[string]bool // people this one has a block with: never paired
+	found    string          // the id of the game made for the pair, once paired
 	foundAt  time.Time
 	readAt   time.Time // when the person first learned of it
 }
@@ -184,9 +188,17 @@ func (s *Service) Join(ctx context.Context, u Seeker, req Request) error {
 	if err := validate(req); err != nil {
 		return err
 	}
+	var avoid map[string]bool
+	if s.cfg.Avoid != nil {
+		var err error
+		if avoid, err = s.cfg.Avoid(ctx, u.ID); err != nil {
+			log.Printf("match: blocks of %s: %v", u.ID, err) // better to play than to wait for ever
+			avoid = nil
+		}
+	}
 	now := s.cfg.Now()
 	s.mu.Lock()
-	s.list[u.ID] = &seek{who: u, req: req, key: keyOf(req), category: categoryOf(req), joined: now, lastSeen: now}
+	s.list[u.ID] = &seek{who: u, req: req, key: keyOf(req), category: categoryOf(req), joined: now, lastSeen: now, avoid: avoid}
 	s.mu.Unlock()
 	s.Pair()
 	return nil
@@ -270,7 +282,7 @@ func (s *Service) Pair() {
 		var best *seek
 		bestDiff := math.Inf(1)
 		for _, b := range waiting {
-			if b == a || b.found != "" || b.key != a.key {
+			if b == a || b.found != "" || b.key != a.key || a.avoid[b.who.ID] || b.avoid[a.who.ID] {
 				continue
 			}
 			diff := math.Abs(float64(a.who.Rating - b.who.Rating))

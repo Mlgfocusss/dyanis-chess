@@ -73,6 +73,7 @@ const PATHS = {
     </>
   ),
   list: <path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" />,
+  more: <path d="M5 12h.01M12 12h.01M19 12h.01" strokeWidth="3.2" />,
   trash: <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6M10 11v6M14 11v6" />,
   thumb: <path d="M7 10v12M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2a3.13 3.13 0 0 1 3 3.88Z" />,
   trophy: (
@@ -208,6 +209,29 @@ const PATHS = {
   ),
   alert: <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0zM12 9v4M12 17h.01" />,
   share: <path d="M4 12v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7M16 6l-4-4-4 4M12 2v13" />,
+  // the community: people, a private message, the forum, send, a bell
+  users: (
+    <>
+      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
+    </>
+  ),
+  message: <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />,
+  forum: (
+    <>
+      <path d="M17 10a2 2 0 0 1-2 2H7l-4 4V4a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+      <path d="M21 8v10l-4-4h-6a2 2 0 0 1-2-2" />
+    </>
+  ),
+  send: <path d="M22 2 11 13M22 2l-7 20-4-9-9-4z" />,
+  bell: <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0" />,
+  mailbox: (
+    <>
+      <rect x="2" y="4" width="20" height="16" rx="2" />
+      <path d="m22 7-10 6L2 7" />
+    </>
+  ),
   // chess pieces for the faces of the dice (dice chess): filled silhouettes in the current colour
   pieceP: (
     <>
@@ -239,6 +263,12 @@ const PATHS = {
       <path d="M12 3v5M9.500 5.500h5" />
       <path d="M12 8c-3 2.500-5 5-5 8.500h10c0-3.500-2-6-5-8.500z" fill="currentColor" />
       <path d="M6.500 20.500h11v-3h-11z" fill="currentColor" />
+    </>
+  ),
+  block: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M5.600 5.600 18.400 18.400" />
     </>
   ),
 };

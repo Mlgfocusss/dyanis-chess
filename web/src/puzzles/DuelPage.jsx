@@ -7,6 +7,7 @@ import useSeek from "../online/useSeek.js";
 import Icon from "../ui/Icon.jsx";
 import DuelRoom from "./DuelRoom.jsx";
 import PuzzleTabs from "./PuzzleTabs.jsx";
+import { useT } from "../i18n/index.js";
 import "../online/online.css";
 import "./puzzles.css";
 
@@ -23,6 +24,7 @@ export default function DuelPage() {
 
 // Two people, brought together by their rating, solve the same puzzles for three minutes.
 function DuelLobby() {
+  const t = useT();
   const { status, user, guest } = useAuth();
   const { settings } = useSettings();
   const [mine, setMine] = useState(null);
@@ -50,15 +52,15 @@ function DuelLobby() {
   if (status === "unavailable") {
     return (
       <div className="page lobby">
-        <div className="banner banner--error">Дуэль недоступна: сервер запущен без базы данных.</div>
+        <div className="banner banner--error">{t("duelPage.1")}</div>
       </div>
     );
   }
   return (
     <div className="page lobby duel">
       <header className="page__head">
-        <h1 className="page__title">Тактическая дуэль</h1>
-        <p className="page__sub">Вы и живой соперник решаете одни и те же задачи наперегонки.</p>
+        <h1 className="page__title">{t("menu.duel")}</h1>
+        <p className="page__sub">{t("duelPage.3")}</p>
       </header>
       <div className="duel__tabs">
         <PuzzleTabs mode="duel" />
@@ -66,40 +68,40 @@ function DuelLobby() {
       {(error || seek.error) && <div className="banner banner--error">{error || seek.error}</div>}
 
       <section className="card lobby__card">
-        <h2 className="lobby__h">Ваш рейтинг в дуэлях</h2>
+        <h2 className="lobby__h">{t("duelPage.4")}</h2>
         <p className="puzzles__big">{mine && mine.games ? ratingText(mine.rating, mine.provisional) : "1200?"}</p>
         <p className="room__meta">
-          {mine && mine.games ? `Дуэлей: ${mine.games}, побед ${mine.wins}, ничьих ${mine.draws}, поражений ${mine.losses}.` : "Вы ещё не играли дуэли."} Рейтинг считается по системе Glicko-2, как в рейтинговых партиях.
+          {mine && mine.games ? t("duelPage.5", { games: mine.games, wins: mine.wins, draws: mine.draws, losses: mine.losses }) : t("duelPage.6")} {t("duelPage.7")}
         </p>
 
         {searching ? (
           <div className="lobby__search" role="status" aria-live="polite">
             <span className="lobby__spin" aria-hidden="true" />
             <div>
-              <p className="lobby__searching">Ищем соперника…</p>
+              <p className="lobby__searching">{t("duelPage.8")}</p>
               <p className="lobby__note">
-                {seek.status.waited || 0} с{seek.status.window ? ` · разница в рейтинге до ${Math.round(seek.status.window)}` : ""}
-                {seek.status.count > 1 ? ` · в очереди: ${seek.status.count}` : ""}
+                {seek.status.waited || 0} {t("duelPage.9")}{seek.status.window ? t("duelPage.10", { p: Math.round(seek.status.window) }) : ""}
+                {seek.status.count > 1 ? t("duelPage.11", { count: seek.status.count }) : ""}
               </p>
             </div>
             <button type="button" className="btn" onClick={seek.cancel}>
-              Отмена
+              {t("common.cancel")}
             </button>
           </div>
         ) : (
           <button type="button" className="btn btn--primary lobby__go" onClick={find} disabled={status === "loading"}>
-            <Icon name="duel" size={18} /> Найти соперника
+            <Icon name="duel" size={18} /> {t("duelPage.13")}
           </button>
         )}
       </section>
 
       <section className="card lobby__card">
-        <h2 className="lobby__h">Правила</h2>
+        <h2 className="lobby__h">{t("vlobby.26")}</h2>
         <ul className="duel__rules">
-          <li>Дуэль идёт 3 минуты. Перед началом 5 секунд на подготовку.</li>
-          <li>Задачи у обоих одни и те же и идут от лёгких к сложным. Каждый решает в своём темпе.</li>
-          <li>Решённая задача даёт очко. Ошибка не заканчивает дуэль: задача пропускается, а ошибки считаются при равенстве очков.</li>
-          <li>Побеждает тот, у кого больше очков. Очки соперника видно в ходе дуэли.</li>
+          <li>{t("duelPage.15")}</li>
+          <li>{t("duelPage.16")}</li>
+          <li>{t("duelPage.17")}</li>
+          <li>{t("duelPage.18")}</li>
         </ul>
       </section>
     </div>

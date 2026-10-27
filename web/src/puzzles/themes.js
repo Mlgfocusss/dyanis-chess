@@ -1,3 +1,4 @@
+import { tr } from "../i18n/index.js";
 // Names of the Lichess puzzle themes in Russian. A theme not listed here is
 // shown by its own id, so a newer database does not break the page.
 export const THEME_NAMES = {
@@ -64,7 +65,7 @@ export const THEME_NAMES = {
 };
 
 export function themeName(id) {
-  return THEME_NAMES[id] || id;
+  return THEME_NAMES[id] ? tr("puzzleTheme." + id) : id;
 }
 
 // Themes that say how the puzzle was found, not what it is about: kept out of

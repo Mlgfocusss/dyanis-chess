@@ -3,11 +3,13 @@
 // actions "@e5" (every free square except the one the duck stands on). The duck is the piece "xD".
 import Icon from "../../ui/Icon.jsx";
 import { duckClick, duckDots, stepOf } from "./duck.js";
+import { useT } from "../../i18n/index.js";
 import "./duck.css";
 
 // The duck, drawn from design tokens only (so it follows the light theme): an outline pass under a fill pass,
 // so that the overlapping shapes show one silhouette.
 function DuckShapes({ pass }) {
+  const t = useT();
   const cls = pass === "line" ? "duck__line" : "duck__body";
   return (
     <g className={cls}>
@@ -37,32 +39,33 @@ const PIECES = { xD: DuckPiece };
 // The card in the side column: which of the two actions of the turn is under way, and the confirmation of a
 // duck put down (when the person asked for confirmed moves).
 function DuckSide(ctx) {
+  const t = useT();
   const { playing, view, myTurn, ui, setUi, act } = ctx;
   if (!playing) return null;
   const step = stepOf(ctx);
-  const who = view.turn === "white" ? "белые" : "чёрные";
+  const who = view.turn === "white" ? t("gameRoom.sideWhite") : t("gameRoom.sideBlack");
   const pending = myTurn && step === "duck" ? ui.duckPending : null;
   return (
-    <section className="card duck-steps" aria-label="Шаги хода">
+    <section className="card duck-steps" aria-label={t("vduck.3")}>
       <ol className="duck-steps__list">
         <li className={`duck-steps__item ${step === "move" ? "is-now" : "is-done"}`}>
-          <span className="duck-steps__no">1</span> Ход фигурой
+          <span className="duck-steps__no">1</span> {t("vduck.4")}
         </li>
         <li className={`duck-steps__item ${step === "duck" ? "is-now" : ""}`}>
           <span className="duck-steps__no">
             <Icon name="duck" size={14} />
           </span>{" "}
-          Утка на свободное поле
+          {t("vduck.5")}
         </li>
       </ol>
-      <p className="duck-steps__who">{myTurn ? "Ваш ход" : `Ходят ${who}`}: {step === "move" ? "сначала фигура" : "теперь утка"}</p>
+      <p className="duck-steps__who">{myTurn ? t("gameRoom.41") : t("vduck.7", { who })}: {step === "move" ? t("vduck.8") : t("vduck.9")}</p>
       {pending && (
         <div className="room__row duck-steps__confirm">
           <button type="button" className="btn btn--primary" onClick={() => act(`@${pending}`)}>
-            Поставить на {pending}
+            {t("vduck.10")} {pending}
           </button>
           <button type="button" className="btn btn--ghost" onClick={() => setUi({ duckPending: null })}>
-            Отмена
+            {t("common.cancel")}
           </button>
         </div>
       )}

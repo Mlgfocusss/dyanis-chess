@@ -3,6 +3,7 @@ import BotAvatar from "../bots/BotAvatar.jsx";
 import Icon from "../ui/Icon.jsx";
 import { askCoach, coachEnabled } from "./api.js";
 import { isCostly } from "./dionis.js";
+import { useT } from "../i18n/index.js";
 
 const DIONIS = { id: "dionis", name: "Дионис Самусенко" };
 
@@ -15,6 +16,7 @@ const DIONIS = { id: "dionis", name: "Дионис Самусенко" };
 // it, or null; onNote(ply, note) keeps it; onShow(basePly, sans, title) plays sans from the position
 // after basePly half-moves; onHide turns the coach off.
 export default function DionisCard({ jobId, ply, move, brief, note, onNote, onShow, onHide }) {
+  const t = useT();
   const [aiOn, setAiOn] = useState(false);
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -50,23 +52,23 @@ export default function DionisCard({ jobId, ply, move, brief, note, onNote, onSh
 
   const costly = move && isCostly(move.class);
   return (
-    <section className="dionis card" aria-label="Тренер Дионис">
+    <section className="dionis card" aria-label={t("dionisCard.2")}>
       <div className="dionis__top">
         <BotAvatar bot={DIONIS} size={32} />
         <div className="dionis__col">
-          <p className="dionis__say" title="Тренер Дионис">
+          <p className="dionis__say" title={t("dionisCard.2")}>
             {brief.text}
           </p>
           {move && ((costly && brief.best) || (aiOn && !open)) && (
           <div className="dionis__row">
             {move && costly && brief.best && (
-              <button type="button" className="btn btn--small" onClick={() => onShow(ply - 1, [brief.best], "Дионис: лучший ход")}>
-                Лучший ход
+              <button type="button" className="btn btn--small" onClick={() => onShow(ply - 1, [brief.best], t("dionisCard.3"))}>
+                {t("dionisCard.4")}
               </button>
             )}
             {move && aiOn && !open && (
               <button type="button" className="btn btn--small btn--ghost" onClick={ask}>
-                <Icon name="coach" size={14} /> Подробнее
+                <Icon name="coach" size={14} /> {t("dionisCard.5")}
               </button>
             )}
           </div>
@@ -74,13 +76,13 @@ export default function DionisCard({ jobId, ply, move, brief, note, onNote, onSh
         </div>
       </div>
 
-      <button type="button" className="dionis__hide" onClick={onHide} title="Скрыть тренера (вернуть: Настройки, Игровой процесс)" aria-label="Скрыть тренера">
+      <button type="button" className="dionis__hide" onClick={onHide} title={t("dionisCard.6")} aria-label={t("dionisCard.7")}>
         <Icon name="close" size={14} />
       </button>
 
       {open && (
         <div className="dionis__more">
-          {busy && <p className="coach__lead coach__busy">Разбираю позицию подробнее…</p>}
+          {busy && <p className="coach__lead coach__busy">{t("dionisCard.8")}</p>}
           {error && <div className="banner banner--error">{error}</div>}
           {note && (
             <div className="coach__body">
@@ -89,27 +91,27 @@ export default function DionisCard({ jobId, ply, move, brief, note, onNote, onSh
               ))}
               <div className="coach__show">
                 {costly && note.bestLine?.length > 0 && (
-                  <button type="button" className="btn" onClick={() => onShow(ply - 1, note.bestLine, "Дионис: что нужно было сыграть")}>
-                    Что нужно было сыграть
+                  <button type="button" className="btn" onClick={() => onShow(ply - 1, note.bestLine, t("dionisCard.9"))}>
+                    {t("dionisCard.10")}
                   </button>
                 )}
                 {costly && note.replyLine?.length > 0 && (
-                  <button type="button" className="btn" onClick={() => onShow(ply, note.replyLine, "Дионис: как это наказывается")}>
-                    Как это наказывается
+                  <button type="button" className="btn" onClick={() => onShow(ply, note.replyLine, t("dionisCard.11"))}>
+                    {t("dionisCard.12")}
                   </button>
                 )}
                 {!costly && note.replyLine?.length > 0 && (
-                  <button type="button" className="btn" onClick={() => onShow(ply, note.replyLine, "Дионис: что дальше")}>
-                    Показать продолжение
+                  <button type="button" className="btn" onClick={() => onShow(ply, note.replyLine, t("dionisCard.13"))}>
+                    {t("dionisCard.14")}
                   </button>
                 )}
               </div>
-              <p className="coach__note">Подробный текст пишет нейросеть по данным движка, ходы в линиях считал сам движок.</p>
+              <p className="coach__note">{t("dionisCard.15")}</p>
             </div>
           )}
           {!busy && !note && error && (
             <button type="button" className="btn btn--ghost" onClick={ask}>
-              Ещё раз
+              {t("dionisCard.16")}
             </button>
           )}
         </div>

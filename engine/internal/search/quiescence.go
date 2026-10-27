@@ -116,8 +116,19 @@ func quiescenceBody(b *board.Board, ply, alpha, beta, checkExtLeft int, tt *Tran
 
 		extendForCheck := checkExtLeft > 0
 		var candidates []board.Move
+		best := -Infinity
 		if extendForCheck {
 			candidates = legal
+			if swQEvasion && len(candidates) > 1 {
+				// Captures first, best victim for the cheapest attacker first.
+				scores := make([]int, len(candidates))
+				for i, m := range candidates {
+					if m.IsCapture() {
+						scores[i] = 1000 + mvvLva(b, m)
+					}
+				}
+				insertionSortByScoreDesc(candidates, scores)
+			}
 		} else {
 			// Check-extension budget spent: degrade to the same
 			// captures-only handling the not-in-check path below uses,
@@ -125,8 +136,9 @@ func quiescenceBody(b *board.Board, ply, alpha, beta, checkExtLeft int, tt *Tran
 			// generation needed — legal was already the full list).
 			standPat := tt.evaluate(b, ply)
 			if standPat >= beta {
-				return beta
+				return qFail(standPat, beta)
 			}
+			best = standPat
 			if standPat > alpha {
 				alpha = standPat
 			}
@@ -142,7 +154,7 @@ func quiescenceBody(b *board.Board, ply, alpha, beta, checkExtLeft int, tt *Tran
 		if extendForCheck {
 			nextCheckExtLeft--
 		}
-		return quiescenceLoop(b, ply, alpha, beta, nextCheckExtLeft, candidates, false, tt)
+		return quiescenceLoop(b, ply, alpha, beta, nextCheckExtLeft, candidates, false, tt, best)
 	}
 
 	// Not in check — the overwhelming majority of quiescence nodes.
@@ -171,7 +183,7 @@ func quiescenceBody(b *board.Board, ply, alpha, beta, checkExtLeft int, tt *Tran
 
 	standPat := tt.evaluate(b, ply)
 	if standPat >= beta {
-		return beta
+		return qFail(standPat, beta)
 	}
 	if standPat > alpha {
 		alpha = standPat
@@ -192,9 +204,30 @@ func quiescenceBody(b *board.Board, ply, alpha, beta, checkExtLeft int, tt *Tran
 			sees = append(sees, s)
 		}
 	}
+	if swQPromo {
+		// Quiet promotions to a queen are as forcing as a capture.
+		us := b.SideToMove
+		seventh, step := 6, 8
+		if us == board.Black {
+			seventh, step = 1, -8
+		}
+		pawns := b.Pieces(board.Pawn, us)
+		for pawns != 0 {
+			var from board.Square
+			from, pawns = pawns.PopLSB()
+			if from.Rank() != seventh {
+				continue
+			}
+			to := board.Square(int(from) + step)
+			if b.PieceAt(to).IsNone() && len(candidates) < len(candBuf) {
+				candidates = append(candidates, board.Move{From: from, To: to, Flag: board.Promotion, Promotion: board.Queen})
+				sees = append(sees, 0)
+			}
+		}
+	}
 	insertionSortByScoreDesc(candidates, sees)
 
-	return quiescenceLoop(b, ply, alpha, beta, checkExtLeft, candidates, true, tt)
+	return quiescenceLoop(b, ply, alpha, beta, checkExtLeft, candidates, true, tt, standPat)
 }
 
 // sortCandidatesBySEE sorts capture candidates by their real SEE
@@ -230,7 +263,7 @@ func sortCandidatesBySEE(b *board.Board, candidates []board.Move) {
 // caller (in-check or not-in-check path above) already built.
 // checkLegal is true when candidates are pseudo-legal (not-in-check path): each move is
 // made anyway, so a move that leaves our king attacked is rejected right after MakeMove.
-func quiescenceLoop(b *board.Board, ply, alpha, beta, nextCheckExtLeft int, candidates []board.Move, checkLegal bool, tt *TranspositionTable) int {
+func quiescenceLoop(b *board.Board, ply, alpha, beta, nextCheckExtLeft int, candidates []board.Move, checkLegal bool, tt *TranspositionTable, best int) int {
 	us := b.SideToMove
 	for _, m := range candidates {
 		undo := b.MakeMove(m)
@@ -244,12 +277,27 @@ func quiescenceLoop(b *board.Board, ply, alpha, beta, nextCheckExtLeft int, cand
 		if tt.aborted() {
 			return 0
 		}
+		if score > best {
+			best = score
+		}
 		if score >= beta {
-			return beta
+			return qFail(score, beta)
 		}
 		if score > alpha {
 			alpha = score
 		}
 	}
+	if swQFailSoft {
+		return best
+	}
 	return alpha
+}
+
+// qFail is what a quiescence node returns on a fail-high: the score found
+// (fail-soft) or, with the switch off, beta.
+func qFail(score, beta int) int {
+	if swQFailSoft {
+		return score
+	}
+	return beta
 }

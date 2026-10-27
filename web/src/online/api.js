@@ -1,3 +1,4 @@
+import { serverMsg, tr } from "../i18n/index.js";
 // Client of the online-game API (backend/internal/play).
 
 async function readJSON(res) {
@@ -8,18 +9,18 @@ async function readJSON(res) {
     // not JSON: handled below
   }
   if (!res.ok) {
-    const e = new Error(body?.error || `Сервер ответил ${res.status}`);
+    const e = new Error(serverMsg(body?.error) || tr("common.serverReplied", { status: res.status }));
     e.status = res.status;
     throw e;
   }
   return body;
 }
 
-export async function createGame({ color, timeMs, incMs, rated = false }) {
+export async function createGame({ color, timeMs, incMs, rated = false, days = 0 }) {
   const res = await fetch("/api/games", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ color, timeMs, incMs, rated }),
+    body: JSON.stringify({ color, timeMs, incMs, rated, days }),
   });
   return (await readJSON(res)).id;
 }
@@ -54,9 +55,10 @@ export async function ensureNoGameRunning(settings) {
   } catch {
     return; // not signed in yet, or the list is unavailable: nothing to check
   }
-  const going = items.find((g) => g.status === "playing");
+  // a correspondence game lasts for days: it does not count as "a game that is on"
+  const going = items.find((g) => g.status === "playing" && !g.tc?.days);
   if (going) {
-    throw new Error("У вас уже идёт партия: закончите её или разрешите несколько партий в настройках («Игровой процесс»).");
+    throw new Error(tr("onlineApi.2"));
   }
 }
 

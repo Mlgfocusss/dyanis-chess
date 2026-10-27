@@ -11,13 +11,16 @@ import AvatarPicker from "./AvatarPicker.jsx";
 import SignInOffer from "./SignInOffer.jsx";
 import { NAME_MAX, nameLength } from "./nameRules.js";
 import { ABOUT_MAX, LOCATION_MAX, PERSON_MAX, aboutCounter, checkProfile, diffProfile, fullName, savedValues, textLength } from "./profileFields.js";
+import { useLang, useT } from "../i18n/index.js";
 
 // "Профиль": the open profile in the manner of chess.com: the avatar, the display name, the first and last
 // name, the country, the place and the "about me" text. All of it is public (the player's page and the
 // leaderboard); the e-mail and the settings never are. The server has the last word on every rule (and
 // limits saves: the name once a minute, the rest once in 5 seconds).
 export default function ProfilePanel() {
+  const t = useT();
   const { status, user, updateProfile } = useAuth();
+  const lang = useLang();
   const { countries, ready: countriesReady, error: countriesError } = useCountries();
   const [edits, setEdits] = useState({}); // field -> what was typed; a field not here shows the saved value
   const [busy, setBusy] = useState(false);
@@ -27,7 +30,7 @@ export default function ProfilePanel() {
   if (status !== "ready" || !user) {
     return (
       <>
-        <h2 className="settings__h">Профиль</h2>
+        <h2 className="settings__h">{t("menu.profile")}</h2>
         <SignInOffer />
       </>
     );
@@ -75,17 +78,17 @@ export default function ProfilePanel() {
     name: (check.errors.name ? base.name : shown.name) || base.name,
     avatarUrl: choiceToValue(shown.avatar, user.googleAvatarUrl),
   };
-  const place = placeLine(shown.location, countryName(countries, shown.country));
+  const place = placeLine(shown.location, countryName(countries, shown.country, lang));
   const since = joinedText(user.createdAt);
 
   return (
     <>
-      <h2 className="settings__h">Профиль</h2>
-      <p className="settings__sub">Ваша открытая страница: так вас видят соперники, в таблице лидеров и в списке партий.</p>
+      <h2 className="settings__h">{t("menu.profile")}</h2>
+      <p className="settings__sub">{t("profilePanel.2")}</p>
       <p className="profnote">
         <Icon name="user" size={18} />
         <span>
-          Аватар, имя, страну, местоположение и «Обо мне» видят все, кто откроет вашу страницу игрока. Почту и настройки не видит никто.
+          {t("profilePanel.3")}
         </span>
       </p>
 
@@ -96,8 +99,8 @@ export default function ProfilePanel() {
           {fullName(shown.firstName, shown.lastName) && <div className="pcard__real">{fullName(shown.firstName, shown.lastName)}</div>}
           {place && <div className="pcard__meta">{place}</div>}
           <div className="pcard__meta">
-            {user.kind === "guest" ? "Гостевой аккаунт" : "Вход через Google"}
-            {since && ` · на сайте с ${since}`}
+            {user.kind === "guest" ? t("auth.kindGuest") : t("auth.kindGoogle")}
+            {since && t("profilePanel.6", { since })}
           </div>
         </div>
       </div>
@@ -105,7 +108,7 @@ export default function ProfilePanel() {
       <form className="profform" onSubmit={onSubmit} noValidate>
         <section className="profform__block">
           <h3 className="profform__h" id="profile-avatar-h">
-            Аватар
+            {t("profilePanel.7")}
           </h3>
           <AvatarPicker
             choice={shown.avatar}
@@ -114,18 +117,18 @@ export default function ProfilePanel() {
             name={preview.name}
           />
           <p className="srow__hint profform__hint">
-            {user.googleAvatarUrl ? "Можно оставить фото Google, выбрать готовый аватар или букву имени." : "Готовый аватар или буква имени. Фото Google появится, если войти через Google."}
+            {user.googleAvatarUrl ? t("profilePanel.8") : t("profilePanel.9")}
           </p>
         </section>
 
         <section className="profform__block">
           <Field
             id="profile-name"
-            label="Отображаемое имя"
+            label={t("profilePanel.10")}
             error={problem("name")}
             count={`${nameLength(shown.name)}/${NAME_MAX}`}
             bad={nameLength(shown.name) > NAME_MAX}
-            hint={`От 2 до ${NAME_MAX} символов: буквы, цифры, пробел, дефис, подчёркивание и точка. Имена могут повторяться. Менять имя можно не чаще раза в минуту; в уже начатых партиях остаётся прежнее.`}
+            hint={t("profilePanel.11", { NAME_MAX })}
           >
             <input
               id="profile-name"
@@ -142,7 +145,7 @@ export default function ProfilePanel() {
           <div className="profform__two">
             <Field
               id="profile-first"
-              label="Имя"
+              label={t("profilePanel.12")}
               error={problem("firstName")}
               count={`${textLength(shown.firstName)}/${PERSON_MAX}`}
               bad={textLength(shown.firstName) > PERSON_MAX}
@@ -158,7 +161,7 @@ export default function ProfilePanel() {
             </Field>
             <Field
               id="profile-last"
-              label="Фамилия"
+              label={t("profilePanel.13")}
               error={problem("lastName")}
               count={`${textLength(shown.lastName)}/${PERSON_MAX}`}
               bad={textLength(shown.lastName) > PERSON_MAX}
@@ -177,8 +180,8 @@ export default function ProfilePanel() {
           <div className="profform__two">
             <Field
               id="profile-country"
-              label="Страна"
-              hint={countriesError ? "Список стран не загрузился. Обновите страницу." : "Нужна для таблицы лидеров по странам."}
+              label={t("countries.country")}
+              hint={countriesError ? t("profilePanel.15") : t("profilePanel.16")}
             >
               <CountryPicker
                 id="profile-country"
@@ -190,7 +193,7 @@ export default function ProfilePanel() {
             </Field>
             <Field
               id="profile-location"
-              label="Местоположение"
+              label={t("profilePanel.17")}
               error={problem("location")}
               count={`${textLength(shown.location)}/${LOCATION_MAX}`}
               bad={textLength(shown.location) > LOCATION_MAX}
@@ -199,7 +202,7 @@ export default function ProfilePanel() {
                 id="profile-location"
                 className={`field${problem("location") ? " field--bad" : ""}`}
                 value={values.location}
-                placeholder="Город"
+                placeholder={t("profilePanel.18")}
                 autoComplete="off"
                 aria-invalid={problem("location") ? "true" : undefined}
                 onChange={(e) => edit("location", e.target.value)}
@@ -209,11 +212,11 @@ export default function ProfilePanel() {
 
           <Field
             id="profile-about"
-            label="Обо мне"
+            label={t("profilePanel.19")}
             error={problem("about")}
             count={aboutCounter(values.about)}
             bad={textLength(shown.about) > ABOUT_MAX}
-            hint="Несколько слов о себе. Только текст: ссылки и разметка не работают."
+            hint={t("profilePanel.20")}
           >
             <textarea
               id="profile-about"
@@ -234,14 +237,14 @@ export default function ProfilePanel() {
         )}
         <div className="savebar">
           <button type="button" className="btn" disabled={!changed || busy} onClick={reset}>
-            Отмена
+            {t("common.cancel")}
           </button>
           <button type="submit" className="btn btn--primary" disabled={!changed || !check.valid || busy}>
-            Сохранить
+            {t("common.save")}
           </button>
           {saved && !changed && (
             <span className="savebar__ok" role="status">
-              Профиль сохранён
+              {t("profilePanel.23")}
             </span>
           )}
         </div>

@@ -1,3 +1,4 @@
+import { tr } from "../../i18n/index.js";
 // Atomic chess: the last explosion as the server tells it (view.extra.blast), turned into what the screen shows.
 // Pure (covered by `npm test`). The server sends { center: "d4", squares: ["d4", "c5", ...], pieces: { d4: "bP", ... } }:
 // the squares where a piece stood and is no more (not the one the capturing piece left), with the pieces that were there.
@@ -30,7 +31,7 @@ export function blastClasses(blast) {
 export function pieceName(code) {
   const n = NAMES[code && code[1]];
   if (!n || (code[0] !== "w" && code[0] !== "b")) return "";
-  return `${code[0] === "w" ? n[1] : n[2]} ${n[0]}`;
+  return tr("atomic.piece." + code);
 }
 
 /** What was lost, for the card: [{ square, name, side }] (the centre first, then by square) and the count for each side. */

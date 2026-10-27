@@ -1,0 +1,17 @@
+export default {
+  "profile.tabOverview": "Overview",
+  "profile.tabGames": "Games",
+  "profile.tabStats": "Statistics",
+  "profile.4": "Ratings",
+  "profile.5": "Games against people, Glicko-2. \"?\" means the rating is still approximate.",
+  "profile.6": "games {games}: {wins} / {draws} / {losses}",
+  "profile.notPlayedYet": "not played yet",
+  "profile.11": "points · beaten",
+  "profile.12": "of",
+  "profile.13": "You have not played the bots yet. The first win over each bot earns points.",
+  "profile.14": "Choose a bot",
+  "profile.16": "Days in a row with puzzles",
+  "profile.19": " · with us since {since}",
+  "profile.21": "Profile sections",
+  "profile.ratingsTitle": "Ratings",
+};

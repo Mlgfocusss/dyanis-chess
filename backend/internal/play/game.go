@@ -66,6 +66,7 @@ const (
 
 // Limits on what a game may ask for.
 const (
+	claimGrace       = 3 * 24 * time.Hour // a late move is still allowed this long after the deadline when the opponent has not claimed the win
 	minBaseMs        = 10_000
 	maxBaseMs        = 3 * 60 * 60 * 1000
 	maxIncMs         = 60_000
@@ -107,10 +108,27 @@ func (p *Player) IsBot() bool { return p != nil && p.Bot != "" }
 type TimeControl struct {
 	BaseMs int64 `json:"baseMs"`
 	IncMs  int64 `json:"incMs"`
+	// Days is the time for a move in a correspondence game (BaseMs and IncMs are 0 then): a clock
+	// that restarts with every move and that nobody has to watch.
+	Days int `json:"days,omitempty"`
 }
+
+// CorrespondenceDays are the days per move a correspondence game may have.
+var CorrespondenceDays = []int{1, 2, 3, 5, 7, 10, 14}
 
 // Validate reports a bad time control.
 func (tc TimeControl) Validate() error {
+	if tc.Days != 0 {
+		if tc.BaseMs != 0 || tc.IncMs != 0 {
+			return errors.New("заочная партия идёт без обычных часов")
+		}
+		for _, d := range CorrespondenceDays {
+			if d == tc.Days {
+				return nil
+			}
+		}
+		return errors.New("дней на ход: 1, 2, 3, 5, 7, 10 или 14")
+	}
 	if tc.BaseMs == 0 {
 		if tc.IncMs != 0 {
 			return errors.New("без часов нельзя задать добавку")
@@ -130,6 +148,13 @@ func (tc TimeControl) Validate() error {
 type MoveRec struct {
 	UCI string `json:"uci"`
 	SAN string `json:"san"`
+	// Ms is how long the mover took, in milliseconds, from the moment the move was theirs to make
+	// (never less than 1: 0 means "not kept", as in the games played before this was recorded).
+	// In a correspondence game this is the real length of the wait, days included.
+	Ms int64 `json:"ms,omitempty"`
+	// Left is the mover's clock after the move with the increment added, in milliseconds
+	// (timed games only; 0 means unknown).
+	Left int64 `json:"left,omitempty"`
 }
 
 // conn is one browser connected to a game. Only the hub's pumps touch the
@@ -216,8 +241,9 @@ type Game struct {
 	rated       bool // counts for both people's rating (set at the start, only between two people)
 	rateDone    bool // the rating update has been started (or there is none to do)
 	change      *RatingChanges
-	botBusy     bool // a bot is working out its move
-	botReplying bool // a bot is answering a draw offer or a rematch wish
+	prefs       func(userID string) CorrPrefs // settings of a person that the deadlines depend on (nil: the defaults)
+	botBusy     bool                          // a bot is working out its move
+	botReplying bool                          // a bot is answering a draw offer or a rematch wish
 }
 
 // newGame makes a waiting game with its creator seated as side.
@@ -245,6 +271,47 @@ func blankGame(id string, now func() time.Time, tc TimeControl) *Game {
 }
 
 func (g *Game) timed() bool { return g.tc.BaseMs > 0 }
+
+// corr says that this is a correspondence game (days per move).
+func (g *Game) corr() bool { return g.tc.Days > 0 }
+
+// CorrPrefs is what the deadlines of a correspondence game ask about a person.
+type CorrPrefs struct {
+	// AutoClaim: when the opponent's time is out the win is given at once; otherwise the person claims it.
+	AutoClaim bool
+	// Vacation: the person's clocks do not fall before this moment (zero: not on vacation).
+	Vacation time.Time
+}
+
+func (g *Game) prefsOf(s Side) CorrPrefs {
+	def := CorrPrefs{AutoClaim: true}
+	p := g.white
+	if s == Black {
+		p = g.black
+	}
+	if g.prefs == nil || p == nil || p.IsBot() || p.ID == "" {
+		return def
+	}
+	return g.prefs(p.ID)
+}
+
+// dueAt is the moment the side to move runs out of time in a correspondence game: the days of a move
+// from the moment it was given, or a day after the end of a vacation if that is later.
+func (g *Game) dueAt() time.Time {
+	d := g.turnAt.Add(time.Duration(g.tc.Days) * 24 * time.Hour)
+	if v := g.prefsOf(g.turn).Vacation; v.After(g.turnAt) {
+		if end := v.Add(24 * time.Hour); end.After(d) {
+			d = end
+		}
+	}
+	return d
+}
+
+// corrOverdue: the time of the side to move is out. The game does not end for that by itself when
+// the opponent claims wins by hand (see CorrPrefs.AutoClaim) until claimGrace has passed.
+func (g *Game) corrOverdue(now time.Time) bool {
+	return g.corr() && g.status == StatusPlaying && !now.Before(g.dueAt())
+}
 
 // clockRunning: before both sides have moved once the clocks stand still
 // (each side only has firstMoveTimeout to start).
@@ -338,13 +405,18 @@ func (g *Game) Move(userID, uci string) error {
 	if !found {
 		return errIllegal
 	}
+	spent := max(1, now.Sub(g.turnAt).Milliseconds())
 	if g.clockRunning() {
 		g.ms[side] = g.ms[side] - now.Sub(g.turnAt).Milliseconds() + g.tc.IncMs
 	}
 	san := g.pos.SAN(mv)
 	g.pos.Play(mv)
 	g.hashes = append(g.hashes, g.pos.Hash())
-	g.moves = append(g.moves, MoveRec{UCI: uci, SAN: san})
+	rec := MoveRec{UCI: uci, SAN: san, Ms: spent}
+	if g.timed() {
+		rec.Left = max(1, g.ms[side])
+	}
+	g.moves = append(g.moves, rec)
 	g.trackOpening()
 	g.turn = side.opp()
 	g.turnAt = now
@@ -520,9 +592,30 @@ func (g *Game) Rematch(userID, newID string) (*Game, error) {
 // flagLocked ends the game if the side to move has run out of time; it
 // reports whether it did.
 func (g *Game) flagLocked(now time.Time) bool {
+	if g.corr() {
+		if !g.corrOverdue(now) {
+			return false
+		}
+		if len(g.moves) < 2 { // nobody has started: nobody wins
+			g.finish("", TermNoFirstMove)
+			g.changed()
+			return true
+		}
+		if !g.prefsOf(g.turn.opp()).AutoClaim && now.Before(g.dueAt().Add(claimGrace)) {
+			return false // waits for the claim; a late move is still allowed
+		}
+		g.timeoutLocked()
+		return true
+	}
 	if !g.clockRunning() || g.remaining(g.turn, now) > 0 {
 		return false
 	}
+	g.timeoutLocked()
+	return true
+}
+
+// timeoutLocked ends the game: the side to move lost on time.
+func (g *Game) timeoutLocked() {
 	loser := g.turn
 	if !g.canMate(loser.opp()) { // a flag against a bare king is only a draw
 		g.finish("1/2-1/2", TermTimeout)
@@ -530,7 +623,21 @@ func (g *Game) flagLocked(now time.Time) bool {
 		g.finish(resultFor(loser.opp()), TermTimeout)
 	}
 	g.changed()
-	return true
+}
+
+// Claim gives the win to the user when the opponent's time in a correspondence game is out.
+func (g *Game) Claim(userID string) error {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	side := g.sideOf(userID)
+	if side == "" {
+		return errNotPlayer
+	}
+	if !g.corr() || g.status != StatusPlaying || side == g.turn || len(g.moves) < 2 || !g.corrOverdue(g.now()) {
+		return errors.New("победу заявить нельзя: у соперника ещё есть время")
+	}
+	g.timeoutLocked()
+	return nil
 }
 
 // canMate: does the side have enough material to ever checkmate?
@@ -561,6 +668,12 @@ func (g *Game) tick() {
 	if g.status != StatusPlaying {
 		return
 	}
+	if g.corr() {
+		if !g.flagLocked(now) {
+			g.armLocked()
+		}
+		return
+	}
 	if len(g.moves) < 2 {
 		if now.Sub(g.turnAt) >= firstMoveTimeout {
 			g.finish("", TermNoFirstMove)
@@ -584,7 +697,13 @@ func (g *Game) armLocked() {
 		return
 	}
 	var wait time.Duration
-	if len(g.moves) < 2 {
+	if g.corr() {
+		d := g.dueAt()
+		if !g.now().Before(d) { // waiting for a claim: look again when it is given up
+			d = d.Add(claimGrace)
+		}
+		wait = d.Sub(g.now())
+	} else if len(g.moves) < 2 {
 		wait = firstMoveTimeout - g.now().Sub(g.turnAt)
 	} else if g.timed() {
 		wait = time.Duration(g.remaining(g.turn, g.now())) * time.Millisecond
@@ -647,6 +766,8 @@ type View struct {
 	Book         bool           `json:"book,omitempty"`    // the position is still theory
 	Chat         []ChatMsg      `json:"chat,omitempty"`
 	Created      int64          `json:"created"`
+	Due          int64          `json:"due,omitempty"`       // correspondence: unix ms by which the side to move must move
+	Claimable    bool           `json:"claimable,omitempty"` // correspondence: the time of the side to move is out; the other may claim the win
 	Rated        bool           `json:"rated,omitempty"`
 	RatingChange *RatingChanges `json:"ratingChange,omitempty"`
 }
@@ -688,7 +809,10 @@ func (g *Game) viewLocked() *View {
 		}
 		v.Clock = c
 	}
-	if g.status == StatusPlaying && len(g.moves) < 2 {
+	if g.corr() && g.status == StatusPlaying {
+		v.Due = g.dueAt().UnixMilli()
+		v.Claimable = g.corrOverdue(now)
+	} else if g.status == StatusPlaying && len(g.moves) < 2 {
 		v.FirstMoveBy = g.turnAt.Add(firstMoveTimeout).UnixMilli()
 	}
 	if g.rematchOffer != "" || g.rematchID != "" {
@@ -886,18 +1010,55 @@ func (g *Game) PGN() string {
 	if g.timed() {
 		fmt.Fprintf(&b, "[TimeControl \"%d+%d\"]\n", g.tc.BaseMs/1000, g.tc.IncMs/1000)
 	}
+	if g.corr() {
+		fmt.Fprintf(&b, "[TimeControl \"1/%d\"]\n", g.tc.Days*86400)
+	}
 	if g.termination != "" {
 		fmt.Fprintf(&b, "[Termination \"%s\"]\n", g.termination)
 	}
 	b.WriteString("\n")
+	afterComment := false
 	for i, m := range g.moves {
 		if i%2 == 0 {
 			fmt.Fprintf(&b, "%d. ", i/2+1)
+		} else if afterComment { // a black move after a comment gets its number back, as lichess writes it
+			fmt.Fprintf(&b, "%d... ", i/2+1)
 		}
 		b.WriteString(m.SAN + " ")
+		c := m.pgnComment()
+		afterComment = c != ""
+		if afterComment {
+			b.WriteString(c + " ")
+		}
 	}
 	b.WriteString(res + "\n")
 	return b.String()
+}
+
+// pgnComment is the move's time as a PGN comment: "{[%clk h:mm:ss] [%emt h:mm:ss]}", clk being the
+// clock left after the move (timed games) and emt the time the move took. "" when neither is known.
+func (m MoveRec) pgnComment() string {
+	var parts []string
+	if m.Left > 0 {
+		parts = append(parts, "[%clk "+pgnDuration(m.Left)+"]")
+	}
+	if m.Ms > 0 {
+		parts = append(parts, "[%emt "+pgnDuration(m.Ms)+"]")
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	return "{" + strings.Join(parts, " ") + "}"
+}
+
+// pgnDuration writes milliseconds as h:mm:ss with the fraction of a second only when there is one.
+func pgnDuration(ms int64) string {
+	ms = max(0, ms)
+	s := fmt.Sprintf("%d:%02d:%02d", ms/3_600_000, ms/60_000%60, ms/1000%60)
+	if f := ms % 1000; f != 0 {
+		s += strings.TrimRight(fmt.Sprintf(".%03d", f), "0")
+	}
+	return s
 }
 
 // botSeat returns the seat a computer plays, if one does.

@@ -1,0 +1,111 @@
+/* Achievements: the medal, the profile tab, the strip on a player's page and the notice in the corner.
+   Colours are tokens of index.css only. The grades are made of them: gold is --warn, silver a grey-blue,
+   bronze a copper between --warn and --danger; the dots under the symbol repeat the grade without colour. */
+
+/* ---- the medal */
+.ab { --tier: var(--warn); flex: none; display: block; overflow: visible; }
+.ab--gold { --tier: var(--warn); }
+.ab--silver { --tier: color-mix(in srgb, var(--info) 30%, var(--text-2)); }
+.ab--bronze { --tier: color-mix(in srgb, var(--warn) 45%, var(--danger)); }
+.ab--on {
+  --ab-line: var(--tier);
+  --ab-fill: color-mix(in srgb, var(--tier) 16%, var(--surface));
+  --ab-ink: var(--tier);
+  filter: drop-shadow(0 2px 6px color-mix(in srgb, var(--tier) 28%, transparent));
+}
+.ab--off {
+  --ab-line: var(--border-strong);
+  --ab-fill: var(--surface-2);
+  --ab-ink: var(--muted);
+}
+.ab__body { fill: var(--ab-fill); stroke: var(--ab-line); stroke-width: 2.5; stroke-linejoin: round; }
+.ab__ring { fill: none; stroke: var(--ab-line); stroke-width: 1; opacity: 0.55; stroke-linejoin: round; }
+.ab__sym { fill: none; stroke: var(--ab-ink); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.ab__fill { fill: var(--ab-ink); opacity: 0.85; }
+.ab__pip { fill: var(--ab-ink); }
+
+/* ---- the profile tab */
+.ach { display: flex; flex-direction: column; gap: 16px; }
+.ach__head { padding: 18px 20px; display: flex; flex-direction: column; gap: 12px; }
+.ach__headrow { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.ach__headrow h2 { font-size: 1.15rem; }
+.ach__count { font-weight: 700; font-variant-numeric: tabular-nums; }
+.ach__intro { color: var(--text-2); font-size: 0.9rem; line-height: 1.5; max-width: 70ch; }
+.ach__bar { height: 8px; border-radius: 999px; background: var(--surface-3); overflow: hidden; }
+.ach__bar > i { display: block; height: 100%; border-radius: inherit; background: var(--primary); transition: width 0.3s ease; }
+.ach__tiers { display: flex; gap: 8px 18px; flex-wrap: wrap; color: var(--text-2); font-size: 0.86rem; font-variant-numeric: tabular-nums; }
+.ach__tier { display: inline-flex; align-items: center; gap: 6px; }
+.ach__tier .ab { width: 18px; height: 20px; }
+
+.ach__group { padding: 16px 18px 18px; display: flex; flex-direction: column; gap: 12px; }
+.ach__grouphead { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.ach__grouphead h3 { font-size: 1rem; }
+.ach__groupcount { color: var(--muted); font-size: 0.85rem; font-variant-numeric: tabular-nums; }
+.ach__grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 10px; }
+
+.achc {
+  display: flex; align-items: flex-start; gap: 14px; padding: 12px 14px; min-width: 0;
+  background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-sm);
+}
+.achc--on { border-color: color-mix(in srgb, var(--tier, var(--warn)) 45%, var(--border)); }
+.achc--gold { --tier: var(--warn); }
+.achc--silver { --tier: color-mix(in srgb, var(--info) 30%, var(--text-2)); }
+.achc--bronze { --tier: color-mix(in srgb, var(--warn) 45%, var(--danger)); }
+.achc--off .achc__name { color: var(--text-2); }
+.achc--off .achc__badge { opacity: 0.6; }
+.achc--off .achc__desc { color: var(--muted); }
+.achc__badge { position: relative; flex: none; }
+.achc__body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.achc__name { font-size: 0.98rem; font-weight: 700; overflow-wrap: anywhere; }
+.achc__new {
+  display: inline-block; margin-left: 8px; padding: 1px 7px; border-radius: 999px; vertical-align: 1px;
+  background: var(--primary); color: var(--on-primary); font-size: 0.68rem; font-weight: 700; letter-spacing: 0.02em;
+}
+.achc__desc { color: var(--text-2); font-size: 0.86rem; line-height: 1.4; overflow-wrap: anywhere; }
+.achc__foot { margin-top: 4px; display: flex; flex-direction: column; gap: 4px; font-size: 0.8rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.achc__date { color: var(--tier, var(--muted)); font-weight: 600; }
+.achc__track { height: 6px; border-radius: 999px; background: var(--surface-3); overflow: hidden; }
+.achc__track > i { display: block; height: 100%; border-radius: inherit; background: var(--tier, var(--primary)); opacity: 0.75; }
+
+.ach__note { color: var(--text-2); padding: 18px 4px; }
+.ach__error { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 16px 18px; color: var(--danger-text); }
+
+/* ---- the strip on a player's page */
+.arecent { padding: 18px 20px; display: flex; flex-direction: column; gap: 12px; }
+.arecent header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.arecent h2 { font-size: 1.1rem; }
+.arecent__count { color: var(--text-2); font-size: 0.9rem; font-variant-numeric: tabular-nums; }
+.arecent__list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 12px 8px; }
+.arecent__item { display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; min-width: 0; }
+.arecent__name { font-size: 0.8rem; font-weight: 600; line-height: 1.25; overflow-wrap: anywhere; max-width: 100%; }
+.arecent__none { color: var(--text-2); }
+.arecent__all { align-self: flex-start; text-decoration: none; }
+
+/* ---- the notice in the corner (the top, so that it does not sit on the community notices at the bottom) */
+.atoasts {
+  position: fixed; top: 16px; right: 16px; z-index: 61; display: flex; flex-direction: column; gap: 8px;
+  max-width: min(380px, calc(100vw - 32px)); pointer-events: none;
+}
+.atoast {
+  pointer-events: auto; display: flex; align-items: center; gap: 12px; padding: 10px 12px;
+  border-radius: var(--radius); background: var(--surface-3); border: 1px solid var(--border-strong); box-shadow: var(--shadow-pop);
+  animation: atoast-in 0.35s ease both;
+}
+.atoast__text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; font-size: 0.95rem; font-weight: 600; color: var(--text); text-decoration: none; }
+.atoast__text:hover span { text-decoration: underline; text-underline-offset: 3px; }
+.atoast__text b { font-size: 0.78rem; font-weight: 700; color: var(--primary); letter-spacing: 0.02em; }
+.atoast__text span { overflow-wrap: anywhere; }
+.atoast__x { background: none; border: 0; color: var(--muted); padding: 4px; border-radius: 6px; cursor: pointer; }
+.atoast__x:hover { color: var(--text); background: var(--surface-2); }
+@keyframes atoast-in { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: none; } }
+
+@media (max-width: 860px) {
+  .ach__grid { grid-template-columns: 1fr; }
+  .ach__group { padding: 14px; }
+  .ach__head { padding: 16px; }
+  .atoasts { top: 10px; right: 10px; left: 10px; max-width: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .atoast { animation: none; }
+  .ach__bar > i { transition: none; }
+}

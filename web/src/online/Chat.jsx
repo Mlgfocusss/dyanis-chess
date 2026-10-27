@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useT } from "../i18n/index.js";
 import "./online.css";
 
 const MAX = 200;
@@ -12,6 +13,7 @@ function clock(ms) {
 // own. Spectators read; only the players write. The server cleans and limits
 // the text; here it is only ever shown as text.
 export default function Chat({ game, you, send }) {
+  const t = useT();
   const [text, setText] = useState("");
   const end = useRef(null);
   const lines = game.chat || [];
@@ -29,12 +31,12 @@ export default function Chat({ game, you, send }) {
 
   return (
     <section className="card chat">
-      <h2>Чат</h2>
+      <h2>{t("chat.1")}</h2>
       <div className="chat__lines" aria-live="polite">
-        {lines.length === 0 && <p className="chat__empty">Сообщений пока нет</p>}
+        {lines.length === 0 && <p className="chat__empty">{t("chat.2")}</p>}
         {lines.map((m, i) => (
           <p key={i} className={`chat__line chat__line--${m.side}${m.side === you ? " chat__line--mine" : ""}`}>
-            <span className="chat__who">{game[m.side]?.name || (m.side === "white" ? "Белые" : "Чёрные")}</span>
+            <span className="chat__who">{game[m.side]?.name || (m.side === "white" ? t("online.white") : t("online.black"))}</span>
             <span className="chat__time">{clock(m.at)}</span>
             <span className="chat__text">{m.text}</span>
           </p>
@@ -48,15 +50,15 @@ export default function Chat({ game, you, send }) {
             value={text}
             maxLength={MAX}
             onChange={(e) => setText(e.target.value)}
-            placeholder="Написать сопернику…"
-            aria-label="Сообщение"
+            placeholder={t("chat.5")}
+            aria-label={t("chat.6")}
           />
           <button type="submit" className="btn" disabled={!text.trim()}>
-            Отправить
+            {t("chat.7")}
           </button>
         </form>
       ) : (
-        <p className="chat__hint">Писать могут только игроки.</p>
+        <p className="chat__hint">{t("chat.8")}</p>
       )}
     </section>
   );

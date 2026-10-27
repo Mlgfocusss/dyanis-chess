@@ -1,3 +1,4 @@
+import { tr } from "../i18n/index.js";
 // Pure helpers for a repertoire's tree of moves, with no imports so that
 // `npm test` covers them. A move is { id, parent, uci, san, fen, ply, mine, box, due, ... }
 // as the server sends it; parent 0 means a first move from the start position.
@@ -77,13 +78,13 @@ export function learnedPercent(counts) {
 // "через 3 ч", "завтра", "через 5 дн.": when to come back, in words.
 export function whenText(iso, now = Date.now()) {
   const ms = Date.parse(iso) - now;
-  if (!(ms > 0)) return "сейчас";
+  if (!(ms > 0)) return tr("tree.1");
   const min = Math.round(ms / 60000);
-  if (min < 60) return `через ${Math.max(min, 1)} мин`;
+  if (min < 60) return tr("tree.2", { p: Math.max(min, 1) });
   const h = Math.round(min / 60);
-  if (h < 24) return `через ${h} ч`;
+  if (h < 24) return tr("tree.3", { h });
   const d = Math.round(h / 24);
-  return d === 1 ? "завтра" : `через ${d} дн.`;
+  return d === 1 ? tr("tree.4") : tr("tree.5", { d });
 }
 
 // The same figures the server counts, from the moves in hand, so that the page

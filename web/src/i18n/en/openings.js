@@ -1,0 +1,17 @@
+export default {
+  "openings.imp.games": {"one":"{n} game","other":"{n} games"},
+  "openings.imp.moves": {"one":"{n} move","other":"{n} moves"},
+  "openings.imp.skippedN": {"one":"{n} game skipped","other":"{n} games skipped"},
+  "openings.imp.none": "No new moves: all moves from the file were already in the repository ({games}).",
+  "openings.imp.added": "Added {moves} from the file ({games}).",
+  "openings.imp.skipTail": " {skipped}: they do not start from the initial position.",
+  "openings.forWhite": "For White",
+  "openings.forBlack": "For Black",
+  "openings.asInFile": "As in the file",
+  "openings.status.opponent": "opponent's move",
+  "openings.status.new": "new",
+  "openings.status.due": "time to repeat",
+  "openings.status.learning": "being learned",
+  "openings.status.learned": "learned",
+  "openings.opponent": "Opponent",
+};

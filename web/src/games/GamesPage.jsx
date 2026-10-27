@@ -7,22 +7,24 @@ import { copyText } from "../review/clipboard.js";
 import { reviewUrl } from "../review/moments.js";
 import OnlineGames from "./OnlineGames.jsx";
 import VariantGames from "../variants/VariantGames.jsx";
+import { locale, useT, tr } from "../i18n/index.js";
 import "./games.css";
 
 function formatDate(iso) {
   const d = new Date(iso);
   return Number.isNaN(d.getTime())
     ? ""
-    : d.toLocaleDateString("ru-RU", { day: "numeric", month: "short", year: "numeric" });
+    : d.toLocaleDateString(locale(), { day: "numeric", month: "short", year: "numeric" });
 }
 
 function title(g) {
-  const w = g.white || "Белые";
-  const b = g.black || "Чёрные";
+  const w = g.white || tr("gamesPage.white");
+  const b = g.black || tr("gamesPage.black");
   return `${w} — ${b}`;
 }
 
 function Row({ item, onDelete, busy }) {
+  const t = useT();
   const [copied, setCopied] = useState(false);
   async function copyLink() {
     if (await copyText(reviewUrl(window.location.origin, window.location.pathname, item.id))) {
@@ -46,25 +48,25 @@ function Row({ item, onDelete, busy }) {
           </span>
         </span>
         {summary && (
-          <span className="games__acc" title="Точность: белые / чёрные">
+          <span className="games__acc" title={t("gamesPage.3")}>
             <b>{Math.round(summary.accuracy[0])}</b>
             <i>/</i>
             <b>{Math.round(summary.accuracy[1])}</b>
           </span>
         )}
-        {failed && <span className="games__state games__state--bad">не удался</span>}
-        {running && <span className="games__state">идёт разбор…</span>}
+        {failed && <span className="games__state games__state--bad">{t("gamesPage.4")}</span>}
+        {running && <span className="games__state">{t("gamesPage.5")}</span>}
       </a>
       {!failed && !running && (
-        <button type="button" className="games__copy" aria-label={`Скопировать ссылку на разбор ${title(game)}`} title={copied ? "Ссылка скопирована" : "Скопировать ссылку на разбор"} onClick={copyLink}>
+        <button type="button" className="games__copy" aria-label={t("gamesPage.6", { p: title(game) })} title={copied ? t("gamesPage.7") : t("gamesPage.8")} onClick={copyLink}>
           <Icon name={copied ? "check" : "link"} size={18} />
         </button>
       )}
       <button
         type="button"
         className="games__delete"
-        aria-label={`Удалить партию ${title(game)}`}
-        title="Удалить"
+        aria-label={t("gamesPage.9", { p: title(game) })}
+        title={t("gamesPage.10")}
         disabled={busy || running}
         onClick={() => onDelete(item)}
       >
@@ -77,6 +79,7 @@ function Row({ item, onDelete, busy }) {
 // The "Партии" tab of the profile: the reviews started while signed in, newest first.
 // embedded: shown as a tab of the profile, which has its own heading.
 export default function GamesPage({ embedded = false }) {
+  const t = useT();
   const { status, user } = useAuth();
   const [items, setItems] = useState(null);
   const [error, setError] = useState("");
@@ -104,7 +107,7 @@ export default function GamesPage({ embedded = false }) {
   }, [running, items, load]);
 
   async function remove(item) {
-    if (!window.confirm(`Удалить разбор «${title(item.game)}»? Ссылка на него перестанет работать.`)) return;
+    if (!window.confirm(t("gamesPage.11", { p: title(item.game) }))) return;
     setBusy(true);
     try {
       await deleteAnalysis(item.id);
@@ -122,35 +125,35 @@ export default function GamesPage({ embedded = false }) {
     <div className={embedded ? "games games--embedded" : "page games"}>
       {!embedded && (
         <header className="page__head">
-          <h1 className="page__title">Мои партии</h1>
-          <p className="page__sub">Разборы, которые вы запускали, будучи в аккаунте.</p>
+          <h1 className="page__title">{t("gamesPage.myGames")}</h1>
+          <p className="page__sub">{t("gamesPage.13")}</p>
         </header>
       )}
 
       {status === "unavailable" && (
-        <div className="banner banner--error">Список недоступен: сервер запущен без базы данных.</div>
+        <div className="banner banner--error">{t("gamesPage.14")}</div>
       )}
 
       {status === "ready" && !user && (
         <section className="card games__empty">
-          <p>Войдите в аккаунт или продолжите как гость, и здесь появятся ваши разборы.</p>
+          <p>{t("gamesPage.15")}</p>
           <a className="btn btn--primary" href="#account">
-            Войти
+            {t("menu.signIn")}
           </a>
         </section>
       )}
 
       {embedded && user && <OnlineGames />}
       {embedded && user && <VariantGames />}
-      {embedded && user && <h2 className="games__h">Разборы</h2>}
+      {embedded && user && <h2 className="games__h">{t("gamesPage.17")}</h2>}
 
       {error && <div className="banner banner--error">{error}</div>}
 
       {user && items && items.length === 0 && !error && (
         <section className="card games__empty">
-          <p>Пока пусто. Разберите первую партию, и она появится здесь.</p>
+          <p>{t("gamesPage.18")}</p>
           <a className="btn btn--primary" href="#review">
-            Разобрать партию
+            {t("home.reviewGame")}
           </a>
         </section>
       )}

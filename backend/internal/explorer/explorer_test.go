@@ -1,7 +1,9 @@
 package explorer
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -206,5 +208,67 @@ func TestCacheIsBounded(t *testing.T) {
 	}
 	if len(s.cache) > 3 {
 		t.Errorf("%d answers kept", len(s.cache))
+	}
+}
+
+// ---------------------------------------------- Lookup, for code on the server
+
+func TestLookupUsesTheCacheAndSharesItWithTheEndpoint(t *testing.T) {
+	f, s, _ := setup("tok123")
+	ratings, speeds, ok := Params("", "")
+	if !ok || ratings != defaultRatings || speeds != defaultSpeeds {
+		t.Fatalf("params %q %q %v", ratings, speeds, ok)
+	}
+	if _, ok := s.Cached(startFEN, ratings, speeds); ok {
+		t.Fatal("a cached answer before any request")
+	}
+	resp, cached, err := s.Lookup(context.Background(), startFEN, ratings, speeds)
+	if err != nil || cached || !resp.Available || resp.Total != 1000 || len(resp.Moves) != 2 {
+		t.Fatalf("first lookup: %+v cached=%v err=%v", resp, cached, err)
+	}
+	if _, cached, _ := s.Lookup(context.Background(), startFEN, ratings, speeds); !cached {
+		t.Error("the second lookup was not cached")
+	}
+	if _, ok := s.Cached(startFEN, ratings, speeds); !ok {
+		t.Error("Cached does not see the answer")
+	}
+	// the endpoint finds the same entry
+	if code, _, _ := get(s, q(startFEN)); code != 200 || f.calls.Load() != 1 {
+		t.Errorf("the endpoint asked Lichess again: %d requests", f.calls.Load())
+	}
+	if _, _, err := s.Lookup(context.Background(), "not a fen", ratings, speeds); err == nil {
+		t.Error("a bad position was accepted")
+	}
+	if _, _, ok := Params("9999", ""); ok {
+		t.Error("an unknown rating group was accepted")
+	}
+}
+
+func TestLookupWaitsWhenLichessAsksAndWithoutToken(t *testing.T) {
+	f, s, now := setup("tok123")
+	f.status, f.retry = 429, "30"
+	_, _, err := s.Lookup(context.Background(), startFEN, defaultRatings, defaultSpeeds)
+	var wait *WaitError
+	if !errors.As(err, &wait) || wait.Wait != 30*time.Second {
+		t.Fatalf("lookup under a limit: %v", err)
+	}
+	// until the time is up, nobody is asked
+	if _, _, err := s.Lookup(context.Background(), startFEN, defaultRatings, defaultSpeeds); !errors.As(err, &wait) || f.calls.Load() != 1 {
+		t.Errorf("asked during the pause: %v after %d requests", err, f.calls.Load())
+	}
+	*now = now.Add(time.Minute)
+	f.mu.Lock()
+	f.status, f.retry = 0, ""
+	f.mu.Unlock()
+	if _, cached, err := s.Lookup(context.Background(), startFEN, defaultRatings, defaultSpeeds); err != nil || cached {
+		t.Errorf("after the pause: cached=%v err=%v", cached, err)
+	}
+
+	_, off, _ := setup("")
+	if off.Enabled() {
+		t.Error("enabled without a token")
+	}
+	if resp, _, err := off.Lookup(context.Background(), startFEN, defaultRatings, defaultSpeeds); err != nil || resp.Available {
+		t.Errorf("without a token: %+v %v", resp, err)
 	}
 }

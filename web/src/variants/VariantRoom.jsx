@@ -17,11 +17,12 @@ import { GAME_API, createReview, getGame, inviteUrl, joinGame } from "./api.js";
 import { describeEnd, groupTurns, isBoardMove, lastMoveOf, listRows, mergeClasses } from "./describe.js";
 import { getVariant } from "./registry.js";
 import BughouseRoom from "./bughouse/BughouseRoom.jsx";
+import { tx, useT } from "../i18n/index.js";
 import "../online/online.css";
 import "./variants.css";
 
-const SIDE_GEN = { white: "белых", black: "чёрных" }; // "ход белых"
-const SIDE_INS = { white: "белыми", black: "чёрными" }; // "играете белыми"
+const SIDE_GEN = { white: "gameRoom.genWhite", black: "gameRoom.genBlack" }; // "ход белых"
+const SIDE_INS = { white: "gameRoom.insWhite", black: "gameRoom.insBlack" }; // "играете белыми"
 
 // How the duck (a piece of no side, code "xD") looks unless the variant draws it itself: a plain disc.
 function Disc({ squareWidth }) {
@@ -35,9 +36,10 @@ const DEFAULT_PIECES = { xD: Disc };
 
 // What a definition without a page of its own looks like: the server knows a variant this build of the
 // site does not (an old page after an update); the usual board and list play it well enough.
-const fallbackDef = (game) => ({ id: game.variant, name: game.variantName || game.variant, short: "", rules: [] });
+const fallbackDef = (game) => ({ id: game.variant, name: tx(game.variantName) || game.variant, short: "", rules: [] });
 
 function MoveListing({ moves, def }) {
+  const t = useT();
   const end = useRef(null);
   useEffect(() => {
     end.current?.scrollIntoView?.({ block: "nearest" });
@@ -45,8 +47,8 @@ function MoveListing({ moves, def }) {
   const rows = listRows(groupTurns(moves));
   const cell = (turn) => (turn ? turn.items.map((m) => (def.moveText ? def.moveText(m) : m.san)).join(def.moveSep ?? " ") : "");
   return (
-    <div className="moves" aria-label="Ходы партии">
-      {rows.length === 0 && <p className="moves__empty">Ходов пока нет</p>}
+    <div className="moves" aria-label={t("gameRoom.10")}>
+      {rows.length === 0 && <p className="moves__empty">{t("gameRoom.11")}</p>}
       {rows.map(([w, b], i) => (
         <div key={i} className="moves__row vmoves__row">
           <span className="moves__no">{i + 1}.</span>
@@ -61,6 +63,7 @@ function MoveListing({ moves, def }) {
 
 // Waiting for a friend: the address to send.
 function InviteCard({ id, game, onCancel }) {
+  const t = useT();
   const [copied, setCopied] = useState(false);
   const url = inviteUrl(id);
   const input = useRef(null);
@@ -76,18 +79,18 @@ function InviteCard({ id, game, onCancel }) {
   }
   return (
     <section className="card invite">
-      <h2>Отправьте ссылку сопернику</h2>
+      <h2>{t("gameRoom.12")}</h2>
       <p className="invite__sub">
-        {game.variantName}, {describeTC(game.tc)}. Как только соперник откроет ссылку и нажмёт «Играть», партия начнётся.
+        {tx(game.variantName)}, {describeTC(game.tc)}{t("vroom.8")}
       </p>
       <div className="invite__row">
-        <input ref={input} className="field" readOnly value={url} onFocus={(e) => e.target.select()} aria-label="Ссылка-приглашение" />
+        <input ref={input} className="field" readOnly value={url} onFocus={(e) => e.target.select()} aria-label={t("gameRoom.15")} />
         <button type="button" className="btn btn--primary" onClick={copy}>
-          {copied ? "Скопировано" : "Копировать"}
+          {copied ? t("gameRoom.16") : t("gameRoom.17")}
         </button>
       </div>
       <button type="button" className="btn btn--ghost" onClick={onCancel}>
-        Отменить партию
+        {t("gameRoom.18")}
       </button>
     </section>
   );
@@ -95,6 +98,7 @@ function InviteCard({ id, game, onCancel }) {
 
 // Someone opened the link of a game that waits for a second player.
 function JoinCard({ id, game }) {
+  const t = useT();
   const { user, google, guest } = useAuth();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -115,20 +119,20 @@ function JoinCard({ id, game }) {
 
   return (
     <section className="card invite">
-      <h2>{host?.name} приглашает вас сыграть</h2>
+      <h2>{host?.name} {t("gameRoom.19")}</h2>
       <p className="invite__sub">
-        {game.variantName}, {describeTC(game.tc)}. Вы играете {SIDE_INS[mySide]}.
+        {tx(game.variantName)}, {describeTC(game.tc)}{t("gameRoom.20")} {t(SIDE_INS[mySide])}.
       </p>
       {error && <div className="banner banner--error">{error}</div>}
       <button type="button" className="btn btn--primary btn--block" onClick={join} disabled={busy}>
-        {busy ? "Входим в партию…" : user ? "Играть" : "Играть как гость"}
+        {busy ? t("gameRoom.21") : user ? t("botsPage.play") : t("gameRoom.23")}
       </button>
       {!user && google && (
         <a className="btn btn--google btn--block" href={`/api/auth/google/login?next=${encodeURIComponent(`#variants/game/${id}`)}`}>
-          <GoogleLogo size={16} /> Войти через Google
+          <GoogleLogo size={16} /> {t("auth.signInGoogle")}
         </a>
       )}
-      <p className="invite__hint">Или просто смотрите: ссылка открывается без входа.</p>
+      <p className="invite__hint">{t("gameRoom.25")}</p>
     </section>
   );
 }
@@ -147,6 +151,7 @@ function JoinCard({ id, game }) {
 // A game of four (Bughouse) has its own room; the kind of a game is learnt from one read of its snapshot, so the
 // hooks of the room of two stay unconditional.
 export default function VariantRoom({ id }) {
+  const t = useT();
   const [kind, setKind] = useState(""); // "" until known, then "four" or "two"
   useEffect(() => {
     let alive = true;
@@ -158,11 +163,12 @@ export default function VariantRoom({ id }) {
       alive = false;
     };
   }, [id]);
-  if (!kind) return <div className="page room room--loading">Открываю партию…</div>;
+  if (!kind) return <div className="page room room--loading">{t("gameRoom.29")}</div>;
   return kind === "four" ? <BughouseRoom id={id} /> : <TwoSeatRoom id={id} />;
 }
 
 function TwoSeatRoom({ id }) {
+  const t = useT();
   const { user } = useAuth();
   const { settings } = useSettings();
   const { snap, status, notice, rev, send } = useGame(id, user?.id, GAME_API);
@@ -251,14 +257,14 @@ function TwoSeatRoom({ id }) {
   if (status === "notfound") {
     return (
       <div className="page room">
-        <div className="banner banner--error">Такой партии нет. Возможно, ссылка неверна или партия давно удалена.</div>
+        <div className="banner banner--error">{t("gameRoom.27")}</div>
         <a className="btn btn--primary" href="#variants">
-          К видам шахмат
+          {t("vroom.toVariants")}
         </a>
       </div>
     );
   }
-  if (!game) return <div className="page room room--loading">Открываю партию…</div>;
+  if (!game) return <div className="page room room--loading">{t("gameRoom.29")}</div>;
 
   const playing = game.status === "playing";
   const myTurn = playing && !!you && game.turn === you;
@@ -301,7 +307,7 @@ function TwoSeatRoom({ id }) {
   const rm = game.rematch;
   const rematch = you
     ? {
-        label: rm?.offer === you ? "Ждём ответа…" : rm?.offer ? "Принять реванш" : "Реванш",
+        label: rm?.offer === you ? t("gameRoom.37") : rm?.offer ? t("gameRoom.38") : t("gameRoom.39"),
         onClick: () => send("rematch"),
       }
     : undefined;
@@ -310,17 +316,17 @@ function TwoSeatRoom({ id }) {
   const drawFromOpponent = playing && game.drawOffer && game.drawOffer !== you;
   const drawFromMe = playing && game.drawOffer === you;
   const firstMoveLeft = game.firstMoveBy ? Math.max(0, Math.ceil((game.firstMoveBy - Date.now()) / 1000)) : 0;
-  const hint = playing && myTurn && def.hint ? def.hint(ctx) : "";
+  const hint = playing && myTurn && def.hint ? tx(def.hint(ctx)) : "";
 
   let statusLine = "";
-  if (game.status === "waiting") statusLine = "Ждём второго игрока";
-  else if (playing) statusLine = myTurn ? "Ваш ход" : you ? "Ход соперника" : `Ход ${SIDE_GEN[game.turn]}`;
-  else if (game.status === "aborted") statusLine = "Партия отменена";
-  else if (ended) statusLine = info.title === "Ничья" ? "Ничья" : `${info.subtitle}`;
+  if (game.status === "waiting") statusLine = t("gameRoom.40");
+  else if (playing) statusLine = myTurn ? t("gameRoom.41") : you ? t("gameRoom.42") : t("gameRoom.43", { p: t(SIDE_GEN[game.turn]) });
+  else if (game.status === "aborted") statusLine = t("gameRoom.44");
+  else if (ended) statusLine = info.title === t("onlineGames.2") ? t("onlineGames.2") : `${info.subtitle}`;
 
   return (
     <div className="room vroom" data-variant={game.variant}>
-      {status === "reconnecting" && <div className="banner banner--error room__net">Нет связи с сервером, подключаюсь заново…</div>}
+      {status === "reconnecting" && <div className="banner banner--error room__net">{t("gameRoom.46")}</div>}
       <Dnd>
       <div className="room__grid">
         <div className="room__main">
@@ -347,14 +353,14 @@ function TwoSeatRoom({ id }) {
             {ended && showSummary && info && (
               <GameSummary
                 info={info}
-                white={<PlayerName player={game.white} fallback="Белые" />}
-                black={<PlayerName player={game.black} fallback="Чёрные" />}
+                white={<PlayerName player={game.white} fallback={t("online.white")} />}
+                black={<PlayerName player={game.black} fallback={t("online.black")} />}
                 you={you}
                 moves={turns.length}
                 signedIn={!!user}
-                newLabel="Другие шахматы"
+                newLabel={t("menu.variants")}
                 rematch={rematch}
-                hint={def.review ? def.reviewHint : `${game.variantName}. Эту партию движок не разбирает: он знает только классические шахматы и Chess960.`}
+                hint={def.review ? tx(def.reviewHint) : t("vroomx.36", { variantName: tx(game.variantName) })}
                 onReview={def.review ? openReview : undefined}
                 busy={reviewBusy}
                 error={reviewError}
@@ -371,15 +377,15 @@ function TwoSeatRoom({ id }) {
           <section className="card room__status">
             <p className="room__state">{statusLine}</p>
             <p className="room__meta">
-              {game.variantName}, {describeTC(game.tc)}
-              {game.presence.watching > 0 ? ` · смотрят: ${game.presence.watching}` : ""}
+              {tx(game.variantName)}, {describeTC(game.tc)}
+              {game.presence.watching > 0 ? t("gameRoom.50", { watching: game.presence.watching }) : ""}
             </p>
             {hint && <p className="room__meta vroom__hint">{hint}</p>}
             {notice && <p className="room__notice">{notice}</p>}
             {playing && firstMoveLeft > 0 && turns.length < 2 && (
-              <p className="room__meta">Партия отменится, если первый ход не сделан в течение минуты.</p>
+              <p className="room__meta">{t("gameRoom.55")}</p>
             )}
-            {!you && playing && <p className="room__meta">Вы наблюдаете за партией.</p>}
+            {!you && playing && <p className="room__meta">{t("gameRoom.56")}</p>}
           </section>
 
           {SideCard && <SideCard {...ctx} />}
@@ -389,22 +395,22 @@ function TwoSeatRoom({ id }) {
 
           {game.status === "aborted" && (
             <section className="card room__status">
-              <p className="room__meta">Партия не состоялась.</p>
+              <p className="room__meta">{t("gameRoom.57")}</p>
               <a className="btn btn--primary" href={`#variants/${game.variant}`}>
-                Другие шахматы
+                {t("menu.variants")}
               </a>
             </section>
           )}
 
           {drawFromOpponent && (
             <section className="card room__offer">
-              <p>Соперник предлагает ничью</p>
+              <p>{t("gameRoom.63")}</p>
               <div className="room__row">
                 <button type="button" className="btn btn--primary" onClick={() => send("draw")}>
-                  Принять
+                  {t("gameRoom.64")}
                 </button>
                 <button type="button" className="btn" onClick={() => send("drawDecline")}>
-                  Отклонить
+                  {t("gameRoom.65")}
                 </button>
               </div>
             </section>
@@ -423,40 +429,40 @@ function TwoSeatRoom({ id }) {
                       send("draw");
                     }}
                   >
-                    Да, предложить ничью
+                    {t("gameRoom.66")}
                   </button>
                   <button type="button" className="btn btn--ghost" onClick={() => setConfirmDraw(false)}>
-                    Нет
+                    {t("gameRoom.67")}
                   </button>
                 </div>
               ) : confirmResign ? (
                 <div className="room__row">
                   <button type="button" className="btn btn--danger" onClick={() => send("resign")}>
-                    Да, сдаться
+                    {t("gameRoom.68")}
                   </button>
                   <button type="button" className="btn btn--ghost" onClick={() => setConfirmResign(false)}>
-                    Нет
+                    {t("gameRoom.67")}
                   </button>
                 </div>
               ) : (
                 <div className="room__row">
                   <button type="button" className="btn btn--danger-ghost" onClick={() => (settings.confirmGiveUp ? setConfirmResign(true) : send("resign"))}>
-                    <Icon name="flag" size={16} /> Сдаться
+                    <Icon name="flag" size={16} /> {t("gameRoom.69")}
                   </button>
                   {drawFromMe ? (
                     <button type="button" className="btn" onClick={() => send("drawDecline")}>
-                      Отозвать ничью
+                      {t("gameRoom.70")}
                     </button>
                   ) : (
                     <button type="button" className="btn" onClick={() => (settings.confirmGiveUp ? setConfirmDraw(true) : send("draw"))} disabled={turns.length < 2}>
-                      Ничья
+                      {t("onlineGames.2")}
                     </button>
                   )}
                 </div>
               )}
               {earlyAbort && (
                 <button type="button" className="btn btn--ghost" onClick={() => send("abort")}>
-                  Отменить партию
+                  {t("gameRoom.18")}
                 </button>
               )}
             </section>
@@ -466,16 +472,16 @@ function TwoSeatRoom({ id }) {
             <section className="card room__status vroom__review">
               <button type="button" className="btn btn--primary btn--block" onClick={openReview} disabled={reviewBusy}>
                 <Icon name="review" size={18} />
-                {reviewBusy ? "Готовлю разбор…" : "Разбор партии"}
+                {reviewBusy ? t("vroom.review") : t("menu.review")}
               </button>
               {reviewError && !showSummary && <p className="room__notice">{reviewError}</p>}
-              {def.reviewHint && <p className="room__meta">{def.reviewHint}</p>}
+              {def.reviewHint && <p className="room__meta">{tx(def.reviewHint)}</p>}
             </section>
           )}
 
           {ended && !showSummary && (
             <button type="button" className="btn btn--block" onClick={() => setShowSummary(true)}>
-              Итоги партии
+              {t("gameRoom.71")}
             </button>
           )}
 
@@ -486,7 +492,7 @@ function TwoSeatRoom({ id }) {
             </def.MovesCard>
           ) : (
             <section className="card room__moves">
-              <h2>Ходы</h2>
+              <h2>{t("gameRoom.72")}</h2>
               <MoveListing moves={moves} def={def} />
             </section>
           )}

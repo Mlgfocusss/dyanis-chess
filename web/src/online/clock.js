@@ -1,3 +1,4 @@
+import { tr } from "../i18n/index.js";
 // Clock text and the list of time controls. Plain JavaScript, covered by
 // `npm test`.
 
@@ -16,19 +17,20 @@ export function formatClock(ms) {
 
 // What a game's time control is called: "5 + 2", "10 мин", "без часов".
 export function describeTC(tc) {
-  if (!tc || !tc.baseMs) return "без часов";
+  if (tc?.days) return tr("clock.corr", { n: tc.days });
+  if (!tc || !tc.baseMs) return tr("clock.2");
   const whole = Number.isInteger(tc.baseMs / 60000);
-  const base = whole ? String(tc.baseMs / 60000) : `${tc.baseMs / 1000} с`;
+  const base = whole ? String(tc.baseMs / 60000) : tr("clock.3", { p: tc.baseMs / 1000 });
   if (tc.incMs) return `${base} + ${tc.incMs / 1000}`;
-  return whole ? `${base} мин` : base;
+  return whole ? tr("clock.4", { base }) : base;
 }
 
-// Groups of ready choices for the lobby: [minutes, increment seconds].
+// Groups of ready choices for the lobby: [minutes, increment seconds]. group is a dictionary key.
 export const TIME_CONTROLS = [
-  { group: "Пуля", options: [[1, 0], [2, 1]] },
-  { group: "Блиц", options: [[3, 0], [3, 2], [5, 0]] },
-  { group: "Рапид", options: [[10, 0], [10, 5], [15, 10]] },
-  { group: "Классика", options: [[30, 0]] },
+  { group: "rating.cat.bullet", options: [[1, 0], [2, 1]] },
+  { group: "rating.cat.blitz", options: [[3, 0], [3, 2], [5, 0]] },
+  { group: "rating.cat.rapid", options: [[10, 0], [10, 5], [15, 10]] },
+  { group: "clock.classical", options: [[30, 0]] },
 ];
 
 export const tcToRequest = ([minutes, inc]) => ({ timeMs: minutes * 60000, incMs: inc * 1000 });

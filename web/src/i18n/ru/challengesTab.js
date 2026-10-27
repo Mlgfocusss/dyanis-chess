@@ -1,0 +1,15 @@
+export default {
+  "challengesTab.1": "Вызовы вам",
+  "challengesTab.2": "Сейчас никто не вызывает. Кто может вас вызывать, настраивается в «Настройки → Игровой процесс → Вызовы».",
+  "challengesTab.3": "друг",
+  "challengesTab.4": "не в друзьях",
+  "challengesTab.5": "рейтинговая",
+  "challengesTab.6": "без рейтинга",
+  "challengesTab.7": "· осталось",
+  "challengesTab.10": "Мои вызовы",
+  "challengesTab.11": "Вызвать друга",
+  "challengesTab.12": "Вы никого не вызывали. Нажмите «Вызвать» рядом с другом или на странице игрока.",
+  "challengesTab.13": "ждёт ответа, ещё {p}",
+  "challengesTab.15": "Принят: к партии",
+  "challengesTab.16": "отклонён",
+};

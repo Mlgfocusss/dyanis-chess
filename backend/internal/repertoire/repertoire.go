@@ -8,9 +8,11 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 	"unicode/utf8"
 
+	"dyanis-chess/backend/internal/eco"
 	"dyanis-chess/backend/internal/store"
 	"dyanis-chess/engine"
 )
@@ -29,6 +31,9 @@ type Store interface {
 	DeleteRepMove(ctx context.Context, repertoireID, id int64) (int, error)
 	ReviewRepMove(ctx context.Context, repertoireID, id int64, next func(box, lapses int) store.Card) (store.Card, error)
 	ListGames(ctx context.Context, userID string, limit int) ([]*store.Game, error)
+	SaveRepScan(ctx context.Context, userID string, sc store.RepScan) error
+	RepScan(ctx context.Context, userID string, repertoireID int64) (store.RepScan, error)
+	RepOverviews(ctx context.Context, userID string) (map[int64]store.RepOverview, error)
 }
 
 // Config tunes a Service.
@@ -38,10 +43,23 @@ type Config struct {
 	UserID func(*http.Request) string
 	// Now is the clock; time.Now unless a test says otherwise.
 	Now func() time.Time
+	// Stats gives the statistics of real games for the search for holes (the explorer);
+	// nil: the ECO reference stands in.
+	Stats StatsSource
+	// Book is the ECO reference; eco.Default() if nil.
+	Book *eco.Book
+	// GapBudget is how many requests to Lichess a search may make, DefaultBudget if 0.
+	GapBudget int
 }
 
 // Service is the repertoire API.
-type Service struct{ cfg Config }
+type Service struct {
+	cfg Config
+
+	scanMu   sync.Mutex
+	scanning map[int64]bool // repertoires being searched for holes right now
+	quota    map[string]quotaState
+}
 
 // New returns a Service.
 func New(cfg Config) *Service {
@@ -51,7 +69,7 @@ func New(cfg Config) *Service {
 	if cfg.Now == nil {
 		cfg.Now = time.Now
 	}
-	return &Service{cfg: cfg}
+	return &Service{cfg: cfg, scanning: map[int64]bool{}, quota: map[string]quotaState{}}
 }
 
 // Handler returns the routes of the API.
@@ -71,6 +89,7 @@ func (s *Service) Handler() http.Handler {
 	mux.HandleFunc("POST /api/repertoires/{id}/review", s.review)
 	mux.HandleFunc("GET /api/repertoires/{id}/games", s.games)
 	mux.HandleFunc("POST /api/repertoires/{id}/compare", s.comparePGN)
+	mux.HandleFunc("GET /api/repertoires/{id}/gaps", s.gaps)
 	return mux
 }
 
@@ -107,6 +126,8 @@ type RepertoireJSON struct {
 	Name   string `json:"name"`
 	Color  string `json:"color"`
 	Counts Counts `json:"counts"`
+	// Gaps is in the list only: the holes the person can see without asking Lichess.
+	Gaps *GapSummary `json:"gaps,omitempty"`
 }
 
 // MoveJSON is one move of the tree.
@@ -205,10 +226,17 @@ func (s *Service) list(w http.ResponseWriter, r *http.Request) {
 		serverError(w, "list", err)
 		return
 	}
+	overviews, err := s.cfg.Store.RepOverviews(r.Context(), uid)
+	if err != nil {
+		serverError(w, "overviews", err)
+		return
+	}
 	out := make([]RepertoireJSON, 0, len(reps))
 	for _, x := range reps {
+		g := summaryOf(overviews[x.ID], x.Counts.Moves)
 		out = append(out, RepertoireJSON{ID: x.ID, Name: x.Name, Color: x.Color,
-			Counts: Counts{Moves: x.Counts.Moves, Mine: x.Counts.Mine, New: x.Counts.New, Due: x.Counts.Due, Learned: x.Counts.Learned}})
+			Counts: Counts{Moves: x.Counts.Moves, Mine: x.Counts.Mine, New: x.Counts.New, Due: x.Counts.Due, Learned: x.Counts.Learned},
+			Gaps:   &g})
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"repertoires": out})
 }

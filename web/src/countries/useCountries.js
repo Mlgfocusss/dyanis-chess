@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { tr } from "../i18n/index.js";
 
 // The list of countries, fetched once per page load from GET /api/countries (the server is its only
 // source; the browser may also keep it for a day) and kept in memory.
@@ -8,7 +9,7 @@ export function loadCountries() {
   if (!loading) {
     loading = fetch("/api/countries")
       .then((res) => {
-        if (!res.ok) throw new Error(`Сервер ответил ${res.status}`);
+        if (!res.ok) throw new Error(tr("common.serverReplied", { status: res.status }));
         return res.json();
       })
       .then((body) => (Array.isArray(body?.countries) ? body.countries : []))

@@ -1,16 +1,17 @@
+import { tr } from "../i18n/index.js";
 // Words for a game compared with a repository, with no imports so that `npm test`
 // covers them.
 
 // The result of a game from the point of view of the colour the person played:
 // { kind: "win" | "loss" | "draw" | "open", text }.
 export function outcomeOf(result, color) {
-  if (result === "1/2-1/2") return { kind: "draw", text: "Ничья" };
+  if (result === "1/2-1/2") return { kind: "draw", text: tr("onlineGames.2") };
   if (result === "1-0" || result === "0-1") {
     const whiteWon = result === "1-0";
     const won = whiteWon === (color === "white");
-    return won ? { kind: "win", text: "Победа" } : { kind: "loss", text: "Поражение" };
+    return won ? { kind: "win", text: tr("onlineGames.3") } : { kind: "loss", text: tr("onlineGames.4") };
   }
-  return { kind: "open", text: "Не окончена" };
+  return { kind: "open", text: tr("openingsGames.4") };
 }
 
 // "1. e4 e5 2. Nf3" for the SAN moves of a line (the first move is White's).
@@ -28,25 +29,25 @@ export function deviationLine(d) {
   const expected = d.expected.map((m) => m.san).join(", ");
   switch (d.status) {
     case "in-book":
-      return { headline: "Вся партия сыграна по вашему репозиторию.", line: numbered(d.line) };
+      return { headline: tr("openingsGames.5"), line: numbered(d.line) };
     case "you-deviated":
       return {
-        headline: `Вы отклонились на ходу ${mv}: в репозитории здесь ${expected}.`,
+        headline: tr("openingsGames.6", { mv, expected }),
         line: numbered(d.line, d.played && `[${d.played.san}]`),
       };
     case "opponent-deviated":
       return {
-        headline: `Соперник вышел из вашей подготовки на ходу ${mv}. ${expected ? `Вы ждали: ${expected}.` : ""} Ответа на этот ход в репозитории нет.`,
+        headline: tr("openingsGames.7", { mv, p: expected ? tr("openingsGames.8", { expected }) : "" }),
         line: numbered(d.line, d.played && `[${d.played.san}]`),
       };
     case "book-ended":
       return {
-        headline: `Линия репозитория закончилась на ходу ${mv}: дальше ходов нет.`,
+        headline: tr("openingsGames.9", { mv }),
         line: numbered(d.line, d.played && `[${d.played.san}]`),
       };
     case "empty":
-      return { headline: "В репозитории пока нет ходов.", line: "" };
+      return { headline: tr("openingsGames.10"), line: "" };
     default:
-      return { headline: "Эту партию не удалось сравнить с репозиторием.", line: "" };
+      return { headline: tr("openingsGames.11"), line: "" };
   }
 }

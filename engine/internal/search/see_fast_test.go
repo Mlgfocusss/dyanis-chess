@@ -48,3 +48,36 @@ func TestSEEFastPathMatchesFull(t *testing.T) {
 		t.Fatalf("too few captures exercised: %d", checked)
 	}
 }
+
+// TestSEEQuiet: a quiet move onto an attacked square is judged by the
+// exchange the opponent can start there; a safe square scores 0.
+func TestSEEQuiet(t *testing.T) {
+	cases := []struct {
+		fen, move string
+		want      int
+	}{
+		// The e5 pawn attacks d4: the undefended queen is lost.
+		{"4k3/8/8/4p3/8/8/8/3QK3 w - - 0 1", "d1d4", -seeValue(board.Queen)},
+		{"4k3/8/8/4p3/8/8/8/3QK3 w - - 0 1", "d1d2", 0},
+		// Defended by the c3 pawn: knight for pawn.
+		{"4k3/8/8/4p3/8/2P5/2N5/4K3 w - - 0 1", "c2d4", seeValue(board.Pawn) - seeValue(board.Knight)},
+	}
+	for _, c := range cases {
+		b, err := board.FromFEN(c.fen)
+		if err != nil {
+			t.Fatal(err)
+		}
+		found := false
+		for _, m := range movegen.GenerateLegalMoves(b) {
+			if m.String() == c.move {
+				found = true
+				if got := seeQuiet(b, m); got != c.want {
+					t.Errorf("%s in %s: seeQuiet %d, want %d", c.move, c.fen, got, c.want)
+				}
+			}
+		}
+		if !found {
+			t.Errorf("move %s not legal in %s", c.move, c.fen)
+		}
+	}
+}

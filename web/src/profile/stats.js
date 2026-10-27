@@ -1,6 +1,7 @@
 // Pure helpers of the statistics tab: words, numbers and the geometry of the charts. No React and no
 // imports from the page, so `npm test` covers them.
 import { themeName } from "../puzzles/themes.js";
+import { tr } from "../i18n/index.js";
 
 // "1 день", "2 дня", "5 дней".
 export function plural(n, one, few, many) {
@@ -12,13 +13,13 @@ export function plural(n, one, few, many) {
 }
 
 export function daysText(n) {
-  return `${n} ${plural(n, "день", "дня", "дней")}`;
+  return tr("common.days", { n });
 }
 
 // The small tag next to the name in the profile head; "" when there is no streak.
 export function streakBadge(streak) {
   const n = streak?.current || 0;
-  return n > 0 ? `Серия: ${n} дн.` : "";
+  return n > 0 ? tr("stats.4", { n }) : "";
 }
 
 // A share as a whole percent, null when there is nothing to divide.
@@ -57,16 +58,16 @@ export function accuracyNote(reviews) {
   const sample = reviews?.sample || 0;
   const known = reviews?.known || 0;
   if (!sample) return "";
-  if (known === sample) return "Точность считается за ваш цвет в каждой партии.";
+  if (known === sample) return tr("stats.5");
   if (known === 0) {
-    return "Цвет игрока по имени в партиях определить не удалось, поэтому показано среднее по обеим сторонам.";
+    return tr("stats.6");
   }
-  return `Ваш цвет определён по имени в ${known} из ${sample} партий, в остальных взято среднее по обеим сторонам.`;
+  return tr("stats.7", { known, sample });
 }
 
-const SIDE_WORDS = { white: "за белых", black: "за чёрных", both: "среднее по обеим сторонам" };
+const SIDE_WORDS = { white: "stats.sideWhite", black: "stats.sideBlack", both: "stats.sideBoth" };
 export function sideText(side) {
-  return SIDE_WORDS[side] || SIDE_WORDS.both;
+  return tr(SIDE_WORDS[side] || SIDE_WORDS.both);
 }
 
 // ---------------------------------------------------------------- accuracy chart
@@ -106,16 +107,16 @@ function round(n) {
 
 // ---------------------------------------------------------------- activity strip
 
-const MONTHS = ["янв", "фев", "мар", "апр", "мая", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"];
+const monthName = (i) => tr("stats.month." + (i + 1));
 
 // "12 окт" for "2026-10-12".
 export function dayLabel(iso) {
   const [, m, d] = String(iso).split("-").map(Number);
-  return m >= 1 && m <= 12 && d ? `${d} ${MONTHS[m - 1]}` : String(iso);
+  return m >= 1 && m <= 12 && d ? `${d} ${monthName(m - 1)}` : String(iso);
 }
 
 export function puzzlesText(n) {
-  return `${n} ${plural(n, "задача", "задачи", "задач")}`;
+  return tr("stats.puzzlesN", { n });
 }
 
 // One cell per day of the streak window: its date, count, intensity level 0..4 and a caption.
@@ -128,7 +129,7 @@ export function activityCells(streak) {
   return counts.map((count, i) => {
     const date = new Date(Date.UTC(y, m - 1, d + i)).toISOString().slice(0, 10);
     const level = count <= 0 ? 0 : Math.min(4, Math.ceil((4 * count) / max));
-    const label = `${dayLabel(date)}: ${count > 0 ? puzzlesText(count) : "без задач"}`;
+    const label = `${dayLabel(date)}: ${count > 0 ? puzzlesText(count) : tr("stats.26")}`;
     return { date, count, level, label };
   });
 }
@@ -157,9 +158,9 @@ export function whenText(iso, now = new Date()) {
   const clock = `${String(t.getHours()).padStart(2, "0")}:${String(t.getMinutes()).padStart(2, "0")}`;
   const startOf = (x) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
   const days = Math.round((startOf(now) - startOf(t)) / 86400000);
-  if (days === 0) return `сегодня, ${clock}`;
-  if (days === 1) return `вчера, ${clock}`;
-  return `${t.getDate()} ${MONTHS[t.getMonth()]}, ${clock}`;
+  if (days === 0) return tr("stats.27", { clock });
+  if (days === 1) return tr("stats.28", { clock });
+  return `${t.getDate()} ${monthName(t.getMonth())}, ${clock}`;
 }
 
 // Rows of the history of tries: the link opens the puzzle (#puzzles/<id>).
@@ -175,11 +176,11 @@ export function historyRows(history, now = new Date()) {
 }
 
 // "3 мин: 14 (заездов 2)" per mode of the tactics storm, best first by mode order.
-const RUSH_NAMES = { "3min": "Штурм, 3 минуты", "5min": "Штурм, 5 минут" };
+const RUSH_NAMES = { "3min": "stats.rush3", "5min": "stats.rush5" };
 export function rushRows(rush) {
   return Object.keys(RUSH_NAMES)
     .filter((k) => rush?.[k])
-    .map((k) => ({ mode: k, name: RUSH_NAMES[k], best: rush[k].best, runs: rush[k].runs }));
+    .map((k) => ({ mode: k, name: tr(RUSH_NAMES[k]), best: rush[k].best, runs: rush[k].runs }));
 }
 
 // True when nothing at all has been played yet.

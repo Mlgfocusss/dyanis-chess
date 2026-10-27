@@ -5,6 +5,7 @@ import { useAnalysis } from "./useAnalysis.js";
 import { encodeFen, fenFromHash, looksLikeFen } from "./moments.js";
 import { START_FEN } from "../play/game.js";
 import Icon from "../ui/Icon.jsx";
+import { useT } from "../i18n/index.js";
 import "./review.css";
 
 // "Доска анализа" (#analysis, #analysis/<position>): a board with no game. Move any piece from any
@@ -14,6 +15,7 @@ import "./review.css";
 // A position gets its own address (the "Поделиться" menu copies it), and a review's panel can open
 // the position on the board here.
 export default function AnalysisPage() {
+  const t = useT();
   const [fen, setFen] = useState(() => fenFromHash(window.location.hash) || START_FEN);
   const [seed, setSeed] = useState(null); // the position as a review of a game with no moves
   const [error, setError] = useState("");
@@ -63,7 +65,7 @@ export default function AnalysisPage() {
       {seed ? (
         <ReviewView key={fen} job={seed} free loader={<Loader />} />
       ) : (
-        !error && <p className="review__hint">Загружаю позицию…</p>
+        !error && <p className="review__hint">{t("analysisPage.1")}</p>
       )}
     </div>
   );
@@ -71,6 +73,7 @@ export default function AnalysisPage() {
 
 // What can be put on the board: a position (FEN), or a game (PGN), which is reviewed.
 function Loader() {
+  const t = useT();
   const [text, setText] = useState("");
   const [msg, setMsg] = useState("");
   const { job, error, busy, start } = useAnalysis();
@@ -81,36 +84,36 @@ function Loader() {
   }, [job]);
 
   function load() {
-    const t = text.trim();
-    if (!t) return;
+    const src = text.trim();
+    if (!src) return;
     setMsg("");
-    if (looksLikeFen(t)) {
-      window.location.hash = `analysis/${encodeFen(t)}`;
+    if (looksLikeFen(src)) {
+      window.location.hash = `analysis/${encodeFen(src)}`;
       setText("");
-    } else if (/[a-h][1-8]|O-O/.test(t)) {
-      start({ pgn: t, depth: 14 }); // a game: the server reviews it, then the review opens
+    } else if (/[a-h][1-8]|O-O/.test(src)) {
+      start({ pgn: src, depth: 14 }); // a game: the server reviews it, then the review opens
     } else {
-      setMsg("Это не похоже ни на позицию (FEN), ни на партию (PGN).");
+      setMsg(t("analysisPage.2"));
     }
   }
 
   return (
     <div className="loader">
       <p className="review__hint">
-        Вставьте позицию в формате FEN: она появится на доске. Партия в формате PGN будет разобрана движком и откроется как разбор.
+        {t("analysisPage.3")}
       </p>
       <textarea
         className="field field--area loader__area"
         value={text}
         onChange={(e) => setText(e.target.value)}
-        placeholder={"FEN: rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1\nили PGN: 1. e4 e5 2. Nf3 Nc6 …"}
+        placeholder={t("analysisPage.4")}
         rows={6}
         spellCheck={false}
         disabled={busy}
       />
       <div className="review__row">
         <button type="button" className="btn btn--primary btn--small" onClick={load} disabled={busy || !text.trim()}>
-          <Icon name="upload" size={14} /> {busy ? "Идёт разбор…" : "Загрузить"}
+          <Icon name="upload" size={14} /> {busy ? t("analysisPage.5") : t("analysisPage.6")}
         </button>
         <button
           type="button"
@@ -118,13 +121,13 @@ function Loader() {
           onClick={() => (window.location.hash = "analysis")}
           disabled={busy}
         >
-          Начальная позиция
+          {t("analysisPage.7")}
         </button>
       </div>
       {busy && job && job.total > 0 && (
         <div className="progress" aria-live="polite">
           <div className="progress__bar" style={{ width: `${Math.round((100 * job.done) / job.total)}%` }} />
-          <span>Позиций оценено: {job.done} из {job.total}</span>
+          <span>{t("analysisPage.8")} {job.done} {t("analysisPage.9")} {job.total}</span>
         </div>
       )}
       {(msg || error) && <div className="banner banner--error">{msg || error}</div>}

@@ -1,3 +1,4 @@
+import { tr } from "../i18n/index.js";
 // Pure helpers of the PGN import, with no imports, so `npm test` covers them.
 
 // "1 ход", "2 хода", "5 ходов"
@@ -12,13 +13,13 @@ export function plural(n, one, few, many) {
 
 // What an import did, for the person: { games, skipped, added, moves } from the server.
 export function importSummary(st) {
-  const games = plural(st.games, "партия", "партии", "партий");
+  const games = tr("openings.imp.games", { n: st.games });
   let text =
     st.added === 0
-      ? `Новых ходов нет: все ходы из файла уже были в репозитории (${games}).`
-      : `Добавлено ${plural(st.added, "ход", "хода", "ходов")} из файла (${games}).`;
+      ? tr("openings.imp.none", { games })
+      : tr("openings.imp.added", { moves: tr("openings.imp.moves", { n: st.added }), games });
   if (st.skipped > 0) {
-    text += ` ${plural(st.skipped, "партия пропущена", "партии пропущены", "партий пропущено")}: они начинаются не с начальной позиции.`;
+    text += tr("openings.imp.skipTail", { skipped: tr("openings.imp.skippedN", { n: st.skipped }) });
   }
   return text;
 }

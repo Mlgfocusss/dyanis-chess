@@ -194,6 +194,61 @@ func (s *Store) MergeUsers(ctx context.Context, from, to string) error {
 			updated_at = GREATEST(lesson_progress.updated_at, src.updated_at)`, to, from); err != nil {
 		return err
 	}
+	// Correspondence games waiting for the guest's move now wait for the account.
+	if _, err := tx.ExecContext(ctx, "UPDATE games SET turn_id = ? WHERE turn_id = ?", to, from); err != nil {
+		return err
+	}
+	// Friends, requests and the talks move over; what would join the account to itself, or repeat a
+	// pair it already has, is dropped with the deleted account.
+	for _, q := range []string{
+		"INSERT IGNORE INTO friends (user_id, friend_id, mute_challenges, created_at) SELECT ?, friend_id, mute_challenges, created_at FROM friends WHERE user_id = ? AND friend_id <> ?",
+		"INSERT IGNORE INTO friends (user_id, friend_id, mute_challenges, created_at) SELECT user_id, ?, mute_challenges, created_at FROM friends WHERE friend_id = ? AND user_id <> ?",
+		"INSERT IGNORE INTO friend_requests (from_id, to_id, created_at) SELECT ?, to_id, created_at FROM friend_requests WHERE from_id = ? AND to_id <> ?",
+		"INSERT IGNORE INTO friend_requests (from_id, to_id, created_at) SELECT from_id, ?, created_at FROM friend_requests WHERE to_id = ? AND from_id <> ?",
+		"UPDATE messages SET from_id = ? WHERE from_id = ? AND to_id <> ?",
+		"UPDATE messages SET to_id = ? WHERE to_id = ? AND from_id <> ?",
+	} {
+		if _, err := tx.ExecContext(ctx, q, to, from, to); err != nil {
+			return err
+		}
+	}
+	// What the guest wrote on the forum stays and is the account's.
+	for _, q := range []string{"UPDATE forum_topics SET author_id = ? WHERE author_id = ?", "UPDATE forum_posts SET author_id = ? WHERE author_id = ?"} {
+		if _, err := tx.ExecContext(ctx, q, to, from); err != nil {
+			return err
+		}
+	}
+	// Achievements are combined: a badge earned on either account is the account's, with the earlier date.
+	if _, err := tx.ExecContext(ctx, `INSERT INTO achievements (user_id, ach_key, unlocked_at, seen)
+		SELECT ?, src.ach_key, src.unlocked_at, src.seen FROM (SELECT ach_key, unlocked_at, seen FROM achievements WHERE user_id = ?) AS src
+		ON DUPLICATE KEY UPDATE unlocked_at = LEAST(achievements.unlocked_at, src.unlocked_at), seen = GREATEST(achievements.seen, src.seen)`, to, from); err != nil {
+		return err
+	}
+	// Blocks move over like friends do (never a block of the account on itself); a friendship or a
+	// request that the move has put next to a block is dropped. Reports the guest made or was
+	// the subject of go to the account too (a duplicate of an open one stays unmoved and loses the guest).
+	for _, q := range []string{
+		"INSERT IGNORE INTO blocks (blocker_id, blocked_id, created_at) SELECT ?, blocked_id, created_at FROM blocks WHERE blocker_id = ? AND blocked_id <> ?",
+		"INSERT IGNORE INTO blocks (blocker_id, blocked_id, created_at) SELECT blocker_id, ?, created_at FROM blocks WHERE blocked_id = ? AND blocker_id <> ?",
+	} {
+		if _, err := tx.ExecContext(ctx, q, to, from, to); err != nil {
+			return err
+		}
+	}
+	for _, q := range []struct {
+		sql  string
+		args []any
+	}{
+		{"DELETE f FROM friends f JOIN blocks b ON (b.blocker_id = f.user_id AND b.blocked_id = f.friend_id) OR (b.blocker_id = f.friend_id AND b.blocked_id = f.user_id) WHERE f.user_id = ? OR f.friend_id = ?", []any{to, to}},
+		{"DELETE f FROM friend_requests f JOIN blocks b ON (b.blocker_id = f.from_id AND b.blocked_id = f.to_id) OR (b.blocker_id = f.to_id AND b.blocked_id = f.from_id) WHERE f.from_id = ? OR f.to_id = ?", []any{to, to}},
+		{"UPDATE IGNORE reports SET reporter_id = ? WHERE reporter_id = ?", []any{to, from}},
+		{"UPDATE reports SET target_user_id = ? WHERE target_user_id = ?", []any{to, from}},
+		{"UPDATE reports SET closed_by = ? WHERE closed_by = ?", []any{to, from}},
+	} {
+		if _, err := tx.ExecContext(ctx, q.sql, q.args...); err != nil {
+			return err
+		}
+	}
 	if _, err := tx.ExecContext(ctx, "DELETE FROM users WHERE id = ?", from); err != nil {
 		return err
 	}

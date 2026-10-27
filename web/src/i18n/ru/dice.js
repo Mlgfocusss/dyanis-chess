@@ -1,0 +1,15 @@
+export default {
+  "dice.piece.P": "пешка",
+  "dice.piece.N": "конь",
+  "dice.piece.B": "слон",
+  "dice.piece.R": "ладья",
+  "dice.piece.Q": "ферзь",
+  "dice.piece.K": "король",
+  "dice.allPlayed": "Все три кубика сыграны.",
+  "dice.left1": "Осталось ходов: {left} из {of}. Ходите любой из фигур в любом порядке: {names}.",
+  "dice.left2": "{side}: осталось ходов {left} из {of} ({names}).",
+  "dice.state.free": "можно ходить",
+  "dice.state.skip": "нечем ходить, пропуск",
+  "dice.state.used": "сыграно",
+  "dice.lost": "{side} пропустили очередь: выпали {dice}, ходить было нечем.",
+};

@@ -1,27 +1,52 @@
 import Segmented from "../ui/Segmented.jsx";
+import VacationRow from "../community/VacationRow.jsx";
+import NotifyRows from "../notify/NotifyRows.jsx";
+import { CORR_DAYS, daysText } from "../community/logic.js";
 import { Row, SaveBar, SoonRow, Switch } from "./controls.jsx";
+import { useT, tOpts } from "../i18n/index.js";
 
 const CASTLING = [
-  ["standard", "Стандартно"],
-  ["rook", "Король на ладью"],
-  ["both", "Оба способа"],
+  ["standard", "gameplay.castlingStandard"],
+  ["rook", "gameplay.castlingRook"],
+  ["both", "gameplay.castlingBoth"],
 ];
 const CASTLING_HINT = {
-  standard: "Рокировка: нажмите на короля и на поле, куда он идёт (на две клетки), или перенесите короля на это поле. Подходит тем, кто хочет избежать мискликов.",
-  rook: "Рокировка: нажмите на короля и на свою ладью или перенесите короля на ладью. Ход короля на две клетки рокировкой не считается.",
-  both: "Рокировку можно сделать обоими способами: королём на две клетки или королём на ладью.",
+  standard: "gameplay.castlingStandardHint",
+  rook: "gameplay.castlingRookHint",
+  both: "gameplay.castlingBothHint",
 };
 const LEVELS = [
-  ["random", "Случайно"],
-  ["easier", "Легче"],
-  ["normal", "По вашему уровню"],
-  ["harder", "Сложнее"],
+  ["random", "bots.random"],
+  ["easier", "gameplayPz.easier"],
+  ["normal", "gameplayPz.normal"],
+  ["harder", "gameplayPz.harder"],
 ];
 const LEVEL_HINT = {
-  random: "Сложность каждой задачи случайная, в пределах 300 пунктов от вашего рейтинга.",
-  easier: "Задачи чуть легче вашего рейтинга (на 150 пунктов).",
-  normal: "Все задачи подобраны под ваш уровень.",
-  harder: "Задачи чуть сложнее вашего рейтинга (на 150 пунктов): рейтинг растёт быстрее, но и ошибаться придётся чаще.",
+  random: "gameplayPz.randomHint",
+  easier: "gameplayPz.easierHint",
+  normal: "gameplayPz.normalHint",
+  harder: "gameplayPz.harderHint",
+};
+
+const FROM = [
+  ["all", "gameplay.fromAll"],
+  ["friends", "gameplay.fromFriends"],
+  ["none", "gameplay.fromNone"],
+];
+const FROM_HINT = {
+  all: "gameplay.fromAllHint",
+  friends: "gameplay.fromFriendsHint",
+  none: "gameplay.fromNoneHint",
+};
+const NOTIFY = [
+  ["all", "gameplay.notifyAll"],
+  ["friends", "gameplay.notifyFriends"],
+  ["none", "gameplay.notifyNone"],
+];
+const NOTIFY_HINT = {
+  all: "gameplay.notifyAllHint",
+  friends: "gameplay.notifyFriendsHint",
+  none: "gameplay.notifyNoneHint",
 };
 
 function sw(draft, set, key, label) {
@@ -53,145 +78,200 @@ function Limit({ value, onChange, label, sign }) {
 
 // "Игровой процесс": how a game is played. Rows marked "скоро" wait for features the site does not have yet.
 export default function GameplayPanel({ draft, set, dirty, justSaved, onSave, onCancel }) {
+  const t = useT();
   return (
     <>
-      <h2 className="settings__h">Игровой процесс</h2>
-      <p className="settings__sub">Управляйте тем, как проходят партии, вызовы, задачи и игра с ботами.</p>
+      <h2 className="settings__h">{t("gameplay.title")}</h2>
+      <p className="settings__sub">{t("gameplay.28")}</p>
 
-      <h3 className="settings__group">Общие</h3>
+      <h3 className="settings__group">{t("gameplay.29")}</h3>
       <Row
-        title="Всегда превращать в ферзя"
-        hint="Пешка, дошедшая до последней горизонтали, сразу становится ферзём. Чтобы выбрать другую фигуру, удерживайте клавишу Alt при ходе."
-        control={sw(draft, set, "alwaysQueen", "Всегда превращать в ферзя")}
+        title={t("gameplay.30")}
+        hint={t("gameplay.31")}
+        control={sw(draft, set, "alwaysQueen", t("gameplay.30"))}
       />
       <Row
-        title="Подтверждать сдачу или ничью"
-        hint="Перед тем как сдаться или предложить ничью, сайт спросит ещё раз."
-        control={sw(draft, set, "confirmGiveUp", "Подтверждать сдачу или ничью")}
+        title={t("gameplay.32")}
+        hint={t("gameplay.33")}
+        control={sw(draft, set, "confirmGiveUp", t("gameplay.32"))}
       />
       <Row
-        title="Показывать допустимые ходы"
-        hint="Точки и кольца на полях, куда может пойти выбранная фигура."
-        control={sw(draft, set, "showLegalMoves", "Показывать допустимые ходы")}
+        title={t("gameplay.34")}
+        hint={t("gameplay.35")}
+        control={sw(draft, set, "showLegalMoves", t("gameplay.34"))}
       />
       <Row
-        title="Всегда использовать режим «Доска в центре»"
-        hint="На страницах с доской остаётся только доска, она становится крупной. Включать и выключать режим можно и значком в правом нижнем углу (выход: Esc)."
-        control={sw(draft, set, "focusBoard", "Всегда использовать режим «Доска в центре»")}
+        title={t("gameplay.36")}
+        hint={t("gameplay.37")}
+        control={sw(draft, set, "focusBoard", t("gameplay.36"))}
       />
       <Row
-        title="Белые всегда внизу доски"
-        hint="Доска не переворачивается, когда вы играете чёрными."
-        control={sw(draft, set, "whiteBottom", "Белые всегда внизу доски")}
+        title={t("gameplay.38")}
+        hint={t("gameplay.39")}
+        control={sw(draft, set, "whiteBottom", t("gameplay.38"))}
       />
-      <Row title="Способ рокировки" hint={CASTLING_HINT[draft.castling]}>
-        <Segmented label="Способ рокировки" value={draft.castling} onChange={(v) => set({ castling: v })} options={CASTLING} />
+      <Row title={t("gameplay.40")} hint={t(CASTLING_HINT[draft.castling])}>
+        <Segmented label={t("gameplay.40")} value={draft.castling} onChange={(v) => set({ castling: v })} options={CASTLING.map(([v, k]) => [v, t(k)])} />
       </Row>
       <SaveBar dirty={dirty} justSaved={justSaved} onSave={onSave} onCancel={onCancel} />
 
-      <h3 className="settings__group">Онлайн</h3>
+      <h3 className="settings__group">{t("gameplay.41")}</h3>
       <Row
-        title="Включить премувы"
-        hint="Сделайте ход заранее, пока ходит соперник: он сыграется сам, как только станет возможным. Можно поставить несколько премувов подряд (до 30: в эндшпиле на времени такие серии решают), каждый следующий выбирается на доске после предыдущих. Если очередной ход окажется невозможным, очередь сбрасывается. Отмена всех: Esc или правая кнопка мыши."
-        control={sw(draft, set, "premoves", "Включить премувы")}
+        title={t("gameplay.42")}
+        hint={t("gameplay.43")}
+        control={sw(draft, set, "premoveOn", t("gameplay.42"))}
       />
       <Row
-        title="Предупреждение об окончании времени"
-        hint="Часы краснеют, а за 10 секунд до конца звучит сигнал."
-        control={sw(draft, set, "timeWarning", "Предупреждение об окончании времени")}
+        title={t("gameplay.44")}
+        hint={t("gameplay.45")}
+        control={sw(draft, set, "timeWarning", t("gameplay.44"))}
       />
       <Row
-        title="Подтверждать ход"
-        hint="Ход отправляется соперникам после нажатия «Подтвердить». Можно отменить и сходить иначе."
-        control={sw(draft, set, "confirmMove", "Подтверждать ход")}
+        title={t("gameplay.46")}
+        hint={t("gameplay.47")}
+        control={sw(draft, set, "confirmMove", t("gameplay.46"))}
       />
       <Row
-        title="Разрешить несколько партий одновременно"
-        hint="Если выключено, пока идёт одна партия (с человеком или ботом), начать вторую нельзя."
-        control={sw(draft, set, "multiGames", "Разрешить несколько партий одновременно")}
+        title={t("gameplay.48")}
+        hint={t("gameplay.49")}
+        control={sw(draft, set, "multiGames", t("gameplay.48"))}
       />
       <SaveBar dirty={dirty} justSaved={justSaved} onSave={onSave} onCancel={onCancel} />
 
-      <h3 className="settings__group">Заочные партии</h3>
-      <SoonRow title="Подтверждать ход" hint="Подтверждать сделанный ход." />
-      <SoonRow title="Автоматически заявлять о победе" hint="Если у соперника закончится время, победа засчитывается без вашего подтверждения." />
-      <SoonRow title="Режим отпуска" hint="Приостановить ваши партии." />
-      <SoonRow title="После хода" hint="Перейти к следующей доступной партии." />
-      <SoonRow title="Дней на ход" hint="Количество дней на ход в заочных партиях." />
-
-      <h3 className="settings__group">Вызовы</h3>
+      <h3 className="settings__group">{t("gameplay.50")}</h3>
       <Row
-        title="Рейтинг открытого вызова"
-        hint="Насколько рейтинг соперника, которого подбирает сайт, может отличаться от вашего. Пустое поле значит без ограничений: ∞. Соперник тоже должен подходить под свои границы."
+        title={t("gameplay.46")}
+        hint={t("gameplay.51")}
+        control={sw(draft, set, "corrConfirmMove", t("gameplay.52"))}
+      />
+      <Row
+        title={t("gameplay.53")}
+        hint={t("gameplay.54")}
+        control={sw(draft, set, "corrAutoClaim", t("gameplay.53"))}
+      />
+      <Row
+        title={t("gameplay.55")}
+        hint={t("gameplay.56")}
+        control={sw(draft, set, "corrNextGame", t("gameplay.55"))}
+      />
+      <Row title={t("gameplay.57")} hint={t("gameplay.58")}>
+        <select className="field" aria-label={t("gameplay.57")} value={draft.corrDays} onChange={(e) => set({ corrDays: Number(e.target.value) })}>
+          {CORR_DAYS.map((d) => (
+            <option key={d} value={d}>
+              {daysText(d)}
+            </option>
+          ))}
+        </select>
+      </Row>
+      <NotifyRows draft={draft} set={set} />
+      <VacationRow />
+      <SaveBar dirty={dirty} justSaved={justSaved} onSave={onSave} onCancel={onCancel} />
+
+      <h3 className="settings__group">{t("gameplay.59")}</h3>
+      <Row
+        title={t("gameplay.60")}
+        hint={t("gameplay.61")}
       >
         <div className="limits">
-          <span className="limits__label">Не слабее чем на</span>
-          <Limit value={draft.seekDown} onChange={(v) => set({ seekDown: v })} label="Насколько слабее можно" sign="−" />
-          <span className="limits__label">и не сильнее чем на</span>
-          <Limit value={draft.seekUp} onChange={(v) => set({ seekUp: v })} label="Насколько сильнее можно" sign="+" />
+          <span className="limits__label">{t("gameplay.62")}</span>
+          <Limit value={draft.seekDown} onChange={(v) => set({ seekDown: v })} label={t("gameplay.63")} sign="−" />
+          <span className="limits__label">{t("gameplay.64")}</span>
+          <Limit value={draft.seekUp} onChange={(v) => set({ seekUp: v })} label={t("gameplay.65")} sign="+" />
         </div>
       </Row>
-      <SoonRow title="Разрешить вызовы" hint="Все пользователи, только друзья или никто. Для этого нужны друзья и личные вызовы." />
-      <SoonRow title="Входящий рейтинг" hint="Диапазон рейтинга шахматистов, которые могут отправлять вам вызовы." />
-      <SoonRow title="Игнорировать рейтинг при входящих вызовах от друзей" />
-      <SoonRow title="Вызовы оффлайн" hint="Вызовы, когда вас нет на сайте, и уведомления о них." />
-      <SoonRow title="Уведомления о вызовах" hint="Показывать уведомления при получении вызова: от всех или только от друзей." />
-      <SaveBar dirty={dirty} justSaved={justSaved} onSave={onSave} onCancel={onCancel} />
-
-      <h3 className="settings__group">Анализ</h3>
-      <Row
-        title="Оценка движка"
-        hint="Показывать оценку движка (шкала и число) на странице разбора партии."
-        control={sw(draft, set, "showEval", "Оценка движка")}
-      />
-      <Row
-        title="Тренер Дионис"
-        hint="Дионис коротко комментирует каждый ход разбора и рисует на доске стрелки. Подробное объяснение по кнопке «Подробнее»."
-        control={sw(draft, set, "showCoach", "Тренер Дионис")}
-      />
-      <Row
-        title="Стрелки движка"
-        hint="Три лучшие линии движка рисуются на доске стрелками первого хода: лучшая толще и ярче, остальные тоньше и бледнее, тем сильнее, чем хуже линия. Красная стрелка Диониса остаётся."
-        control={sw(draft, set, "engineArrows", "Стрелки движка")}
-      />
-      <Row
-        title="Показывать разбор после игры"
-        hint="Когда партия закончилась, сайт сам запускает разбор движком и показывает его под доской."
-        control={sw(draft, set, "autoReview", "Показывать разбор после игры")}
-      />
-      <SoonRow title="Показывать время" hint="Время, потраченное на каждый ход. Сайт пока не хранит время хода." />
-      <Row
-        title="Показывать иконки классификации ходов в списке ходов"
-        hint="Блестящие ходы, зевки и другие значки рядом с ходами в разборе."
-        control={sw(draft, set, "moveIcons", "Показывать иконки классификации ходов")}
-      />
-      <SaveBar dirty={dirty} justSaved={justSaved} onSave={onSave} onCancel={onCancel} />
-
-      <h3 className="settings__group">Задачи</h3>
-      <Row title="Уровень сложности" hint={LEVEL_HINT[draft.puzzleLevel]}>
-        <Segmented label="Уровень сложности" value={draft.puzzleLevel} onChange={(v) => set({ puzzleLevel: v })} options={LEVELS} />
+      <Row title={t("gameplay.66")} hint={t(FROM_HINT[draft.challengesFrom])}>
+        <Segmented label={t("gameplay.67")} value={draft.challengesFrom} onChange={(v) => set({ challengesFrom: v })} options={FROM.map(([v, k]) => [v, t(k)])} />
       </Row>
       <Row
-        title="Собирать очки за решение задач"
-        hint="Задачи приносят очки, а не меняют рейтинг. Очки даёт верное решение с первой попытки, с подсказкой вдвое меньше; каждая пятая верная подряд даёт бонус."
-        control={sw(draft, set, "puzzlePoints", "Собирать очки за решение задач")}
+        title={t("gameplay.68")}
+        hint={t("gameplay.69")}
+      >
+        <div className="limits">
+          <span className="limits__label">{t("gameplay.70")}</span>
+          <Limit value={draft.challengeMin} onChange={(v) => set({ challengeMin: v })} label={t("gameplay.71")} sign="≥" />
+          <span className="limits__label">{t("gameplay.72")}</span>
+          <Limit value={draft.challengeMax} onChange={(v) => set({ challengeMax: v })} label={t("gameplay.73")} sign="≤" />
+        </div>
+      </Row>
+      <Row
+        title={t("gameplay.74")}
+        hint={t("gameplay.75")}
+        control={sw(draft, set, "challengeFriendsIgnoreRating", t("gameplay.76"))}
       />
       <Row
-        title="Всегда показывать рейтинг"
-        hint="Рейтинг в задачах виден на странице. Если выключить, он скрыт, но продолжает считаться."
-        control={sw(draft, set, "puzzleRating", "Всегда показывать рейтинг")}
+        title={t("gameplay.77")}
+        hint={t("gameplay.78")}
+        control={sw(draft, set, "challengeOffline", t("gameplay.77"))}
+      />
+      <Row title={t("gameplay.79")} hint={t(NOTIFY_HINT[draft.challengeNotify])}>
+        <Segmented label={t("gameplay.79")} value={draft.challengeNotify} onChange={(v) => set({ challengeNotify: v })} options={NOTIFY.map(([v, k]) => [v, t(k)])} />
+      </Row>
+      <p className="settings__sub">{t("gameplay.80")}</p>
+      <SaveBar dirty={dirty} justSaved={justSaved} onSave={onSave} onCancel={onCancel} />
+
+      <h3 className="settings__group">{t("gameplay.81")}</h3>
+      <Row
+        title={t("gameplay.82")}
+        hint={t("gameplay.83")}
+        control={sw(draft, set, "showEval", t("gameplay.82"))}
       />
       <Row
-        title="Показать темы задачи"
-        hint="Темы (мотивы) задачи видны сразу, а не только после решения."
-        control={sw(draft, set, "puzzleThemes", "Показать темы задачи")}
+        title={t("gameplay.84")}
+        hint={t("gameplay.85")}
+        control={sw(draft, set, "showCoach", t("gameplay.84"))}
       />
-      <SoonRow title="Показать комментарии к ошибкам" hint="Тренер поможет объяснить ваши ошибки." />
-      <SoonRow title="Показать подсказки в чате" hint="Помощь тренера, когда вы просите совет." />
       <Row
-        title="Показывать таймер"
-        hint="Часы, сколько времени вы решаете задачу."
-        control={sw(draft, set, "puzzleTimer", "Показывать таймер")}
+        title={t("gameplay.86")}
+        hint={t("gameplay.87")}
+        control={sw(draft, set, "engineArrows", t("gameplay.86"))}
+      />
+      <Row
+        title={t("gameplay.88")}
+        hint={t("gameplay.89")}
+        control={sw(draft, set, "autoReview", t("gameplay.88"))}
+      />
+      <Row
+        title={t("notify.moveTimeTitle")}
+        hint={t("notify.moveTimeHint")}
+        control={sw(draft, set, "showMoveTime", t("notify.moveTimeTitle"))}
+      />
+      <Row
+        title={t("gameplay.92")}
+        hint={t("gameplay.93")}
+        control={sw(draft, set, "moveIcons", t("gameplay.94"))}
+      />
+      <SaveBar dirty={dirty} justSaved={justSaved} onSave={onSave} onCancel={onCancel} />
+
+      <h3 className="settings__group">{t("menu.puzzles")}</h3>
+      <Row title={t("gameplayPz.10")} hint={t(LEVEL_HINT[draft.puzzleLevel])}>
+        <Segmented label={t("gameplayPz.10")} value={draft.puzzleLevel} onChange={(v) => set({ puzzleLevel: v })} options={tOpts(t, LEVELS)} />
+      </Row>
+      <Row
+        title={t("gameplayPz.11")}
+        hint={t("gameplayPz.12")}
+        control={sw(draft, set, "puzzlePoints", t("gameplayPz.11"))}
+      />
+      <Row
+        title={t("gameplayPz.13")}
+        hint={t("gameplayPz.14")}
+        control={sw(draft, set, "puzzleRating", t("gameplayPz.13"))}
+      />
+      <Row
+        title={t("gameplayPz.15")}
+        hint={t("gameplayPz.16")}
+        control={sw(draft, set, "puzzleThemes", t("gameplayPz.15"))}
+      />
+      <SoonRow title={t("gameplayPz.17")} hint={t("gameplayPz.18")} />
+      <SoonRow title={t("gameplayPz.19")} hint={t("gameplayPz.20")} />
+      <Row
+        title={t("gameplayPz.21")}
+        hint={t("gameplayPz.22")}
+        control={sw(draft, set, "puzzleTimer", t("gameplayPz.21"))}
+      />
+      <Row
+        title={t("gameplayPz.23")}
+        hint={t("gameplayPz.24")}
+        control={sw(draft, set, "puzzleAutoNext", t("gameplayPz.23"))}
       />
       <SaveBar dirty={dirty} justSaved={justSaved} onSave={onSave} onCancel={onCancel} />
     </>

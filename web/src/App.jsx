@@ -12,6 +12,7 @@ import ReviewInline from "./review/ReviewInline.jsx";
 import { playSound } from "./sound/sound.js";
 import * as engine from "./engine/dyanisEngine.js";
 import { openingName, openingTitle } from "./openings/names.js";
+import { tr, useT } from "./i18n/index.js";
 import "./App.css";
 
 const DEFAULT_DEPTH = 4;
@@ -22,10 +23,11 @@ const MAX_DEPTH = 30;
 const SLOW_DEPTH = 12;
 
 const clampDepth = (n) => Math.min(MAX_DEPTH, Math.max(MIN_DEPTH, Math.round(n)));
-const SIDE_NAME = { white: "белые", black: "чёрные" };
+const SIDE_NAME = { white: "gameRoom.sideWhite", black: "gameRoom.sideBlack" };
 const BOT_NAME = "Dyanis Bot";
 
 export default function App() {
+  const t = useT();
   const playMoveSound = useMoveSound();
   const { settings, save } = useSettings();
   const { user } = useAuth();
@@ -133,7 +135,7 @@ export default function App() {
           setState(result.state);
           setLastMove({ from: decision.uci.slice(0, 2), to: decision.uci.slice(2, 4) });
           playMoveSound(decision.san);
-          setEngineNote(decision.fromBook ? `движок сыграл ${decision.san} (из книги)` : `движок сыграл ${decision.san}`);
+          setEngineNote(decision.fromBook ? tr("enginePage.3", { san: decision.san }) : tr("enginePage.4", { san: decision.san }));
           setError(null);
         } else {
           setError(result.error);
@@ -210,7 +212,7 @@ export default function App() {
     stopSearch();
     const s = engine.newGame(fen);
     if (s.ok === false) {
-      setError(`неверный FEN: ${s.error}`);
+      setError(tr("enginePage.5", { error: s.error }));
       return;
     }
     setState(s);
@@ -264,7 +266,7 @@ export default function App() {
       await engine.loadBookInWorker(new Uint8Array(buf));
       refreshBook();
     } catch (e) {
-      setError(`не удалось загрузить книгу: ${e}`);
+      setError(tr("enginePage.6", { e }));
     }
   }
 
@@ -328,7 +330,7 @@ export default function App() {
   if (!state) {
     return (
       <div className="page page--loading">
-        {error ? <p className="banner banner--error">{error}</p> : <p>Загружаю движок…</p>}
+        {error ? <p className="banner banner--error">{error}</p> : <p>{t("enginePage.7")}</p>}
       </div>
     );
   }
@@ -341,40 +343,40 @@ export default function App() {
 
   const gameOn = state.status === "ongoing" && !resigned;
   const center = settings.playLayout === "center";
-  const playerName = user?.name || "Вы";
+  const playerName = user?.name || t("botsPage.8");
   const moveCount = sanMoves(state.log).length;
   const winner = resigned ? (resigned === "white" ? "black" : "white") : null;
 
   const statusBlock = (
     <div className="status">
       <p className="status__turn">
-        Ход: <strong>{state.sideToMove === "white" ? "белые" : "чёрные"}</strong>
+        {t("enginePage.9")} <strong>{state.sideToMove === "white" ? t("gameRoom.sideWhite") : t("gameRoom.sideBlack")}</strong>
       </p>
       {resigned && (
         <p className="status__flag status__flag--warn">
-          Вы сдались: победили {SIDE_NAME[winner]}
+          {t("enginePage.10")} {t(SIDE_NAME[winner])}
         </p>
       )}
       {!resigned && state.inCheck && state.status === "ongoing" && (
-        <p className="status__flag status__flag--warn">Шах</p>
+        <p className="status__flag status__flag--warn">{t("enginePage.11")}</p>
       )}
-      {state.status === "checkmate" && <p className="status__flag status__flag--warn">Мат</p>}
-      {state.status === "stalemate" && <p className="status__flag status__flag--warn">Пат — ничья</p>}
-      {state.status === "draw-fifty-move" && <p className="status__flag status__flag--warn">Ничья по правилу 50 ходов</p>}
+      {state.status === "checkmate" && <p className="status__flag status__flag--warn">{t("gameEnd.5")}</p>}
+      {state.status === "stalemate" && <p className="status__flag status__flag--warn">{t("enginePage.13")}</p>}
+      {state.status === "draw-fifty-move" && <p className="status__flag status__flag--warn">{t("enginePage.14")}</p>}
       {state.status === "draw-repetition" && (
-        <p className="status__flag status__flag--warn">Ничья — троекратное повторение позиции</p>
+        <p className="status__flag status__flag--warn">{t("enginePage.15")}</p>
       )}
-      {thinking && <p className="status__flag status__flag--thinking">движок думает… (страница не зависает)</p>}
+      {thinking && <p className="status__flag status__flag--thinking">{t("enginePage.16")}</p>}
       {opening.opening && (
         <p className="status__opening" title={openingTitle(opening.opening)}>
           <span className="review__eco">{opening.opening.eco}</span> {openingName(opening.opening)}
-          {opening.book && <span className="status__theory">теория</span>}
+          {opening.book && <span className="status__theory">{t("gameRoom.51")}</span>}
         </p>
       )}
       {engineNote && <p className="status__note">{engineNote}</p>}
       {info && !showSummary && (
         <button className="btn btn--block status__summary" onClick={() => setShowSummary(true)}>
-          Итоги партии
+          {t("gameRoom.71")}
         </button>
       )}
     </div>
@@ -390,7 +392,7 @@ export default function App() {
       <div className="pbar__who">
         <span className="pbar__name">{BOT_NAME}</span>
         <span className="pbar__sub">
-          {playerSide === "white" ? "Чёрные" : "Белые"}
+          {playerSide === "white" ? t("online.black") : t("online.white")}
           <Captured fen={state.fen} side={playerSide === "white" ? "black" : "white"} />
         </span>
       </div>
@@ -404,7 +406,7 @@ export default function App() {
       <div className="pbar__who">
         <span className="pbar__name">{playerName}</span>
         <span className="pbar__sub">
-          {playerSide === "white" ? "Белые" : "Чёрные"}
+          {playerSide === "white" ? t("online.white") : t("online.black")}
           <Captured fen={state.fen} side={playerSide} />
         </span>
       </div>
@@ -415,41 +417,41 @@ export default function App() {
     <div className="controls">
       <div className="controls__main">
         <button className="btn btn--primary" onClick={handleNewGame}>
-          Новая партия
+          {t("gameRoom.newGame")}
         </button>
         {confirmResign ? (
           <span className="controls__confirm">
             <button className="btn btn--danger" onClick={handleResign}>
-              Да, сдаться
+              {t("gameRoom.68")}
             </button>
             <button className="btn btn--ghost" onClick={() => setConfirmResign(false)}>
-              Нет
+              {t("gameRoom.67")}
             </button>
           </span>
         ) : (
           <button className="btn btn--danger-ghost" onClick={() => (settings.confirmGiveUp ? setConfirmResign(true) : handleResign())} disabled={!gameOn}>
-            Сдаться
+            {t("gameRoom.69")}
           </button>
         )}
       </div>
       <button className="btn" onClick={handleUndo} disabled={thinking}>
-        Отменить ход
+        {t("enginePage.25")}
       </button>
 
       <div className="side-toggle">
         <label>
           <input type="radio" name="side" checked={playerSide === "white"} onChange={() => handleSwitchSide("white")} />
-          Играю за белых
+          {t("enginePage.26")}
         </label>
         <label>
           <input type="radio" name="side" checked={playerSide === "black"} onChange={() => handleSwitchSide("black")} />
-          Играю за чёрных
+          {t("enginePage.27")}
         </label>
       </div>
 
       <div className="depth-controls">
         <label className="depth-controls__row">
-          Глубина (потолок):
+          {t("enginePage.28")}
           <input
             type="number"
             className="field"
@@ -464,12 +466,12 @@ export default function App() {
 
         <label className="depth-controls__row">
           <input type="checkbox" checked={useMovetime} onChange={(e) => setUseMovetime(e.target.checked)} />
-          Ограничить по времени
+          {t("enginePage.29")}
         </label>
 
         {useMovetime && (
           <label className="depth-controls__row">
-            Бюджет, мс:
+            {t("enginePage.30")}
             <input
               type="number"
               className="field"
@@ -483,10 +485,10 @@ export default function App() {
 
         <p className="depth-controls__hint">
           {useMovetime
-            ? `итеративное углубление до глубины ${depth}, но не дольше ${movetimeMs} мс`
-            : `всегда ровно глубина ${depth}`}
+            ? t("enginePage.31", { depth, movetimeMs })
+            : t("enginePage.32", { depth })}
           {!useMovetime && depth >= SLOW_DEPTH
-            ? `: ход может занять минуты. Остановить поиск можно кнопкой «Сдаться» или «Новая партия».`
+            ? t("enginePage.33")
             : ""}
         </p>
       </div>
@@ -499,29 +501,29 @@ export default function App() {
             className="field fen-controls__input"
             value={fenInput}
             onChange={(e) => setFenInput(e.target.value)}
-            placeholder="вставь позицию сюда"
+            placeholder={t("enginePage.34")}
             disabled={thinking}
           />
         </label>
         <div className="fen-controls__buttons">
           <button className="btn" onClick={handleLoadPosition} disabled={thinking || !fenInput.trim()}>
-            Загрузить FEN
+            {t("enginePage.35")}
           </button>
           <button className="btn" onClick={handleCopyCurrentFen} disabled={thinking}>
-            Скопировать текущий FEN
+            {t("enginePage.36")}
           </button>
         </div>
       </div>
 
       <div className="book-controls">
         <button className="btn" onClick={handleLoadBook} disabled={bookStatus.loaded}>
-          Загрузить книгу
+          {t("enginePage.37")}
         </button>
         <button className="btn" onClick={handleClearBook} disabled={!bookStatus.loaded}>
-          Отключить книгу
+          {t("enginePage.38")}
         </button>
         <span className="book-controls__status">
-          {bookStatus.loaded ? `книга: ${bookStatus.entries} записей` : "книга: не загружена"}
+          {bookStatus.loaded ? t("enginePage.39", { entries: bookStatus.entries }) : t("enginePage.40")}
         </span>
       </div>
     </div>
@@ -531,16 +533,16 @@ export default function App() {
     <div className={`play play--${center ? "center" : "side"}`}>
       <header className="play__head">
         <div>
-          <h1 className="page__title">Игра против движка</h1>
-          <p className="page__sub">Движок работает прямо в браузере (Go, скомпилированный в WebAssembly), сервер не нужен.</p>
+          <h1 className="page__title">{t("enginePage.title")}</h1>
+          <p className="page__sub">{t("enginePage.42")}</p>
         </div>
         <Segmented
-          label="Расположение доски"
+          label={t("enginePage.43")}
           value={center ? "center" : "side"}
           onChange={(v) => save({ ...settings, playLayout: v })}
           options={[
-            ["side", "Доска сбоку"],
-            ["center", "Доска по центру"],
+            ["side", t("enginePage.44")],
+            ["center", t("enginePage.45")],
           ]}
         />
       </header>

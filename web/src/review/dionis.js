@@ -4,6 +4,7 @@
 // separate thing (CoachCard in DionisCard.jsx).
 
 import { openingName } from "../openings/names.js";
+import { tx, tr } from "../i18n/index.js";
 
 const VICTIM = { p: "пешку", n: "коня", b: "слона", r: "ладью", q: "ферзя" };
 
@@ -38,7 +39,7 @@ export function targetSquare(san) {
 export function takes(san, fen) {
   if (!String(san || "").includes("x")) return "";
   const piece = pieceAt(fen, targetSquare(san));
-  return VICTIM[piece] || "пешку";
+  return (VICTIM[piece] ? tx(VICTIM[piece]) : "") || tr("dionis.1");
 }
 
 const pick = (list, n) => list[Math.abs(n) % list.length];
@@ -58,7 +59,7 @@ export const GREETING = "Привет, я Дионис. Листайте пар�
 // Returns { text, threat }: threat means the engine's move in `after` is the reply that punishes
 // the move, to be drawn as a red arrow; best is the engine's move instead, when it differs.
 export function brief({ move, before, after }) {
-  if (!move) return { text: GREETING, threat: false, best: "" };
+  if (!move) return { text: tr("dionis.greeting"), threat: false, best: "" };
   const cls = move.class;
   const best = move.bestSan && move.bestSan !== move.san ? move.bestSan : "";
   const n = move.ply || 0;
@@ -66,59 +67,59 @@ export function brief({ move, before, after }) {
   const reply = !terminal && after?.bestSan ? after.bestSan : "";
   const lost = reply ? takes(reply, after.fen) : "";
   const mate = terminal ? 0 : mateAllowed(move, after);
-  const instead = best ? ` ${cls === "mistake" || cls === "blunder" ? "Нужно было" : "Лучше было"} ${best}.` : "";
+  const instead = best ? ` ${cls === "mistake" || cls === "blunder" ? tr("dionis.7") : tr("dionis.8")} ${best}.` : "";
 
   // what the opponent's best reply does, in a few words
   const punishment = () => {
-    if (mate > 0 && mate <= 6) return `позволяет мат в ${mate}`;
-    if (lost) return `${reply} берёт ${lost}`;
+    if (mate > 0 && mate <= 6) return tr("dionis.9", { mate });
+    if (lost) return tr("dionis.10", { reply, lost });
     return "";
   };
 
   let text;
   switch (cls) {
     case "brilliant":
-      text = pick(["Блестяще! Жертва, которая оправдывается.", "Блестящий ход! Такое нелегко найти."], n);
+      text = pick([tr("dionis.11"), tr("dionis.12")], n);
       break;
     case "great":
-      text = "Единственный сильный ход: остальные заметно хуже.";
+      text = tr("dionis.13");
       break;
     case "book": {
       const name = move.opening ? openingName(move.opening) : "";
-      text = name ? `Теория дебюта: ${name}.` : "Ход из дебютной теории.";
+      text = name ? tr("dionis.14", { name }) : tr("dionis.15");
       break;
     }
     case "best": {
       const won = takes(move.san, before?.fen);
-      if (move.san.endsWith("#")) text = "Мат! Партия окончена.";
-      else if (move.forced) text = "Единственный ход.";
-      else if (won) text = `Лучший ход: забирает ${won}.`;
-      else text = pick(["Лучший ход.", "Точно: это ход движка.", "Верно, лучший ход в позиции."], n);
+      if (move.san.endsWith("#")) text = tr("dionis.16");
+      else if (move.forced) text = tr("dionis.17");
+      else if (won) text = tr("dionis.18", { won });
+      else text = pick([tr("dionis.19"), tr("dionis.20"), tr("dionis.21")], n);
       break;
     }
     case "excellent":
-      text = pick(["Отличный ход.", "Почти идеально."], n);
+      text = pick([tr("dionis.22"), tr("dionis.23")], n);
       break;
     case "good":
-      text = best ? `Хороший ход, но было чуть лучше: ${best}.` : "Хороший ход.";
+      text = best ? tr("dionis.24", { best }) : tr("dionis.25");
       break;
     case "inaccuracy": {
       const p = punishment();
-      text = p ? `Неточность: ${p}.${instead}` : `Неточность.${instead}`;
+      text = p ? tr("dionis.26", { p, instead }) : tr("dionis.27", { instead });
       break;
     }
     case "mistake": {
       const p = punishment();
-      text = p ? `Ошибка: ${p}.${instead}` : `Ошибка: позиция заметно ухудшилась.${instead}`;
+      text = p ? tr("dionis.28", { p, instead }) : tr("dionis.29", { instead });
       break;
     }
     case "blunder": {
       const p = punishment();
-      text = p ? `Зевок! ${p[0].toUpperCase()}${p.slice(1)}.${instead}` : `Зевок! Позиция резко ухудшилась.${instead}`;
+      text = p ? tr("dionis.30", { toUpperCase: p[0].toUpperCase(), p: p.slice(1), instead }) : tr("dionis.31", { instead });
       break;
     }
     case "miss":
-      text = best ? `Упущена возможность: сильнее было ${best}.` : "Упущена возможность усилить позицию.";
+      text = best ? tr("dionis.32", { best }) : tr("dionis.33");
       break;
     default:
       text = "";

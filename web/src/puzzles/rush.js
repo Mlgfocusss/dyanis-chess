@@ -1,3 +1,4 @@
+import { tr } from "../i18n/index.js";
 // Pure logic of the tactics storm ("Тактический штурм"), with no imports, so `npm test` covers it.
 
 // The lengths of a run, as the server names them.
@@ -21,6 +22,6 @@ export function clockText(ms) {
 // reason is "time", "mistake" or "quit"; best is the best score before this run.
 export function runSummary(reason, score, best) {
   const record = score > 0 && score > best;
-  const word = reason === "mistake" ? "Ошибка" : reason === "quit" ? "Серия окончена" : "Время вышло";
-  return { headline: `${word}: решено ${score}`, record };
+  const word = reason === "mistake" ? tr("review.class.mistake.label") : reason === "quit" ? tr("rush.4") : tr("gameEnd.timeout");
+  return { headline: tr("rush.6", { word, score }), record };
 }

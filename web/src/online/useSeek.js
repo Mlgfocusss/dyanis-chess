@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { cancelSeek, checkSeek, seekMatch } from "./api.js";
+import { tr } from "../i18n/index.js";
 
 // The calls of the queue: the online games by default; the chess variants (variants/api.js) give their
 // own. Keep the object the same between renders.
@@ -34,7 +35,7 @@ export default function useSeek(onFound, api = ONLINE_API) {
       if (st.status === "found") return done(st);
       if (st.status === "none") {
         done(null);
-        setError("Поиск прервался, попробуйте ещё раз.");
+        setError(tr("useSeek.1"));
         return;
       }
       setStatus(st);

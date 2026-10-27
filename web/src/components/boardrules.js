@@ -187,8 +187,10 @@ const BISHOP = [[1, 1], [-1, 1], [-1, -1], [1, -1]];
 const isWhite = (p) => p === p.toUpperCase();
 
 // The squares the piece on `from` could go to if the position were different enough: the geometry of
-// its moves, blocked only by the person's own pieces (the opponent's may move away) and with no regard
-// for checks. A pawn reaching the last rank becomes a queen. Returns UCI strings.
+// its moves and nothing else, as on Lichess. Nothing blocks a premove: the opponent's pieces may move
+// away, and the person's own may be taken, so a premove may land on one of its own pieces (the
+// recapture in a trade, played the moment the piece is taken) and a slider goes through anything. A
+// check is not looked at. A pawn reaching the last rank becomes a queen. Returns UCI strings.
 export function premoveMoves(fen, from) {
   const pieces = piecesOf(fen);
   const p = pieces[from];
@@ -197,7 +199,7 @@ export function premoveMoves(fen, from) {
   const file = FILES.indexOf(from[0]);
   const rank = Number(from[1]);
   const out = [];
-  const own = (sq) => pieces[sq] && isWhite(pieces[sq]) === white;
+  const enemy = (sq) => pieces[sq] && isWhite(pieces[sq]) !== white;
   const at = (f, r) => (f >= 0 && f < 8 && r >= 1 && r <= 8 ? FILES[f] + r : null);
   const add = (sq, promo = "") => out.push(from + sq + promo);
   const kind = p.toLowerCase();
@@ -206,36 +208,35 @@ export function premoveMoves(fen, from) {
     const dir = white ? 1 : -1;
     const last = white ? 8 : 1;
     const promo = (r) => (r === last ? "q" : "");
+    // a push is stopped only by an opposing piece, which stays in front of the pawn
     const one = at(file, rank + dir);
-    if (one && !pieces[one]) {
+    if (one && !enemy(one)) {
       add(one, promo(rank + dir));
       const two = at(file, rank + 2 * dir);
-      if (rank === (white ? 2 : 7) && two && !pieces[two]) add(two);
+      if (rank === (white ? 2 : 7) && two && !enemy(two)) add(two);
     }
     for (const df of [-1, 1]) {
       const sq = at(file + df, rank + dir);
-      if (sq && !own(sq)) add(sq, promo(rank + dir));
+      if (sq) add(sq, promo(rank + dir));
     }
   } else if (kind === "n" || kind === "k") {
+    const home = white ? 1 : 8;
     for (const [df, dr] of kind === "n" ? KNIGHT : KING) {
       const sq = at(file + df, rank + dr);
-      if (sq && !own(sq)) add(sq);
+      // a king stepping onto its own rook of the back rank would read as a Chess960 castling (castlingOf)
+      if (sq && !(kind === "k" && pieces[sq] === (white ? "R" : "r") && Number(sq[1]) === home)) add(sq);
     }
     if (kind === "k" && from === (white ? "e1" : "e8")) {
-      const r = white ? 1 : 8;
       const rook = white ? "R" : "r";
-      if (pieces["h" + r] === rook && !own("f" + r) && !own("g" + r)) add("g" + r);
-      if (pieces["a" + r] === rook && !own("b" + r) && !own("c" + r) && !own("d" + r)) add("c" + r);
+      if (pieces["h" + home] === rook) add("g" + home);
+      if (pieces["a" + home] === rook) add("c" + home);
     }
   } else {
     const dirs = kind === "r" ? ROOK : kind === "b" ? BISHOP : [...ROOK, ...BISHOP];
     for (const [df, dr] of dirs) {
       let f = file + df;
       let r = rank + dr;
-      for (let sq = at(f, r); sq; f += df, r += dr, sq = at(f, r)) {
-        if (own(sq)) break;
-        add(sq);
-      }
+      for (let sq = at(f, r); sq; f += df, r += dr, sq = at(f, r)) add(sq);
     }
   }
   return out;

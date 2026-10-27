@@ -11,18 +11,18 @@ export const PRESET_PREFIX = "preset:";
 
 // Each avatar is a round badge with a gradient of its own hue (as the bots have) and an icon of ui/Icon.jsx.
 export const AVATAR_PRESETS = [
-  { id: "crown", icon: "crown", label: "Корона", hue: 40 },
-  { id: "star", icon: "star", label: "Звезда", hue: 62 },
-  { id: "bolt", icon: "bolt", label: "Молния", hue: 215 },
-  { id: "flame", icon: "flame", label: "Огонь", hue: 8 },
-  { id: "trophy", icon: "trophy", label: "Кубок", hue: 130 },
-  { id: "bot", icon: "bot", label: "Бот", hue: 240 },
-  { id: "bots", icon: "bots", label: "Боты", hue: 165 },
-  { id: "puzzles", icon: "puzzles", label: "Задачи", hue: 190 },
-  { id: "board", icon: "board", label: "Доска", hue: 95 },
-  { id: "coach", icon: "coach", label: "Тренер", hue: 295 },
-  { id: "openings", icon: "openings", label: "Дебюты", hue: 268 },
-  { id: "duel", icon: "duel", label: "Дуэль", hue: 335 },
+  { id: "crown", icon: "crown", label: "Корона", labelKey: "avatar.crown", hue: 40 },
+  { id: "star", icon: "star", label: "Звезда", labelKey: "avatar.star", hue: 62 },
+  { id: "bolt", icon: "bolt", label: "Молния", labelKey: "avatar.bolt", hue: 215 },
+  { id: "flame", icon: "flame", label: "Огонь", labelKey: "avatar.flame", hue: 8 },
+  { id: "trophy", icon: "trophy", label: "Кубок", labelKey: "avatar.trophy", hue: 130 },
+  { id: "bot", icon: "bot", label: "Бот", labelKey: "avatar.bot", hue: 240 },
+  { id: "bots", icon: "bots", label: "Боты", labelKey: "avatar.bots", hue: 165 },
+  { id: "puzzles", icon: "puzzles", label: "Задачи", labelKey: "avatar.puzzles", hue: 190 },
+  { id: "board", icon: "board", label: "Доска", labelKey: "avatar.board", hue: 95 },
+  { id: "coach", icon: "coach", label: "Тренер", labelKey: "avatar.coach", hue: 295 },
+  { id: "openings", icon: "openings", label: "Дебюты", labelKey: "avatar.openings", hue: 268 },
+  { id: "duel", icon: "duel", label: "Дуэль", labelKey: "avatar.duel", hue: 335 },
 ];
 
 const BY_ID = new Map(AVATAR_PRESETS.map((p) => [p.id, p]));

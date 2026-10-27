@@ -4,36 +4,33 @@ import { fetchLine } from "../review/api.js";
 import { formatEval } from "../review/classes.js";
 import { statusOf } from "./tree.js";
 import { openingName } from "./names.js";
-import { DEFAULT_PRESET, RATING_PRESETS, buildSuggestions, formatGames, formatShare, makeQueue, resultShares } from "./suggest.js";
+import { RATING_PRESETS, buildSuggestions, formatGames, formatShare, loadPreset, makeQueue, ratingsOf, resultShares, storePreset } from "./suggest.js";
+import { formatWeight, isPopularReply } from "./gaps.js";
+import { useT } from "../i18n/index.js";
 
 const CAND_DEPTH = 10; // depth of the verdict on each candidate move
 const POS_DEPTH = 12; // depth of the verdict on the position itself
 const MAX_CANDIDATES = 10; // moves that get a verdict (the most played ones)
 const SHOWN = 8; // rows shown before "show more"
 const DEBOUNCE_MS = 350; // stepping through positions quickly asks for nothing
-const PRESET_KEY = "dyanis.explorerRating";
 
-const STATUS_TEXT = { opponent: "ход соперника", new: "новый", due: "пора повторить", learning: "учится", learned: "выучен" };
-
-function savedPreset() {
-  try {
-    const id = localStorage.getItem(PRESET_KEY);
-    return RATING_PRESETS.some((p) => p.id === id) ? id : DEFAULT_PRESET;
-  } catch {
-    return DEFAULT_PRESET;
-  }
-}
+const STATUS_TEXT = { opponent: "openings.status.opponent", new: "openings.status.new", due: "openings.status.due", learning: "openings.status.learning", learned: "openings.status.learned" };
 
 // The moves of the position as the builder offers them: those of the repository, those
 // that were played in real games (the Lichess statistics: how many games, how they
 // ended), those opening theory knows (the ECO reference), and the engine's own
 // choice, each with the engine's verdict on the position after it. A click on a row
 // plays it (adds it to the repository, or goes along if it is there already).
-// side is who moves, "white" or "black".
-export default function Suggestions({ fen, side, turn, children, onPick, onHover }) {
+// side is who moves, "white" or "black". When the opponent moves, a popular reply the repository lacks
+// is marked as a hole; gaps (optional) are the holes the server's search found at this position,
+// a Map from the move (UCI) to the hole, which adds their weight. preset and onPreset (optional)
+// let the page share the rating range with the search for holes.
+export default function Suggestions({ fen, side, turn, children, onPick, onHover, gaps, preset: presetProp, onPreset }) {
+  const t = useT();
   const [theory, setTheory] = useState(null); // moves for this fen, null while loading
   const [stats, setStats] = useState({ state: "loading", data: null }); // state: loading | ready | off | wait | error
-  const [preset, setPreset] = useState(savedPreset);
+  const [localPreset, setLocalPreset] = useState(loadPreset);
+  const preset = presetProp || localPreset;
   const [evAfter, setEvAfter] = useState({}); // `${fen}|${uci}` -> verdict
   const [evPos, setEvPos] = useState({}); // fen -> verdict
   const [all, setAll] = useState(false);
@@ -42,7 +39,7 @@ export default function Suggestions({ fen, side, turn, children, onPick, onHover
   const theoryCache = useRef(new Map());
   const statsCache = useRef(new Map());
   const gen = useRef(0);
-  const ratings = (RATING_PRESETS.find((p) => p.id === preset) || RATING_PRESETS[1]).ratings;
+  const ratings = ratingsOf(preset);
 
   // theory for the position
   useEffect(() => {
@@ -89,12 +86,9 @@ export default function Suggestions({ fen, side, turn, children, onPick, onHover
   }, [fen, ratings]);
 
   function choosePreset(id) {
-    setPreset(id);
-    try {
-      localStorage.setItem(PRESET_KEY, id);
-    } catch {
-      // a private window: the choice is just not remembered
-    }
+    setLocalPreset(id);
+    storePreset(id);
+    if (onPreset) onPreset(id);
   }
 
   const played = stats.state === "ready" ? stats.data : null;
@@ -155,7 +149,7 @@ export default function Suggestions({ fen, side, turn, children, onPick, onHover
   const hasStats = !!played && played.moves.length > 0;
   return (
     <div className="sugg">
-      <div className="sugg__eval" title="Вероятность победы белых по оценке движка">
+      <div className="sugg__eval" title={t("suggestions.6")}>
         <div className="sugg__bar">
           <div className="sugg__barfill" style={{ width: `${before ? Math.max(0, Math.min(100, before.winPct)) : 50}%` }} />
         </div>
@@ -163,27 +157,27 @@ export default function Suggestions({ fen, side, turn, children, onPick, onHover
           {before ? (
             <>
               <b>{formatEval(before)}</b>
-              {before.bestSan && !before.terminal && <span> · по движку лучше {before.bestSan}</span>}
-              {before.terminal && <span> · {before.terminal === "checkmate" ? "мат" : before.terminal}</span>}
+              {before.bestSan && !before.terminal && <span> {t("suggestions.7")} {before.bestSan}</span>}
+              {before.terminal && <span> · {before.terminal === "checkmate" ? t("reviewView.42") : before.terminal}</span>}
             </>
           ) : (
-            "оцениваю позицию…"
+            t("suggestions.9")
           )}
         </span>
       </div>
 
       <div className="sugg__head">
         <p className="sugg__title">
-          {turn === "mine" ? "Ваши ходы здесь" : "Что может сыграть соперник"}
-          {theory === null && <span className="sugg__wait"> · загружаю теорию…</span>}
+          {turn === "mine" ? t("suggestions.10") : t("suggestions.11")}
+          {theory === null && <span className="sugg__wait"> {t("suggestions.12")}</span>}
         </p>
         {stats.state !== "off" && (
-          <label className="sugg__rating" title="Рейтинг игроков, чьи партии учитываются в статистике Lichess">
-            <span>Рейтинг</span>
-            <select className="field" value={preset} onChange={(e) => choosePreset(e.target.value)} aria-label="Рейтинг игроков в статистике">
+          <label className="sugg__rating" title={t("suggestions.13")}>
+            <span>{t("rating.rating")}</span>
+            <select className="field" value={preset} onChange={(e) => choosePreset(e.target.value)} aria-label={t("suggestions.15")}>
               {RATING_PRESETS.map((p) => (
                 <option key={p.id} value={p.id}>
-                  {p.label}
+                  {p.label.startsWith("suggest.") ? t(p.label) : p.label}
                 </option>
               ))}
             </select>
@@ -192,23 +186,25 @@ export default function Suggestions({ fen, side, turn, children, onPick, onHover
       </div>
       {played && played.total > 0 && (
         <p className="room__meta sugg__total">
-          В {formatGames(played.total)} партий Lichess с этой позиции. Белые выиграли в {resultShares(played).white}%, ничьих {resultShares(played).draws}%, чёрные выиграли в {resultShares(played).black}%.
+          {t("suggestions.16")} {formatGames(played.total)} {t("suggestions.17")} {resultShares(played).white}{t("suggestions.18")} {resultShares(played).draws}{t("suggestions.19")} {resultShares(played).black}%.
         </p>
       )}
 
       {rows.length === 0 && theory !== null && stats.state !== "loading" && (
-        <p className="room__meta">Теория здесь закончилась. Сделайте на доске ход, который хотите добавить: движок оценит позицию.</p>
+        <p className="room__meta">{t("suggestions.20")}</p>
       )}
 
       <div className="sugg__rows" role="list" onMouseLeave={() => onHover && onHover(null)}>
         {shown.map((r) => {
           const res = r.stat ? resultShares(r) : null;
+          const hole = turn === "opponent" && !r.repo && (gaps?.has(r.uci) || isPopularReply(r, hasStats));
+          const holeWeight = hole && gaps?.get(r.uci) ? formatWeight(gaps.get(r.uci).weight) : "";
           return (
             <button
               key={r.uci}
               type="button"
               role="listitem"
-              className={`sug${r.repo ? " sug--repo" : ""}${r.weak ? " sug--weak" : ""}${r.rare ? " sug--rare" : ""}`}
+              className={`sug${r.repo ? " sug--repo" : ""}${r.weak ? " sug--weak" : ""}${r.rare ? " sug--rare" : ""}${hole ? " sug--gap" : ""}`}
               onClick={() => onPick(r.uci)}
               onMouseEnter={() => onHover && onHover(r.uci)}
               onFocus={() => onHover && onHover(r.uci)}
@@ -217,18 +213,18 @@ export default function Suggestions({ fen, side, turn, children, onPick, onHover
               <span className="sug__san">{r.san}</span>
               <span className="sug__mid">
                 {r.stat ? (
-                  <span className="sug__games" title={`Сыграно ${r.games} партий; в среднем рейтинг ${r.averageRating || "?"}`}>
+                  <span className="sug__games" title={t("suggestions.21", { games: r.games, p: r.averageRating || "?" })}>
                     <b>{formatShare(r.share)}</b> · {formatGames(r.games)}
                   </span>
                 ) : (
                   r.theory && (
-                    <span className="sug__pop" title={`${r.lines} линий теории проходят через этот ход`}>
+                    <span className="sug__pop" title={t("suggestions.22", { lines: r.lines })}>
                       <span className="sug__popfill" style={{ width: `${Math.max(4, Math.round(r.share * 100))}%` }} />
                     </span>
                   )
                 )}
                 {res && (
-                  <span className="sug__res" title={`Белые выиграли в ${res.white}%, ничьих ${res.draws}%, чёрные выиграли в ${res.black}%`}>
+                  <span className="sug__res" title={t("suggestions.23", { white: res.white, draws: res.draws, black: res.black })}>
                     <span className="sug__w" style={{ width: `${res.white}%` }} />
                     <span className="sug__d" style={{ width: `${res.draws}%` }} />
                     <span className="sug__b" style={{ width: `${res.black}%` }} />
@@ -236,17 +232,22 @@ export default function Suggestions({ fen, side, turn, children, onPick, onHover
                 )}
                 <span className="sug__tags">
                   {r.repo && (
-                    <span className="sug__tag sug__tag--repo" title={r.repo.mine ? STATUS_TEXT[statusOf(r.repo)] : "ответ соперника, который вы ждёте"}>
-                      в репозитории
+                    <span className="sug__tag sug__tag--repo" title={r.repo.mine ? t(STATUS_TEXT[statusOf(r.repo)]) : t("suggestions.24")}>
+                      {t("suggestions.25")}
+                    </span>
+                  )}
+                  {hole && (
+                    <span className="sug__tag sug__tag--gap" title={holeWeight ? t("openings2.gaps.tagWeight", { w: holeWeight }) : t("openings2.gaps.tagTitle")}>
+                      {t("openings2.gaps.tag")}
                     </span>
                   )}
                   {r.engine && (
-                    <span className="sug__tag sug__tag--engine" title="Лучший ход по оценке движка">
-                      лучший
+                    <span className="sug__tag sug__tag--engine" title={t("suggestions.26")}>
+                      {t("suggestions.27")}
                     </span>
                   )}
-                  {r.rare && <span className="sug__tag sug__tag--muted" title="Этот ход играют редко">редкий</span>}
-                  <span className="sug__open">{r.opening ? openingName(r.opening) : r.theory || r.stat ? "" : "вне теории"}</span>
+                  {r.rare && <span className="sug__tag sug__tag--muted" title={t("suggestions.28")}>{t("suggestions.29")}</span>}
+                  <span className="sug__open">{r.opening ? openingName(r.opening) : r.theory || r.stat ? "" : t("suggestions.30")}</span>
                 </span>
               </span>
               <span className="sug__ev">
@@ -259,7 +260,7 @@ export default function Suggestions({ fen, side, turn, children, onPick, onHover
                   <span className="sug__pending">…</span>
                 )}
               </span>
-              <span className="sug__act" title={r.repo ? "Перейти к ходу" : "Сыграть и добавить в репозиторий"}>
+              <span className="sug__act" title={r.repo ? t("suggestions.goto") : t("suggestions.32")}>
                 {r.repo ? "→" : "+"}
               </span>
             </button>
@@ -268,21 +269,21 @@ export default function Suggestions({ fen, side, turn, children, onPick, onHover
       </div>
       {rows.length > SHOWN && (
         <button type="button" className="btn btn--ghost sugg__more" onClick={() => setAll((v) => !v)}>
-          {all ? "Свернуть" : `Показать ещё ${rows.length - SHOWN}`}
+          {all ? t("suggestions.33") : t("suggestions.34", { SHOWN: rows.length - SHOWN })}
         </button>
       )}
       {error && <p className="room__meta sugg__error">{error}</p>}
       <p className="sugg__note">
         {hasStats
-          ? "Процент и число: сколько партий Lichess выбрали этот ход, цветная полоса: чем они кончились (светлое: белые, серое: ничьи, тёмное: чёрные). "
+          ? t("suggestions.35")
           : stats.state === "off"
-            ? "Статистика партий Lichess не подключена (нужен токен, см. README): ходы упорядочены по теории справочника ECO, полоса показывает, сколько его линий проходит через ход. "
+            ? t("suggestions.36")
             : stats.state === "wait"
-              ? "Lichess просит подождать, статистика скоро вернётся: пока ходы по теории справочника ECO. "
+              ? t("suggestions.37")
               : stats.state === "error"
-                ? "Статистику Lichess получить не удалось: пока ходы по теории справочника ECO. "
+                ? t("suggestions.38")
                 : ""}
-        Оценка: движок, белые в плюсе при «+», у слабых ходов указана потеря шансов. Нажмите на ход, чтобы сыграть его и добавить в репозиторий.
+        {t("suggestions.39")}
       </p>
     </div>
   );

@@ -4,6 +4,7 @@ import Icon from "../ui/Icon.jsx";
 import Segmented from "../ui/Segmented.jsx";
 import ThemedBoard from "../components/ThemedBoard.jsx";
 import { defaultsOf, useSettings } from "./SettingsContext.jsx";
+import { themeName } from "../themes/names.js";
 import { applyInterface } from "./model.js";
 import { playSound } from "../sound/sound.js";
 import {
@@ -21,24 +22,25 @@ import InterfacePanel from "./InterfacePanel.jsx";
 import ProfilePanel from "./ProfilePanel.jsx";
 import AccountPanel from "./AccountPanel.jsx";
 import { Row, SaveBar, Switch } from "./controls.jsx";
+import { useT } from "../i18n/index.js";
 import "./settings.css";
 
 // A position with every kind of piece, for the preview board.
 const PREVIEW_FEN = "r1bqk2r/pppp1ppp/2n2n2/2b1p3/2B1P3/2N2N2/PPPP1PPP/R1BQK2R w KQkq - 6 5";
 
 const TABS = [
-  { id: "boards", label: "Доски" },
-  { id: "pieces", label: "Фигуры" },
-  { id: "background", label: "Фон" },
-  { id: "presets", label: "Готовые настройки" },
+  { id: "boards", label: "settings.tabBoards" },
+  { id: "pieces", label: "settings.tabPieces" },
+  { id: "background", label: "settings.tabBackground" },
+  { id: "presets", label: "settings.tabPresets" },
 ];
 
 const SECTIONS = [
-  { id: "board", label: "Доска и фигуры", icon: "board" },
-  { id: "play", label: "Игровой процесс", icon: "bot" },
-  { id: "interface", label: "Интерфейс", icon: "monitor" },
-  { id: "profile", label: "Профиль", icon: "user" },
-  { id: "account", label: "Учётная запись", icon: "lock" },
+  { id: "board", label: "settings.secBoard", icon: "board" },
+  { id: "play", label: "settings.secPlay", icon: "bot" },
+  { id: "interface", label: "settings.secInterface", icon: "monitor" },
+  { id: "profile", label: "settings.secProfile", icon: "user" },
+  { id: "account", label: "settings.secAccount", icon: "lock" },
 ];
 
 // "#settings/play" opens the gameplay page and so on; anything else is the board page.
@@ -48,6 +50,7 @@ function sectionFromHash() {
 }
 
 export default function SettingsPage() {
+  const t = useT();
   const { settings, save } = useSettings();
   const [draft, setDraft] = useState(settings);
   const [tab, setTab] = useState("boards");
@@ -74,6 +77,11 @@ export default function SettingsPage() {
 
   // While the interface page is open its unsaved choices are shown on the whole site; otherwise
   // (and when the page is left) the saved ones.
+  // the language is saved at once (also by the switch in the menu): the draft follows it, so that it does not look unsaved
+  useEffect(() => {
+    setDraft((d) => (d.language === settings.language ? d : { ...d, language: settings.language }));
+  }, [settings.language]);
+
   const savedRef = useRef(settings);
   savedRef.current = settings;
   useEffect(() => {
@@ -93,11 +101,11 @@ export default function SettingsPage() {
   return (
     <div className="page">
       <header className="page__head">
-        <h1 className="page__title">Настройки</h1>
+        <h1 className="page__title">{t("menu.settings")}</h1>
       </header>
 
       <div className="settings">
-        <nav className="settings__menu" aria-label="Разделы настроек">
+        <nav className="settings__menu" aria-label={t("settingsPage.11")}>
           {SECTIONS.map((s) => (
             <button
               key={s.id}
@@ -108,8 +116,8 @@ export default function SettingsPage() {
               onClick={() => openSection(s.id)}
             >
               <Icon name={s.icon} />
-              <span>{s.label}</span>
-              {s.soon && <span className="nav__soon">скоро</span>}
+              <span>{t(s.label)}</span>
+              {s.soon && <span className="nav__soon">{t("common.soon")}</span>}
             </button>
           ))}
         </nav>
@@ -118,7 +126,7 @@ export default function SettingsPage() {
           <section className="settings__body card">
             <InterfacePanel draft={draft} set={set} dirty={dirty} justSaved={justSaved} onSave={onSave} onCancel={onCancel} />
             <button type="button" className="settings__reset" onClick={() => set(defaultsOf("interface"))}>
-              Вернуть стандартные настройки интерфейса
+              {t("settingsPage.13")}
             </button>
           </section>
         ) : section === "profile" ? (
@@ -133,26 +141,26 @@ export default function SettingsPage() {
           <section className="settings__body card">
             <GameplayPanel draft={draft} set={set} dirty={dirty} justSaved={justSaved} onSave={onSave} onCancel={onCancel} />
             <button type="button" className="settings__reset" onClick={() => set(defaultsOf(true))}>
-              Вернуть стандартные настройки игрового процесса
+              {t("settingsPage.14")}
             </button>
           </section>
         ) : (
         <ChessboardDnDProvider>
           <section className="settings__body card">
-            <h2 className="settings__h">Доска и фигуры</h2>
-            <p className="settings__sub">Настроить внешний вид своих шахмат.</p>
+            <h2 className="settings__h">{t("settings.secBoard")}</h2>
+            <p className="settings__sub">{t("settingsPage.15")}</p>
 
             <div className="tabs" role="tablist">
-              {TABS.map((t) => (
+              {TABS.map((tb) => (
                 <button
-                  key={t.id}
+                  key={tb.id}
                   type="button"
                   role="tab"
-                  aria-selected={tab === t.id}
-                  className={`tabs__tab${tab === t.id ? " tabs__tab--active" : ""}`}
-                  onClick={() => setTab(t.id)}
+                  aria-selected={tab === tb.id}
+                  className={`tabs__tab${tab === tb.id ? " tabs__tab--active" : ""}`}
+                  onClick={() => setTab(tb.id)}
                 >
-                  {t.label}
+                  {t(tb.label)}
                 </button>
               ))}
             </div>
@@ -174,13 +182,13 @@ export default function SettingsPage() {
             <hr className="settings__rule" />
 
             <Row
-              title="Показывать координаты доски"
-              hint="Буквы a–h и цифры 1–8: на крайних полях доски (внутри) или рядом с доской (снаружи)."
+              title={t("settingsPage.16")}
+              hint={t("settingsPage.17")}
               control={
                 <Switch
                   checked={draft.coordinates !== "off"}
                   onChange={(on) => set({ coordinates: on ? "inside" : "off" })}
-                  label="Показывать координаты"
+                  label={t("settingsPage.18")}
                 />
               }
             >
@@ -189,78 +197,78 @@ export default function SettingsPage() {
                   value={draft.coordinates}
                   onChange={(v) => set({ coordinates: v })}
                   options={[
-                    ["inside", "Внутри"],
-                    ["outside", "Снаружи"],
+                    ["inside", t("settingsPage.19")],
+                    ["outside", t("settingsPage.20")],
                   ]}
                 />
               )}
             </Row>
 
             <Row
-              title="Подсветка последнего хода"
-              hint="Подсвечивает поля, с которого и на которое сходила фигура."
+              title={t("settingsPage.21")}
+              hint={t("settingsPage.22")}
               control={
                 <Switch
                   checked={draft.highlightLastMove}
                   onChange={(v) => set({ highlightLastMove: v })}
-                  label="Подсветка последнего хода"
+                  label={t("settingsPage.21")}
                 />
               }
             />
 
-            <Row title="Передвижение фигур" hint="Как ходить на доске в игре с ботом.">
+            <Row title={t("settingsPage.23")} hint={t("settingsPage.24")}>
               <Segmented
                 value={draft.moveMethod}
                 onChange={(v) => set({ moveMethod: v })}
                 options={[
-                  ["both", "Перетаскивать или нажимать"],
-                  ["drag", "Только перетаскивать"],
-                  ["click", "Только нажимать"],
+                  ["both", t("settingsPage.25")],
+                  ["drag", t("settingsPage.26")],
+                  ["click", t("settingsPage.27")],
                 ]}
               />
             </Row>
 
-            <Row title="Расположение доски в игре с ботом" hint="Сбоку: доска слева, панель справа. По центру: доска посередине, а партия и управление по бокам.">
+            <Row title={t("settingsPage.28")} hint={t("settingsPage.29")}>
               <Segmented
                 value={draft.playLayout}
                 onChange={(v) => set({ playLayout: v })}
                 options={[
-                  ["side", "Сбоку"],
-                  ["center", "По центру"],
+                  ["side", t("settingsPage.30")],
+                  ["center", t("settingsPage.31")],
                 ]}
               />
             </Row>
 
-            <Row title="Анимации фигур" hint="Скорость, с которой фигуры переходят на новое поле.">
+            <Row title={t("settingsPage.32")} hint={t("settingsPage.33")}>
               <Segmented
                 value={draft.animation}
                 onChange={(v) => set({ animation: v })}
                 options={[
-                  ["none", "Без анимации"],
-                  ["slow", "Медленно"],
-                  ["medium", "Средне"],
-                  ["fast", "Быстро"],
+                  ["none", t("settingsPage.34")],
+                  ["slow", t("settingsPage.35")],
+                  ["medium", t("settingsPage.36")],
+                  ["fast", t("settingsPage.37")],
                 ]}
               />
             </Row>
 
             <Row
-              title="Звуки"
-              hint="Звук хода, взятия, шаха, рокировки и конца партии."
-              control={<Switch checked={draft.sound} onChange={(v) => set({ sound: v })} label="Включить звук" />}
+              title={t("settingsPage.38")}
+              hint={t("settingsPage.39")}
+              control={<Switch checked={draft.sound} onChange={(v) => set({ sound: v })} label={t("settingsPage.40")} />}
             >
               {draft.sound && (
                 <div className="sound-row">
                   <label className="sound-row__label">
-                    Звуковая тема
+                    {t("settingsPage.41")}
                     <select
                       className="field"
                       value={draft.soundTheme}
                       onChange={(e) => set({ soundTheme: e.target.value })}
                     >
-                      {soundThemes.map((t) => (
-                        <option key={t.id} value={t.id}>
-                          {t.name}
+                      {soundThemes.map((th) => (
+                        <option key={th.id} value={th.id}>
+                          {themeName(t, "sounds", th)}
                         </option>
                       ))}
                     </select>
@@ -270,7 +278,7 @@ export default function SettingsPage() {
                     className="btn"
                     onClick={() => playSound("capture", draft.soundTheme)}
                   >
-                    Проверить звук
+                    {t("settingsPage.42")}
                   </button>
                 </div>
               )}
@@ -278,7 +286,7 @@ export default function SettingsPage() {
 
             <SaveBar dirty={dirty} justSaved={justSaved} onSave={onSave} onCancel={onCancel} />
             <button type="button" className="settings__reset" onClick={() => set(defaultsOf(false))}>
-              Вернуть стандартные настройки доски
+              {t("settingsPage.43")}
             </button>
           </section>
         </ChessboardDnDProvider>
@@ -291,13 +299,14 @@ export default function SettingsPage() {
 // ------------------------------------------------------------------ tabs
 
 function BoardsTab({ draft, set }) {
+  const t = useT();
   return (
     <>
       <div className="thumbs">
         {boardThemes.map((b) => (
           <Thumb
             key={b.id}
-            name={b.name}
+            name={themeName(t, "boards", b)}
             selected={draft.boardTheme === b.id}
             onSelect={() => set({ boardTheme: b.id })}
           >
@@ -307,24 +316,24 @@ function BoardsTab({ draft, set }) {
       </div>
       <Warnings
         items={incompleteBoards}
-        text={(i) => `Доска «${i.name}» не показана: в папке нет файлов ${i.missing.map((m) => m + ".*").join(", ")}.`}
+        text={(i) => t("settingsPage.44", { name: i.name, p: i.missing.map((m) => m + ".*").join(", ") })}
       />
       <Hint>
-        Свои доски: положите картинки в <code>web/src/themes/boards/</code> (см. README в папке <code>themes</code>) и
-        пересоберите сайт.
+        {t("settingsPage.45")} <code>web/src/themes/boards/</code> {t("settingsPage.46")} <code>themes</code>{t("settingsPage.47")}
       </Hint>
     </>
   );
 }
 
 function PiecesTab({ draft, set }) {
+  const t = useT();
   return (
     <>
       <div className="thumbs">
         {pieceSets.map((p) => (
           <Thumb
             key={p.id}
-            name={p.name}
+            name={themeName(t, "pieces", p)}
             selected={draft.pieceSet === p.id}
             onSelect={() => set({ pieceSet: p.id })}
           >
@@ -334,24 +343,25 @@ function PiecesTab({ draft, set }) {
       </div>
       <Warnings
         items={incompletePieceSets}
-        text={(i) => `Набор «${i.name}» не показан: не хватает фигур ${i.missing.join(", ")}.`}
+        text={(i) => t("settingsPage.48", { name: i.name, p: i.missing.join(", ") })}
       />
       <Hint>
-        Свои фигуры: папка с 12 файлами <code>wP wN wB wR wQ wK bP bN bB bR bQ bK</code> в{" "}
-        <code>web/src/themes/pieces/&lt;название&gt;/</code>, затем пересборка.
+        {t("settingsPage.49")} <code>wP wN wB wR wQ wK bP bN bB bR bQ bK</code> {t("settingsPage.50")}{" "}
+        <code>{t("settingsPage.51")}</code>{t("settingsPage.52")}
       </Hint>
     </>
   );
 }
 
 function BackgroundTab({ draft, set }) {
+  const t = useT();
   return (
     <>
       <div className="thumbs">
         {backgrounds.map((b) => (
           <Thumb
             key={b.id}
-            name={b.name}
+            name={themeName(t, "backgrounds", b)}
             selected={draft.background === b.id}
             onSelect={() => set({ background: b.id })}
           >
@@ -366,14 +376,14 @@ function BackgroundTab({ draft, set }) {
         ))}
       </div>
       <Hint>
-        Свои фоны: картинки в <code>web/src/themes/backgrounds/</code>. Поверх фото накладывается тёмная
-        вуаль, чтобы текст читался.
+        {t("settingsPage.53")} <code>web/src/themes/backgrounds/</code>{t("settingsPage.54")}
       </Hint>
     </>
   );
 }
 
 function PresetsTab({ draft, set }) {
+  const t = useT();
   return (
     <div className="thumbs">
       {presets.map((p) => {
@@ -383,7 +393,7 @@ function PresetsTab({ draft, set }) {
         return (
           <Thumb
             key={p.id}
-            name={p.name}
+            name={themeName(t, "presets", p)}
             selected={selected}
             onSelect={() => set({ boardTheme: p.boardTheme, background: p.background })}
           >
@@ -403,6 +413,7 @@ function PresetsTab({ draft, set }) {
 // ------------------------------------------------------------ small parts
 
 function Thumb({ name, selected, onSelect, children }) {
+  const t = useT();
   return (
     <button
       type="button"

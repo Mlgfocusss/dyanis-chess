@@ -21,11 +21,14 @@ import (
 	"strings"
 	"time"
 
+	"dyanis-chess/backend/internal/achievements"
 	"dyanis-chess/backend/internal/api"
 	"dyanis-chess/backend/internal/auth"
 	"dyanis-chess/backend/internal/coach"
+	"dyanis-chess/backend/internal/community"
 	"dyanis-chess/backend/internal/countries"
 	"dyanis-chess/backend/internal/explorer"
+	"dyanis-chess/backend/internal/forum"
 	"dyanis-chess/backend/internal/lessons"
 	"dyanis-chess/backend/internal/match"
 	"dyanis-chess/backend/internal/play"
@@ -81,9 +84,12 @@ func main() {
 	var puzzleAPI *puzzles.Service
 	var statsAPI *stats.Service
 	var lessonsAPI *lessons.Service
+	var achievementsAPI *achievements.Service
 	var trainerAPI *trainer.Service
 	var repertoireAPI *repertoire.Service
 	var explorerAPI *explorer.Service
+	var communityAPI *community.Service
+	var forumAPI *forum.Service
 	var coachNotes coach.Store // where explanations are kept; nil without a database
 	if *dsn != "" {
 		ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
@@ -110,8 +116,41 @@ func main() {
 		cfg.UserID = accounts.UserID
 		rated = ratings.New(db, nil)
 		profilesAPI = profiles.New(db, rated, nil)
-		games = play.New(play.Config{Store: db, User: accounts.UserFromRequest, Ratings: rated})
+		// Friends, messages, challenges and the vacations of correspondence games. A challenge starts
+		// its game in the hub made just below, which in turn asks the community for the settings
+		// that the deadlines of correspondence games depend on.
+		communityAPI = community.New(community.Config{
+			Store: db,
+			User:  accounts.UserFromRequest,
+			Start: func(ctx context.Context, white, black play.Player, tc play.TimeControl, rated bool) (string, error) {
+				return games.NewChallenged(ctx, white, black, tc, rated)
+			},
+			Rating: rated.Get,
+			Correspondence: func(ctx context.Context, userID string) ([]play.CorrGame, error) {
+				return games.Correspondence(ctx, userID)
+			},
+		})
+		games = play.New(play.Config{Store: db, User: accounts.UserFromRequest, Ratings: rated, Prefs: communityAPI.PlayPrefs})
 		defer games.Close()
+		// Correspondence games run on days: bring the unfinished ones back so that their deadlines count.
+		rctx, rcancel := context.WithTimeout(context.Background(), 60*time.Second)
+		games.Resume(rctx)
+		rcancel()
+		sweepStop := make(chan struct{})
+		defer close(sweepStop)
+		go func() {
+			t := time.NewTicker(10 * time.Minute)
+			defer t.Stop()
+			for {
+				select {
+				case <-t.C:
+					communityAPI.Sweep()
+				case <-sweepStop:
+					return
+				}
+			}
+		}()
+		forumAPI = forum.New(forum.Config{Store: db, User: accounts.UserFromRequest, Admins: splitList(os.Getenv("FORUM_ADMINS"))})
 		// Games of the chess variants ("Другие шахматы"): people only, no rating, no engine.
 		variantGames = vplay.New(vplay.Config{Store: db, User: accounts.UserFromRequest})
 		defer variantGames.Close()
@@ -123,11 +162,22 @@ func main() {
 			log.Fatalf("lessons: %v", err)
 		}
 		lessonsAPI = lessons.New(lessons.Config{Store: db, UserID: accounts.UserID, Library: lessonLibrary})
+		// Achievements are computed on reading from the other tables; the lessons give their sections.
+		var lessonSections [][]string
+		for _, sec := range lessonLibrary.Sections {
+			ids := make([]string, 0, len(sec.Lessons))
+			for _, l := range sec.Lessons {
+				ids = append(ids, l.ID)
+			}
+			lessonSections = append(lessonSections, ids)
+		}
+		achievementsAPI = achievements.New(achievements.Config{Store: db, UserID: accounts.UserID, Sections: lessonSections})
 		trainerAPI = trainer.New(trainer.Config{Store: db, UserID: accounts.UserID})
 		// Matchmaking brings two people together for a game with a clock or a puzzle duel.
 		matcher = match.New(match.Config{
 			User:   accounts.UserFromRequest,
 			Rating: rated.Get,
+			Avoid:  db.BlockedWith, // people who blocked each other are never paired
 			Chess: func(ctx context.Context, a, b match.Seeker, req match.Request) (string, error) {
 				return games.NewMatched(ctx, play.Player{ID: a.ID, Name: a.Name, Avatar: a.Avatar}, play.Player{ID: b.ID, Name: b.Name, Avatar: b.Avatar},
 					play.TimeControl{BaseMs: req.BaseMs, IncMs: req.IncMs}, req.Rated)
@@ -138,10 +188,12 @@ func main() {
 			},
 		})
 		defer matcher.Close()
-		repertoireAPI = repertoire.New(repertoire.Config{Store: db, UserID: accounts.UserID})
 		// Statistics of the Lichess opening explorer for the repository builder. The
 		// explorer wants a token; the environment, not a flag, so that it stays out of process lists.
-		explorerAPI = explorer.New(explorer.Config{Token: os.Getenv("LICHESS_TOKEN"), UserID: accounts.UserID})
+		// LICHESS_EXPLORER_URL replaces the address of the explorer (a mirror, or a stand-in for tests).
+		explorerAPI = explorer.New(explorer.Config{Token: os.Getenv("LICHESS_TOKEN"), BaseURL: os.Getenv("LICHESS_EXPLORER_URL"), UserID: accounts.UserID})
+		// the repository's search for holes asks the same explorer (and its cache)
+		repertoireAPI = repertoire.New(repertoire.Config{Store: db, UserID: accounts.UserID, Stats: explorerAPI})
 		if os.Getenv("LICHESS_TOKEN") == "" {
 			log.Printf("no LICHESS_TOKEN: the repository builder shows no Lichess statistics (see DEVELOPERS.md)")
 		}
@@ -198,6 +250,9 @@ func main() {
 		mux.Handle("/api/match/", matcher.Handler())
 		mux.Handle("/api/ratings", rated.Handler(accounts.UserID))
 		mux.Handle("/api/stats", statsAPI.Handler())
+		mux.Handle("/api/achievements", achievementsAPI.Handler())
+		mux.Handle("/api/achievements/", achievementsAPI.Handler())
+		mux.Handle("/api/users/{id}/achievements", achievementsAPI.Handler()) // more specific than /api/users/ below
 		mux.Handle("/api/lessons", lessonsAPI.Handler())
 		mux.Handle("/api/lessons/", lessonsAPI.Handler())
 		mux.Handle("/api/trainer", trainerAPI.Handler())
@@ -207,6 +262,10 @@ func main() {
 		mux.Handle("/api/repertoires", repertoireAPI.Handler())
 		mux.Handle("/api/repertoires/", repertoireAPI.Handler())
 		mux.Handle("/api/explorer", explorerAPI.Handler())
+		mux.Handle("/api/community/", communityAPI.Handler())
+		mux.Handle("/api/forum/", forumAPI.Handler())
+		mux.Handle("/api/reports", forumAPI.Handler()) // complaints: made by anybody signed in, read by the moderators
+		mux.Handle("/api/reports/", forumAPI.Handler())
 	}
 	if *static != "" {
 		mux.Handle("/", spa(*static))

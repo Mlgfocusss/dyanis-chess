@@ -112,9 +112,11 @@ go run ./backend/cmd/analyze -pgn game.pgn -evalfile engine/net-kingf-m4.bin -mo
 `C55 Italian Game: Two Knights Defense`), а ходы теории получают класс `book`.
 Ход считается теоретическим, пока позиция лежит на какой-либо линии справочника
 (перестановки ходов тоже находятся, ключ — хеш позиции); первая позиция вне линий
-закрывает книгу навсегда. Книжные ходы не входят в точность: иначе короткая партия
-с длинной теорией выглядела бы безупречной. Если все ходы игрока книжные, его
-точность 100. Для партий с нестандартной начальной позицией книга не применяется.
+закрывает книгу навсегда. Книжные ходы входят в точность как безупречные (100, с
+весом своей спокойной позиции, как у lichess). До 2026-10-23 их исключали, и партия из
+семи книжных ходов и одного зевка давала точность 3,1: единственный оценённый ход
+был зевком; теперь у неё около 25. Если все ходы игрока книжные, его точность 100.
+Для партий с нестандартной начальной позицией книга не применяется.
 Справочник — [lichess-org/chess-openings](https://github.com/lichess-org/chess-openings)
 (CC0), файлы лежат в `backend/internal/eco/data/`.
 
@@ -387,6 +389,17 @@ go run ./backend/cmd/puzzleimport -file data/puzzles/lichess_db_puzzle.csv.zst -
 «Смотреть отчёт», а сыгранные партии лежат в профиле. Партии хранятся в MySQL и переживают перезапуск сервера.
 Нужна база (в Docker она есть). Ходы и часы ведёт сервер, клиент только показывает. Подробности в `WEB-PLAN.md`,
 раздел «Онлайн-игра».
+
+### Сообщество: друзья, сообщения, вызовы, заочные партии, форум
+
+Группа «Сообщество» в меню (`web/src/community/`, `web/src/forum/`; бэкенд `backend/internal/community` и `backend/internal/forum`, таблицы миграций 0020–0022). Все вызовы API нужны с входом (гость подходит), кроме чтения форума.
+
+- **Друзья:** `GET /api/community/friends` (друзья, входящие и исходящие запросы), `POST /api/community/friends {to}`, `POST .../friends/{id}/accept|decline`, `DELETE .../friends/{id}`, `PUT .../friends/{id}/mute {muted}` (отключить вызовы одного друга), `GET .../friends/{id}` (как человек относится к вам: для кнопок профиля), `GET /api/community/search?q=`.
+- **Сообщения** (только друзьям): `GET /api/community/conversations`, `GET|POST /api/community/messages/{id}` (`?after=<id>`).
+- **Вызовы:** `GET|POST /api/community/challenges`, `POST .../challenges/{id}/accept|decline`, `DELETE .../challenges/{id}`. Кто может вызывать, границы рейтинга, «оффлайн» и прочее берутся из настроек получателя (`challengesFrom`, `challengeMin`, `challengeMax`, `challengeFriendsIgnoreRating`, `challengeOffline`, `corrAutoClaim` в `users.settings`).
+- **Заочные партии:** `POST /api/games` с `days` (1, 2, 3, 5, 7, 10, 14) вместо часов; `GET /api/community/correspondence`; `PUT /api/community/vacation {days}`; сообщение сокета `claim`. Сводка для значков меню: `GET /api/community/summary` (опрашивается сайтом каждые 15 с).
+- **Форум:** `GET /api/forum/categories|topics|topics/{id}`, запись `POST /api/forum/topics`, `.../topics/{id}/posts`, `PUT|DELETE /api/forum/posts/{id}`, закрепление и закрытие только модераторам. Модераторы: id пользователей в `FORUM_ADMINS` (`.env`).
+- Тесты: `go test ./backend/internal/community ./backend/internal/forum ./backend/internal/store` (нужна MySQL: `DYANIS_TEST_DSN`), `go test ./backend/internal/play` (сроки заочных партий на подставных часах), `npm test` (`community/logic.test.js`).
 
 ### Другие шахматы (десять видов)
 

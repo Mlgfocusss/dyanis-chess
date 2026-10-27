@@ -1,0 +1,28 @@
+export default {
+  // time of a move (online/moveTime.js, MoveTime.jsx, review/TimeSection.jsx)
+  "notify.unitS": "s",
+  "notify.unitM": "m",
+  "notify.unitH": "h",
+  "notify.unitD": "d",
+  "notify.decimal": ".",
+  "notify.moveTimeTitle": "Show move time",
+  "notify.moveTimeHint": "Next to each move in the move list of a game and of the review, a small figure says how long it took. Games played before this feature, and pasted PGNs without clocks, have no times.",
+  "notify.timeTitle": "Time per move",
+  "notify.timeAverage": "Average move time",
+  "notify.timeLongest": "Longest moves",
+  "notify.timeBlack": "Black",
+  "notify.timeWhite": "White",
+  // a move to answer in a correspondence game (notify/useCorrNotify.js, NotifyRows.jsx)
+  "notify.body": "Your move in the correspondence game against {name}.",
+  "notify.bodyAnon": "Your move in a correspondence game.",
+  "notify.bodyMany": "Your move in correspondence games: {n}.",
+  "notify.action": "Play",
+  "notify.soundTitle": "Sound when the opponent moves",
+  "notify.soundHint": "A short signal when the opponent has moved in a correspondence game and it is your turn. Works while the site is open, and goes quiet together with the general sound.",
+  "notify.soundTest": "Test",
+  "notify.browserTitle": "Move notifications",
+  "notify.browserHint": "A system notification \"Your move in a correspondence game\" while the tab is minimised or behind another window. The browser asks for permission once, when you turn this on. The site's tab has to stay open.",
+  "notify.browserOn": "Notifications are allowed.",
+  "notify.browserDenied": "The browser has blocked notifications for this site. Allow them in the site settings (the icon left of the address) and turn this on again.",
+  "notify.browserUnsupported": "This browser does not show system notifications.",
+};

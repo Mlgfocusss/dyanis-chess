@@ -8,6 +8,7 @@ import { sideOf } from "../review/branch.js";
 import { fetchSession, sendReview } from "./api.js";
 import { advance, deviationText, deviationVerdict, judge, reportFor, startQueue, summary } from "./session.js";
 import { START_FEN, lineText, whenText } from "./tree.js";
+import { useT } from "../i18n/index.js";
 
 const PATH_MS = 380; // between the moves of the line that is played before the question
 const NEXT_MS = 750; // pause after a move before the next question
@@ -18,6 +19,7 @@ const arrowOf = (uci) => [[uci.slice(0, 2), uci.slice(2, 4), "rgba(34, 197, 94, 
 // The trainer: the line is played up to a position, and the person plays
 // their move. See session.js for how the queue and the reports to the server work.
 export default function Trainer({ id }) {
+  const t = useT();
   const { settings } = useSettings();
   const [session, setSession] = useState(null); // the server's plan
   const [error, setError] = useState("");
@@ -137,7 +139,7 @@ export default function Trainer({ id }) {
     if (!drill) return { ok: false };
     if (phase === "show" || phase === "reveal") {
       if (uci !== drill.answer.uci) {
-        setMessage(`Сыграйте ход ${drill.answer.san}: он показан стрелкой.`);
+        setMessage(t("trainer.1", { san: drill.answer.san }));
         return { ok: false };
       }
       applyAnswer();
@@ -149,13 +151,13 @@ export default function Trainer({ id }) {
     if (verdict === "right") {
       applyAnswer();
       setBadge({ square: uci.slice(2, 4), cls: mistake.current ? "good" : "best" });
-      setMessage(mistake.current ? "Верно. Но этот ход вернётся ещё раз." : "Верно!");
+      setMessage(mistake.current ? t("trainer.2") : t("trainer.3"));
       finish(mistake.current ? "wrong" : "right");
       return { ok: true };
     }
     if (verdict === "alt") {
       setMessageKind("fine");
-      setMessage("Этот ход тоже есть в вашем репозитории, но сейчас мы учим другую ветку. Попробуйте ещё.");
+      setMessage(t("trainer.4"));
       return { ok: false };
     }
     mistake.current = true;
@@ -171,7 +173,7 @@ export default function Trainer({ id }) {
     const d = drill;
     const mine = ++explaining.current;
     setMessageKind("");
-    setMessage("Неверно. Смотрю, насколько хорош ваш ход…");
+    setMessage(t("trainer.5"));
     Promise.all([
       fetchLine({ fen: d.fen, moves: [d.answer.uci], eval: true, depth: 10 }),
       fetchLine({ fen: d.fen, moves: [uci], eval: true, depth: 10 }),
@@ -188,20 +190,20 @@ export default function Trainer({ id }) {
         }
       })
       .catch(() => {
-        if (explaining.current === mine) setMessage(`Неверно. Мы учим другой ход: ${d.answer.san}. Он показан стрелкой.`);
+        if (explaining.current === mine) setMessage(t("trainer.6", { san: d.answer.san }));
       });
   }
 
   function giveHint() {
     mistake.current = true; // a hint is help: the move comes back
     setHint(drill.answer.uci.slice(0, 2));
-    setMessage("Подсказка использована: ход вернётся позже.");
+    setMessage(t("trainer.7"));
   }
 
   function giveUp() {
     mistake.current = true;
     setPhase("reveal");
-    setMessage(`Правильный ход: ${drill.answer.san}. Сыграйте его.`);
+    setMessage(t("trainer.8", { san: drill.answer.san }));
   }
 
   const boardState = useMemo(
@@ -214,12 +216,12 @@ export default function Trainer({ id }) {
       <div className="page">
         <div className="banner banner--error">{error}</div>
         <a className="btn" href="#openings">
-          К списку репозиториев
+          {t("builder.9")}
         </a>
       </div>
     );
   }
-  if (!session) return <div className="room openings openings--loading">Готовлю тренировку…</div>;
+  if (!session) return <div className="room openings openings--loading">{t("trainer.10")}</div>;
 
   const color = session.color;
   const sum = summary(results);
@@ -227,10 +229,10 @@ export default function Trainer({ id }) {
   const remaining = queue.length;
 
   let headline = "";
-  if (phase === "path") headline = "Играем линию…";
-  else if (phase === "show") headline = `Новый ход: ${drill.answer.san}`;
-  else if (phase === "ask") headline = "Ваш ход";
-  else if (phase === "reveal") headline = `Правильный ход: ${drill.answer.san}`;
+  if (phase === "path") headline = t("trainer.11");
+  else if (phase === "show") headline = t("trainer.12", { san: drill.answer.san });
+  else if (phase === "ask") headline = t("gameRoom.41");
+  else if (phase === "reveal") headline = t("trainer.14", { san: drill.answer.san });
 
   return (
     <div className="room openings">
@@ -239,8 +241,8 @@ export default function Trainer({ id }) {
           <div className="pbar">
             <span className={`repcard__color repcard__color--${color === "white" ? "black" : "white"}`} />
             <div className="pbar__who">
-              <span className="pbar__name">Соперник</span>
-              <span className="pbar__sub">{color === "white" ? "Чёрные" : "Белые"}</span>
+              <span className="pbar__name">{t("openings.opponent")}</span>
+              <span className="pbar__sub">{color === "white" ? t("online.black") : t("online.white")}</span>
             </div>
           </div>
           <div className="room__board">
@@ -259,8 +261,8 @@ export default function Trainer({ id }) {
           <div className="pbar">
             <span className={`repcard__color repcard__color--${color}`} />
             <div className="pbar__who">
-              <span className="pbar__name">Вы</span>
-              <span className="pbar__sub">{color === "white" ? "Белые" : "Чёрные"}</span>
+              <span className="pbar__name">{t("botsPage.8")}</span>
+              <span className="pbar__sub">{color === "white" ? t("online.white") : t("online.black")}</span>
             </div>
           </div>
         </div>
@@ -270,12 +272,12 @@ export default function Trainer({ id }) {
 
           <section className="card openings__head">
             <a className="openings__back" href={`#openings/${id}`}>
-              <Icon name="back" size={16} /> К репозиторию «{session.name}»
+              <Icon name="back" size={16} /> {t("trainer.19")}{session.name}»
             </a>
             {phase !== "done" && phase !== "empty" && (
               <>
                 <p className="room__meta">
-                  Осталось вопросов: {remaining} (по одному на ход). Верный ответ с первого раза выучивает ход, ошибка возвращает его позже.
+                  {t("trainer.20")} {remaining} {t("trainer.21")}
                 </p>
                 <div className="repbar">
                   <div className="repbar__fill" style={{ width: `${session.drills.length ? (100 * (session.drills.length - Math.min(remaining, session.drills.length))) / session.drills.length : 0}%` }} />
@@ -286,31 +288,31 @@ export default function Trainer({ id }) {
 
           {(phase === "path" || phase === "show" || phase === "ask" || phase === "reveal" || phase === "between") && (
             <section className="card openings__pos">
-              <p className="room__state">{phase === "between" ? message || "Дальше…" : headline}</p>
+              <p className="room__state">{phase === "between" ? message || t("trainer.next") : headline}</p>
               {phase === "path" && (
                 <>
-                  <p className="room__meta">Соперник и вы играете линию репозитория до нужной позиции.</p>
+                  <p className="room__meta">{t("trainer.23")}</p>
                   <button type="button" className="btn" onClick={skipPath}>
-                    Пропустить показ
+                    {t("trainer.24")}
                   </button>
                 </>
               )}
-              {phase === "show" && <p className="room__meta">Это новый ход репозитория. Сыграйте его на доске, чтобы запомнить: потом он вернётся как вопрос.</p>}
+              {phase === "show" && <p className="room__meta">{t("trainer.25")}</p>}
               {phase === "ask" && (
                 <>
-                  <p className="room__meta">Какой ход вы играете в этой позиции по своему репозиторию?</p>
+                  <p className="room__meta">{t("trainer.26")}</p>
                   <div className="room__row">
                     <button type="button" className="btn" onClick={giveHint} disabled={hint !== null}>
-                      <Icon name="star" size={16} /> Подсказка
+                      <Icon name="star" size={16} /> {t("trainer.27")}
                     </button>
                     <button type="button" className="btn" onClick={giveUp}>
-                      Показать ход
+                      {t("trainer.28")}
                     </button>
                   </div>
                 </>
               )}
               {phase !== "between" && message && (
-                <p className={`openings__msg${message.startsWith("Верно") ? " openings__msg--ok" : messageKind ? ` openings__msg--${messageKind}` : ""}`}>{message}</p>
+                <p className={`openings__msg${message.startsWith(t("trainer.29")) ? " openings__msg--ok" : messageKind ? ` openings__msg--${messageKind}` : ""}`}>{message}</p>
               )}
               {drill && drill.path.length > 0 && phase !== "path" && <p className="openings__line">{lineText(drill.path)}</p>}
             </section>
@@ -318,29 +320,29 @@ export default function Trainer({ id }) {
 
           {phase === "empty" && (
             <section className="card openings__pos">
-              <p className="room__state">На сегодня всё</p>
+              <p className="room__state">{t("trainer.30")}</p>
               <p className="room__meta">
-                {session.nextDue ? `Ближайшее повторение: ${whenText(session.nextDue)}.` : "В репозитории нет ваших ходов: добавьте их в конструкторе."}
+                {session.nextDue ? t("trainer.31", { p: whenText(session.nextDue) }) : t("trainer.32")}
               </p>
               <a className="btn btn--primary" href={`#openings/${id}`}>
-                К репозиторию
+                {t("trainer.33")}
               </a>
             </section>
           )}
 
           {phase === "done" && (
             <section className="card openings__pos">
-              <p className="room__state">Тренировка окончена</p>
+              <p className="room__state">{t("trainer.34")}</p>
               <p className="room__meta">
-                Ходов проверено: {sum.total}. Верно с первого раза: {sum.right}. С ошибкой: {sum.wrong}.
+                {t("trainer.35")} {sum.total}{t("trainer.36")} {sum.right}{t("trainer.37")} {sum.wrong}.
               </p>
-              {sum.wrong > 0 && <p className="room__meta">Ошибочные ходы вернутся скоро, а остальные через сутки и дальше всё реже.</p>}
+              {sum.wrong > 0 && <p className="room__meta">{t("trainer.38")}</p>}
               <div className="room__row">
                 <button type="button" className="btn btn--primary" onClick={start}>
-                  Ещё порция
+                  {t("trainer.39")}
                 </button>
                 <a className="btn" href={`#openings/${id}`}>
-                  К репозиторию
+                  {t("trainer.33")}
                 </a>
               </div>
             </section>

@@ -33,6 +33,18 @@ const lmrMinDepth = 3
 // least worth gambling a reduced search on.
 const lmrFullDepthMoves = 4
 
+// lmrFullMovesFor is lmrFullDepthMoves, or with SwLmrFull separate counts for
+// PV and non-PV nodes.
+func lmrFullMovesFor(pv bool) int {
+	if !swLmrFull {
+		return lmrFullDepthMoves
+	}
+	if pv {
+		return lmrFullPV
+	}
+	return lmrFullNonPV
+}
+
 // lmrReduction is how many extra plies, beyond the normal depth-1, a
 // reduced move's initial probe skips. 1 is the conventional
 // conservative starting value — aggressive enough to matter across a
@@ -159,6 +171,49 @@ const iidReduction = 2
 // move loop. Starting values, tuned only by matches.
 const seePruneMaxDepth = 6
 
+// iirMinDepth: with the SwIIR switch, a node without a TT move searches one
+// ply shallower instead of running an IID probe.
+const iirMinDepth = 4
+
+const histPruneMaxDepth = 4
+
+// pruneMaxDepth is how deep futility and LMP reach: the old 3, or with the
+// SwDeepPrune switch extendedPruneDepth, extrapolating the margins linearly.
+const extendedPruneDepth = 6
+
+func pruneDepthCap() int {
+	if swDeepPrune {
+		return extendedPruneDepth
+	}
+	return futilityMaxDepth
+}
+
+// seeQuietMaxDepth is how deep the quiet-move SEE pruning reaches.
+const seeQuietMaxDepth = 6
+
+// futDepth is the depth futility pruning takes its margin for: the node's own,
+// or with SwFutLmr the move's reduced depth (at least 1).
+func futDepth(depth, lmrD int) int {
+	if swFutLmr {
+		return max(min(lmrD, depth), 1)
+	}
+	return depth
+}
+
+func futilityMarginAt(depth int) int {
+	if depth <= futilityMaxDepth {
+		return futilityMargin[depth]
+	}
+	return futilityMargin[futilityMaxDepth] + (depth-futilityMaxDepth)*futExtStep
+}
+
+func lmpThresholdAt(depth int) int {
+	if depth <= lmpMaxDepth {
+		return lmpMoveCountThreshold[depth]
+	}
+	return lmpMoveCountThreshold[lmpMaxDepth] + (depth-lmpMaxDepth)*lmpExtStep
+}
+
 var seePruneMargin = 94
 
 // rfpMaxDepth/rfpMargin: reverse futility pruning applies at remaining
@@ -176,16 +231,7 @@ var rfpMargin = 95
 // so a null-move probe's "even doing nothing is fine" conclusion
 // isn't trustworthy there.
 func hasNonPawnMaterial(b *board.Board, c board.Color) bool {
-	for sq := board.Square(0); sq < 64; sq++ {
-		p := b.PieceAt(sq)
-		if p.IsNone() || p.Color() != c {
-			continue
-		}
-		if t := p.Type(); t != board.Pawn && t != board.King {
-			return true
-		}
-	}
-	return false
+	return b.Pieces(board.Knight, c)|b.Pieces(board.Bishop, c)|b.Pieces(board.Rook, c)|b.Pieces(board.Queen, c) != 0
 }
 
 // negamax evaluates a position from the perspective of the side to
@@ -241,6 +287,27 @@ func negamax(b *board.Board, depth, ply, alpha, beta int, isRoot bool, tt *Trans
 	}
 	origAlpha := alpha
 	hash := b.Hash()
+	// excl: with a singular-extension verification search running at this
+	// ply, the move it must leave out (zero value: none). Such a node takes
+	// no TT cutoff, makes no null move and writes nothing to the TT or the
+	// correction tables, since its result is about the position minus a move.
+	var excl board.Move
+	if tt != nil {
+		excl = tt.excl[ply]
+	}
+	// cut: the parent expects this node to fail high (a "cut node"): set by
+	// the parent through tt.cut before the call. isPVNode: open window.
+	cut := tt != nil && tt.cut[ply]
+	isPVNode := beta-alpha > 1
+	// childCut is what the move at index i hands its child: in a PV node every
+	// move after the first is probed with a null window and expected to fail
+	// low, so its child is a cut node; below a non-PV node the flag alternates.
+	childCut := func(i int) bool {
+		if isPVNode {
+			return i > 0
+		}
+		return !cut
+	}
 
 	if tt != nil {
 		// Repetition detection: checked BEFORE the TT probe on purpose
@@ -259,7 +326,11 @@ func negamax(b *board.Board, depth, ply, alpha, beta int, isRoot bool, tt *Trans
 		}
 		tt.recordPathHash(ply, hash)
 
-		if entry, ok := tt.probe(hash); ok && entry.depth >= depth {
+		// PV nodes (open window) take no cutoff or narrowing from the
+		// table: a bound-narrowed window made origAlpha stale, so an
+		// upper bound could be stored as exact, and PV scores should
+		// come from a real search anyway.
+		if entry, ok := tt.probe(hash); ok && entry.depth >= depth && (!swTTPV || beta-alpha == 1) && excl == (board.Move{}) {
 			adjustedScore := readAdjustMateScore(entry.score, ply)
 			switch entry.bound {
 			case exactBound:
@@ -343,9 +414,14 @@ func negamax(b *board.Board, depth, ply, alpha, beta int, isRoot bool, tt *Trans
 	// was pure waste.
 	var staticEval int
 	staticEvalDone := false
+	var corrIdxHere corrIdx
 	getStaticEval := func() int {
 		if !staticEvalDone {
 			staticEval = tt.evaluate(b, ply)
+			if swCorr && tt != nil {
+				corrIdxHere = corrIndex(b)
+				staticEval += tt.corrValue(corrIdxHere)
+			}
 			staticEvalDone = true
 		}
 		return staticEval
@@ -398,7 +474,7 @@ func negamax(b *board.Board, depth, ply, alpha, beta int, isRoot bool, tt *Trans
 	//   - depth >= nullMoveMinDepth: below this there's barely
 	//     anything left to reduce into, so the overhead of the probe
 	//     isn't worth attempting.
-	if !isRoot && depth >= nullMoveMinDepth && beta < MateScore &&
+	if !isRoot && excl == (board.Move{}) && depth >= nullMoveMinDepth && beta < MateScore &&
 		!inCheck && hasNonPawnMaterial(b, b.SideToMove) &&
 		getStaticEval() >= beta {
 		ensureMoves()
@@ -407,13 +483,22 @@ func negamax(b *board.Board, depth, ply, alpha, beta int, isRoot bool, tt *Trans
 		}
 		nullUndo := b.MakeNullMove()
 		tt.nnuePushNull(ply + 1)
-		nullScore, _ := negamax(b, depth-1-nullMoveReduction, ply+1, -beta, -beta+1, false, tt, checkExtLeft)
+		tt.setMoveKey(ply, -1)
+		nmpR := nullMoveReduction
+		if swNmp {
+			nmpR = nmpBase + depth/nmpDivDepth + min((getStaticEval()-beta)/nmpEvalDiv, 3)
+		}
+		tt.setCut(ply+1, !cut)
+		nullScore, _ := negamax(b, max(depth-1-nmpR, 0), ply+1, -beta, -beta+1, false, tt, checkExtLeft)
 		nullScore = -nullScore
 		b.UnmakeNullMove(nullUndo)
 		if tt.aborted() {
 			return 0, board.Move{}
 		}
 		if nullScore >= beta {
+			if swNmp && nullScore < mateThreshold {
+				return nullScore, board.Move{}
+			}
 			return beta, board.Move{}
 		}
 	}
@@ -485,11 +570,19 @@ func negamax(b *board.Board, depth, ply, alpha, beta int, isRoot bool, tt *Trans
 
 	var ttMove board.Move
 	hasTTMove := false
+	// singCand: the TT entry is deep enough and bounds from below, so its
+	// move is worth a singular-extension check (ttScore is its score).
+	singCand := false
+	ttScore := 0
 	if tt != nil {
 		// Quiescence stores entries without a move; those must not count
 		// as "has a TT move" (IID would be skipped for them).
 		if entry, ok := tt.probe(hash); ok && entry.move != (board.Move{}) {
 			ttMove, hasTTMove = entry.move, true
+			ttScore = readAdjustMateScore(entry.score, ply)
+			singCand = swSing && !isRoot && excl == (board.Move{}) && depth >= singMinDepth &&
+				entry.depth >= depth-3 && entry.bound != upperBound &&
+				ttScore > -mateThreshold && ttScore < mateThreshold
 		}
 		if restricted && hasTTMove && tt.skipsRoot(ttMove) {
 			ttMove, hasTTMove = board.Move{}, false
@@ -512,7 +605,9 @@ func negamax(b *board.Board, depth, ply, alpha, beta int, isRoot bool, tt *Trans
 	// Skipped whenever tt is nil (see negamax's own nil-tt comment):
 	// there would be nowhere for a result to land that the real search
 	// below could then read back.
-	if tt != nil && !hasTTMove && !restricted && depth >= iidMinDepth {
+	if swIIR && tt != nil && !hasTTMove && !restricted && depth >= iirMinDepth {
+		depth--
+	} else if tt != nil && !hasTTMove && !restricted && depth >= iidMinDepth {
 		negamax(b, depth-iidReduction, ply, alpha, beta, false, tt, checkExtLeft)
 		if tt.aborted() {
 			return 0, board.Move{}
@@ -536,7 +631,7 @@ func negamax(b *board.Board, depth, ply, alpha, beta int, isRoot bool, tt *Trans
 	// position whose value IS a forced-mate distance). staticEval is
 	// computed at most once per node, only when actually needed, not
 	// once per candidate move.
-	futilityApplies := !isRoot && !inCheck && depth <= futilityMaxDepth &&
+	futilityApplies := !isRoot && !inCheck && depth <= pruneDepthCap() &&
 		alpha > -MateScore && beta < MateScore
 	if futilityApplies {
 		getStaticEval()
@@ -549,7 +644,7 @@ func negamax(b *board.Board, depth, ply, alpha, beta int, isRoot bool, tt *Trans
 	// since the two techniques have different max-depth constants
 	// (lmpMaxDepth/futilityMaxDepth) that happen to currently match but
 	// aren't required to.
-	lmpApplies := !isRoot && !inCheck && depth <= lmpMaxDepth &&
+	lmpApplies := !isRoot && !inCheck && depth <= pruneDepthCap() &&
 		alpha > -MateScore && beta < MateScore
 
 	// SEE pruning of captures: a later capture that loses more than
@@ -561,18 +656,77 @@ func negamax(b *board.Board, depth, ply, alpha, beta int, isRoot bool, tt *Trans
 	// penalized in history if a later move does cut (see below).
 	var quietsTried [64]board.Move
 	nQuiets := 0
+	var capsTried [32]board.Move
+	nCaps := 0
+	var b1, b2 int
+	if tt != nil {
+		b1, b2 = tt.contBases(ply)
+	}
 
 	for i := 0; ; i++ {
 		m, ok := picker.next()
 		if !ok {
 			break
 		}
+		if m == excl {
+			continue
+		}
 		if seePruneApplies && i > 0 && m.Flag == board.Capture && SEE(b, m) < -seePruneMargin*depth {
 			continue
 		}
 
+		// Singular extension: if every other move fails to reach a bit below
+		// the TT move's score in a reduced search, the TT move is the only good
+		// one here and is searched a ply deeper; if the others reach beta
+		// already, the node is cut (multi-cut); a TT move that already fails
+		// high while not being singular is searched a ply shallower.
+		singExt := 0
+		if singCand && m == ttMove {
+			singBeta := ttScore - depth*singMargin/16
+			tt.excl[ply] = m
+			sScore, _ := negamax(b, (depth-1)/2, ply, singBeta-1, singBeta, false, tt, checkExtLeft)
+			tt.excl[ply] = board.Move{}
+			if tt.aborted() {
+				return 0, board.Move{}
+			}
+			switch {
+			case sScore < singBeta:
+				singExt = 1
+			case singBeta >= beta:
+				if sScore < mateThreshold {
+					return sScore, board.Move{}
+				}
+				return singBeta, board.Move{}
+			case swSingNeg && ttScore >= beta:
+				singExt = -1
+			}
+		}
+
+		// lmrD: the depth this move would be searched to after a late-move
+		// reduction; the shallow pruning below judges moves by it, not by the
+		// node's own depth. quietSee: what the opponent wins on the target
+		// square (negative); measured before the move is made.
+		lmrD := depth
+		quietSee := 0
+		if lmpApplies && i > 0 {
+			lmrD = max(depth-1-lmrReductionFor(depth, i), 0)
+			// A move cannot lose more than its piece is worth, so a piece
+			// worth no more than the threshold can never be pruned.
+			if swSeeQuiet && depth <= seeQuietMaxDepth &&
+				seeValue(b.PieceAt(m.From).Type()) > seeQuietMul*lmrD*lmrD {
+				quietSee = seeQuiet(b, m)
+			}
+		}
+
 		undo := b.MakeMove(m)
 		tt.nnuePush(ply+1, m, undo, b)
+		mover := undo.MovedPiece
+		tt.setMoveKey(ply, moveKey(mover, m.To))
+		isQuiet := !m.IsCapture()
+		hs := 0
+		if tt != nil && isQuiet {
+			hs = tt.quietHist(mover, m, b1, b2)
+		}
 
 		// givesCheck: does THIS move put the opponent in check? Cheap
 		// (movegen.InCheck is an O(1) magic-bitboard lookup, not a
@@ -599,7 +753,7 @@ func negamax(b *board.Board, depth, ply, alpha, beta int, isRoot bool, tt *Trans
 		// reduceEligible makes just below).
 		if futilityApplies && i > 0 && !givesCheck && !m.IsCapture() &&
 			m.Flag != board.Promotion && m.Flag != board.PromotionCapture &&
-			staticEval+futilityMargin[depth] <= alpha {
+			staticEval+futilityMarginAt(futDepth(depth, lmrD)) <= alpha {
 			b.UnmakeMove(m, undo)
 			continue
 		}
@@ -616,8 +770,23 @@ func negamax(b *board.Board, depth, ply, alpha, beta int, isRoot bool, tt *Trans
 		// forcing, and a capture or promotion's value isn't something
 		// move-order position alone judges) and the same shallow-depth/
 		// away-from-check/away-from-mate-bounds guard.
-		if lmpApplies && i >= lmpMoveCountThreshold[depth] && !givesCheck && !m.IsCapture() &&
+		if lmpApplies && i >= lmpThresholdAt(depth) && !givesCheck && !m.IsCapture() &&
 			m.Flag != board.Promotion && m.Flag != board.PromotionCapture {
+			b.UnmakeMove(m, undo)
+			continue
+		}
+
+		// SEE pruning of quiet moves: one that walks into a losing exchange on
+		// its target square is skipped at shallow depth.
+		if quietSee < 0 && !givesCheck && quietSee < -seeQuietMul*lmrD*lmrD {
+			b.UnmakeMove(m, undo)
+			continue
+		}
+
+		// History pruning: a quiet move that has done badly in this and the
+		// preceding contexts is skipped at shallow depth.
+		if swHistPrune && lmpApplies && depth <= histPruneMaxDepth && i > 0 && isQuiet && !givesCheck &&
+			m.Flag != board.Promotion && hs < -histPruneMargin*depth {
 			b.UnmakeMove(m, undo)
 			continue
 		}
@@ -630,7 +799,7 @@ func negamax(b *board.Board, depth, ply, alpha, beta int, isRoot bool, tt *Trans
 		if extend > 0 {
 			childCheckExtLeft--
 		}
-		childDepth := depth - 1 + extend
+		childDepth := depth - 1 + extend + singExt
 
 		// Late Move Reductions guard: move ordering has already put
 		// its best guesses (TT move, captures by MVV-LVA, killers,
@@ -646,7 +815,7 @@ func negamax(b *board.Board, depth, ply, alpha, beta int, isRoot bool, tt *Trans
 		// pruning's guard above.
 		reduceEligible := !inCheck && !givesCheck &&
 			depth >= lmrMinDepth &&
-			i >= lmrFullDepthMoves &&
+			i >= lmrFullMovesFor(isPVNode) &&
 			!m.IsCapture() &&
 			m.Flag != board.Promotion && m.Flag != board.PromotionCapture
 
@@ -659,6 +828,7 @@ func negamax(b *board.Board, depth, ply, alpha, beta int, isRoot bool, tt *Trans
 			// probe/re-search dance below exists to cheaply REJECT
 			// moves that don't beat alpha, and this move is expected
 			// to set alpha, not merely clear it.
+			tt.setCut(ply+1, childCut(0))
 			childScore, _ := negamax(b, childDepth, ply+1, -beta, -alpha, false, tt, childCheckExtLeft)
 			s = -childScore
 		} else {
@@ -673,8 +843,26 @@ func negamax(b *board.Board, depth, ply, alpha, beta int, isRoot bool, tt *Trans
 			// moves get rejected without ever running at full depth.
 			searchDepth := childDepth
 			if reduceEligible {
-				searchDepth = depth - 1 - lmrReductionFor(depth, i)
+				r := lmrReductionFor(depth, i)
+				if swLmrPV && beta-alpha > 1 && r > 1 {
+					r--
+				}
+				// A cut node's late moves are even less likely to matter, and
+				// so are quiet moves when the best move found is a capture.
+				if swLmrCut && cut {
+					r++
+				}
+				if swLmrCapt && hasTTMove && ttMove.IsCapture() {
+					r++
+				}
+				if swHistLmr && tt != nil {
+					r -= max(-2, min(hs/histLmrDiv, 2))
+					r = max(1, min(r, depth-2))
+				}
+				r = max(1, min(r, depth-2))
+				searchDepth = depth - 1 - r
 			}
+			tt.setCut(ply+1, childCut(i))
 			probeScore, _ := negamax(b, searchDepth, ply+1, -alpha-1, -alpha, false, tt, childCheckExtLeft)
 			s = -probeScore
 
@@ -684,6 +872,7 @@ func negamax(b *board.Board, depth, ply, alpha, beta int, isRoot bool, tt *Trans
 				// real signal. Re-confirm with the same cheap null
 				// window at full depth before paying for a
 				// full-window search.
+				tt.setCut(ply+1, childCut(i))
 				probeScore, _ = negamax(b, childDepth, ply+1, -alpha-1, -alpha, false, tt, childCheckExtLeft)
 				s = -probeScore
 			}
@@ -693,6 +882,7 @@ func negamax(b *board.Board, depth, ply, alpha, beta int, isRoot bool, tt *Trans
 				// not" — it can't pin down the real score once that's
 				// yes. Only a move that earned it gets the full-
 				// window search that actually establishes its value.
+				tt.setCut(ply+1, false)
 				fullScore, _ := negamax(b, childDepth, ply+1, -beta, -alpha, false, tt, childCheckExtLeft)
 				s = -fullScore
 			}
@@ -704,6 +894,11 @@ func negamax(b *board.Board, depth, ply, alpha, beta int, isRoot bool, tt *Trans
 			return 0, board.Move{} // s is garbage; don't let it reach the TT
 		}
 
+		if isRoot && tt != nil && s > alpha {
+			// A completed root move that really raised alpha: if time runs
+			// out later in this iteration, it is a usable result.
+			tt.rootPartial, tt.rootPartialOK = m, true
+		}
 		if s > best {
 			best = s
 			bestHere = m
@@ -716,18 +911,30 @@ func negamax(b *board.Board, depth, ply, alpha, beta int, isRoot bool, tt *Trans
 			// captures already get their own MVV-LVA ordering, and a
 			// killer/history slot "this capture is great" would just
 			// be redundant with that.
-			if tt != nil && !m.IsCapture() {
-				tt.recordKiller(ply, m)
-				tt.recordHistory(m, depth)
-				for _, q := range quietsTried[:nQuiets] {
-					tt.penalizeHistory(q, depth)
+			if tt != nil {
+				if isQuiet {
+					tt.recordKiller(ply, m)
+					tt.recordHistory(mover, m, ply, depth)
+					for _, q := range quietsTried[:nQuiets] {
+						tt.penalizeHistory(b.PieceAt(q.From), q, ply, depth)
+					}
+				} else if swHistCapt {
+					tt.updateCaptHist(mover, m, capturedType(b, m), historyBonus(depth))
+				}
+				if swHistCapt {
+					for _, c := range capsTried[:nCaps] {
+						tt.updateCaptHist(b.PieceAt(c.From), c, capturedType(b, c), -historyBonus(depth))
+					}
 				}
 			}
 			break // alpha-beta cutoff
 		}
-		if !m.IsCapture() && nQuiets < len(quietsTried) {
+		if isQuiet && nQuiets < len(quietsTried) {
 			quietsTried[nQuiets] = m
 			nQuiets++
+		} else if !isQuiet && nCaps < len(capsTried) {
+			capsTried[nCaps] = m
+			nCaps++
 		}
 	}
 
@@ -738,7 +945,20 @@ func negamax(b *board.Board, depth, ply, alpha, beta int, isRoot bool, tt *Trans
 		} else if best >= beta {
 			resultBound = lowerBound
 		}
-		tt.store(hash, ttEntry{depth: depth, score: storeAdjustMateScore(best, ply), bound: resultBound, move: bestHere})
+		if swCorr && excl == (board.Move{}) && !inCheck && !isRoot && best > -mateThreshold && best < mateThreshold &&
+			(resultBound == upperBound || !bestHere.IsCapture()) {
+			e := getStaticEval()
+			if (best > e) == (resultBound != upperBound) {
+				tt.updateCorr(corrIdxHere, best-e, depth)
+			}
+		}
+		storeMove := bestHere
+		if swTTKeep && resultBound == upperBound {
+			storeMove = board.Move{} // a fail-low "best" move is arbitrary
+		}
+		if excl == (board.Move{}) {
+			tt.store(hash, ttEntry{depth: depth, score: storeAdjustMateScore(best, ply), bound: resultBound, move: storeMove})
+		}
 	}
 
 	return best, bestHere

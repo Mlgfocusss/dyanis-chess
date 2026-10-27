@@ -1,3 +1,4 @@
+import { tr, getLanguage } from "../../i18n/index.js";
 // Chess960 helpers without React, so `npm test` covers them. The server draws the setup number and tells it
 // in `extra` ({ number, rank }); this reads what the person types in the lobby and words the setup.
 
@@ -16,10 +17,11 @@ export function parseNumber(text) {
 // The pieces of a first rank by their Russian letters, a-file first: "RNBQKBNR" -> ["Л", "К", "С", "Ф", "Кр", "С", "К", "Л"].
 const NAMES = { R: "Л", N: "К", B: "С", Q: "Ф", K: "Кр" };
 export function rankLetters(rank) {
+  if (getLanguage() === "en") return [...(rank || "")];
   return [...(rank || "")].map((c) => NAMES[c] || c);
 }
 
 // "Расстановка 518 (обычная)" / "Расстановка 12".
 export function describeSetup(number) {
-  return number === CLASSIC ? `Расстановка ${number} (обычная)` : `Расстановка ${number}`;
+  return number === CLASSIC ? tr("chess960.setupClassic", { number }) : tr("chess960.setup", { number });
 }

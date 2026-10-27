@@ -7,11 +7,11 @@ import { playSound, soundKindForSan } from "../sound/sound.js";
 import { changeLine, ratingText } from "../online/rating.js";
 import { START_FEN } from "../play/game.js";
 import Icon from "../ui/Icon.jsx";
-import PuzzleTabs from "./PuzzleTabs.jsx";
+import { BigButton, Placeholder, Say, Shell } from "./PuzzleShell.jsx";
 import { fetchDuel, fetchDuelPuzzle, sendDuelProgress } from "./api.js";
 import { judgeMove, legalFor, squaresOf } from "./puzzle.js";
 import { clockText } from "./rush.js";
-import "./puzzles.css";
+import { useT } from "../i18n/index.js";
 
 const POLL_MS = 1000;
 const INTRO_MS = 300;
@@ -19,14 +19,15 @@ const REPLY_MS = 250;
 const FAIL_MS = 700; // how long a mistake is shown before the next puzzle
 
 const OUTCOME = {
-  win: { title: "Победа!", tone: "ok" },
-  loss: { title: "Поражение", tone: "bad" },
-  draw: { title: "Ничья", tone: "warn" },
+  win: { title: "pz.duelWin", tone: "ok" },
+  loss: { title: "onlineGames.4", tone: "bad" },
+  draw: { title: "onlineGames.2", tone: "warn" },
 };
 
 // A puzzle duel in progress: the same puzzles for both people, a clock the server keeps, and the
 // other person's score shown live.
 export default function DuelRoom({ id }) {
+  const t = useT();
   const { user } = useAuth();
   const { settings } = useSettings();
 
@@ -94,7 +95,7 @@ export default function DuelRoom({ id }) {
       } catch (e) {
         if (stop) return;
         if (e.status === 404 || e.status === 401) {
-          setError("Такой дуэли нет или она закончилась давно.");
+          setError(t("duelRoom.4"));
           return;
         }
       }
@@ -232,12 +233,12 @@ export default function DuelRoom({ id }) {
       <div className="page lobby">
         <div className="banner banner--error">{error}</div>
         <a className="btn btn--primary" href="#puzzles/duel">
-          К дуэлям
+          {t("duelRoom.5")}
         </a>
       </div>
     );
   }
-  if (!duel) return <div className="room puzzles puzzles--loading">Загружаю дуэль…</div>;
+  if (!duel) return <Placeholder>{t("duelRoom.6")}</Placeholder>;
 
   const serverNow = tick + offset.current;
   const toStart = duel.startsAt - serverNow;
@@ -253,96 +254,83 @@ export default function DuelRoom({ id }) {
   if (duel.status === "countdown") clock = `${Math.max(1, Math.ceil(toStart / 1000))}`;
   else clock = clockText(over ? 0 : left);
 
+  let say;
+  if (over) {
+    say = res
+      ? { kind: t(res.title), tone: res.tone, text: t("duelRoom.7", { score: me.score, score2: opp.score, mistakes: me.mistakes, mistakes2: opp.mistakes, p: me.change ? ` ${changeLine(me.change)}` : "" }) }
+      : { kind: t("duelRoom.8"), tone: "", text: "" };
+  } else if (duel.status === "countdown") {
+    say = { kind: t("duelRoom.9"), tone: "", text: t("duelRoom.10") };
+  } else {
+    say = { kind: t("duelRoom.11"), tone: "", text: t("duelRoom.12") };
+  }
+
   return (
-    <div className="room puzzles duelroom">
-      <div className="room__grid">
-        <div className="room__main">
-          <div className="pbar puzzles__top">
-            <Avatar user={{ name: opp.name, avatarUrl: opp.avatar }} size={36} />
-            <div className="pbar__who">
-              <span className="pbar__name">
-                {opp.name}
-                <span className="pbar__elo"> ({ratingText(opp.rating, opp.provisional)})</span>
-              </span>
-              <span className="pbar__sub">Соперник · задача {opp.index + 1}</span>
+    <Shell
+      className="pz--duel"
+      mode="duel"
+      icon="duel"
+      title={t("menu.duel")}
+      head={
+        <span className={`pz__clock pz__clock--big${left < 15000 && running ? " pz__clock--low" : ""}`} aria-label={t("duelRoom.14")}>
+          {duel.status === "countdown" ? t("duelRoom.15", { clock }) : clockText(over ? 0 : left)}
+        </span>
+      }
+      board={
+        <>
+          <Board
+            state={{ fen, legalMoves: phase === "solving" && running ? legalFor(puzzle, idx) : [] }}
+            orientation={mySide}
+            disabled={!(phase === "solving" && running)}
+            lastMove={last}
+            badge={badge}
+            onPlayerMove={onPlayerMove}
+          />
+          {duel.status === "countdown" && (
+            <div className="pz__count" aria-live="assertive">
+              <span className="pz__count-num">{clock}</span>
+              <span>{t("duelRoom.16")}</span>
             </div>
-            <span className="duelroom__score duelroom__score--opp" aria-label="Очки соперника">
-              {opp.score}
-            </span>
-          </div>
-          <div className="room__board">
-            <Board
-              state={{ fen, legalMoves: phase === "solving" && running ? legalFor(puzzle, idx) : [] }}
-              orientation={mySide}
-              disabled={!(phase === "solving" && running)}
-              lastMove={last}
-              badge={badge}
-              onPlayerMove={onPlayerMove}
-            />
-            {duel.status === "countdown" && (
-              <div className="duelroom__cover" aria-live="assertive">
-                <span className="duelroom__count">{clock}</span>
-                <span>Дуэль начнётся через несколько секунд</span>
-              </div>
-            )}
-          </div>
-          <div className="pbar">
-            <Avatar user={user} size={36} />
-            <div className="pbar__who">
-              <span className="pbar__name">
-                {user?.name || "Вы"}
-                <span className="pbar__you">вы</span>
-              </span>
-              <span className="pbar__sub">
-                {me.rating ? `Рейтинг ${ratingText(me.rating, me.provisional)} · ` : ""}ошибок {me.mistakes}
-              </span>
-            </div>
-            <span className="duelroom__score" aria-label="Ваши очки">
-              {me.score}
-            </span>
-          </div>
+          )}
+        </>
+      }
+      bottom={
+        over && (
+          <BigButton href="#puzzles/duel">
+            <Icon name="duel" size={20} /> {t("duelRoom.17")}
+          </BigButton>
+        )
+      }
+    >
+      {error && <div className="banner banner--error">{error}</div>}
+
+      <div className="pz__duel">
+        <div className="pz__who pz__who--me">
+          <Avatar user={user} size={36} />
+          <span className="pz__who-name">{user?.name || t("botsPage.8")}</span>
+          <span className="pz__who-sub">
+            {me.rating ? `${ratingText(me.rating, me.provisional)} · ` : ""}{t("duelRoom.19")} {me.mistakes}
+          </span>
+          <span className="pz__who-score" aria-label={t("duelRoom.20")}>
+            {me.score}
+          </span>
         </div>
-
-        <aside className="room__side">
-          <PuzzleTabs mode="duel" />
-          {error && <div className="banner banner--error">{error}</div>}
-
-          <section className={`card room__status puzzles__state${res ? ` puzzles__state--${res.tone}` : ""}`} aria-live="polite">
-            <div className="duelroom__timer">
-              <Icon name="clock" size={20} />
-              <span className={left < 15000 && running ? "rush__clock--low" : ""}>{duel.status === "countdown" ? `Старт: ${clock}` : clockText(over ? 0 : left)}</span>
-            </div>
-            {!over && <p className="room__state">{duel.status === "countdown" ? "Приготовьтесь" : "Решайте быстрее соперника"}</p>}
-            {over && !res && <p className="room__state">Подводим итоги…</p>}
-            {over && res && (
-              <>
-                <p className="room__state">{res.title}</p>
-                <p className="room__meta">
-                  Счёт {me.score} : {opp.score}, ваших ошибок {me.mistakes}, у соперника {opp.mistakes}.
-                </p>
-                {me.change && <p className="room__meta">{changeLine(me.change)}</p>}
-              </>
-            )}
-          </section>
-
-          {over && (
-            <section className="card room__actions">
-              <a className="btn btn--primary" href="#puzzles/duel">
-                <Icon name="duel" size={16} /> Новая дуэль
-              </a>
-            </section>
-          )}
-          {!over && (
-            <section className="card puzzles__you">
-              <h2>Счёт</h2>
-              <p className="puzzles__big">
-                {me.score} : {opp.score}
-              </p>
-              <p className="room__meta">Задачи у вас и соперника одни и те же, но темп у каждого свой.</p>
-            </section>
-          )}
-        </aside>
+        <span className="pz__colon">:</span>
+        <div className="pz__who">
+          <Avatar user={{ name: opp.name, avatarUrl: opp.avatar }} size={36} />
+          <span className="pz__who-name">{opp.name}</span>
+          <span className="pz__who-sub">
+            {ratingText(opp.rating, opp.provisional)} {t("duelRoom.21")} {opp.index + 1}
+          </span>
+          <span className="pz__who-score" aria-label={t("duelRoom.22")}>
+            {opp.score}
+          </span>
+        </div>
       </div>
-    </div>
+
+      <Say kind={say.kind} tone={say.tone}>
+        {say.text}
+      </Say>
+    </Shell>
   );
 }

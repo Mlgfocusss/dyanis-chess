@@ -1,3 +1,4 @@
+import { serverMsg, tr } from "../i18n/index.js";
 // Client of the repertoire API (backend/internal/repertoire).
 
 async function readJSON(res) {
@@ -8,7 +9,7 @@ async function readJSON(res) {
     // not JSON (a 204, or an error page): handled below
   }
   if (!res.ok) {
-    const e = new Error(body?.error || `Сервер ответил ${res.status}`);
+    const e = new Error(serverMsg(body?.error) || tr("common.serverReplied", { status: res.status }));
     e.status = res.status;
     throw e;
   }
@@ -101,4 +102,24 @@ export async function fetchGames(id) {
 // games' tags ("" takes every game as theirs).
 export async function compareGames(id, pgn, name) {
   return readJSON(await fetch(`${base(id)}/compare`, { method: "POST", headers: JSON_HEADERS, body: JSON.stringify({ pgn, name }) }));
+}
+
+// The search of the repository for holes (popular replies of the opponent it has no answer to):
+// { gaps: [{kind: "missing"|"answer", at, ply, fen, path, uci, san, pct, games, lines, weight, source}],
+//   coverage (0..1), counts, partial, pending, source ("lichess"|"theory"|"mixed"), available,
+//   limited, retryAfter, ratings, minPct, at }. It asks Lichess for up to 40 positions that the
+// server has not got in its cache, so it takes a moment, and a partial answer is completed by asking again.
+export async function fetchGaps(id, { ratings, minPct } = {}) {
+  const q = new URLSearchParams();
+  if (ratings) q.set("ratings", ratings);
+  if (minPct) q.set("minPct", String(minPct));
+  return readJSON(await fetch(`${base(id)}/gaps?${q}`));
+}
+
+// The last saved search at once, nobody is asked; null when there was none. `stale` is set when
+// the tree has changed since.
+export async function fetchSavedGaps(id) {
+  const res = await fetch(`${base(id)}/gaps?saved=1`);
+  if (res.status === 204) return null;
+  return readJSON(res);
 }

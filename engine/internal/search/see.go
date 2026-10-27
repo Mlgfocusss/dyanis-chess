@@ -342,15 +342,22 @@ func seeFull(b *board.Board, m board.Move) int {
 	sb.put(attackerColor, attackerType, to)
 	onTo, onToColor := attackerType, attackerColor
 
+	return seeSwap(&sb, to, attackerColor, attackerType, onTo, onToColor, seeValue(capturedType))
+}
+
+// seeSwap runs the recapture sequence on `to` after the initiating move has
+// been played on sb (a piece of attackerType, now on `to`, already banked
+// gain0), and returns the net result for the initiating side.
+func seeSwap(sb *seeBoard, to board.Square, attackerColor board.Color, attackerType board.PieceType, onTo board.PieceType, onToColor board.Color, gain0 int) int {
 	// Stack buffer: an exchange is at most 32 captures, so append never reallocates.
 	var gainBuf [32]int
-	gainBuf[0] = seeValue(capturedType)
+	gainBuf[0] = gain0
 	gain := gainBuf[:1]
 	side := attackerColor.Opposite()
 	lastValue := seeValue(attackerType)
 
 	for {
-		sq, pt, ok := leastValuableAttacker(&sb, to, side)
+		sq, pt, ok := leastValuableAttacker(sb, to, side)
 		if !ok {
 			break
 		}
@@ -411,4 +418,29 @@ func SEE(b *board.Board, m board.Move) int {
 		return seeValue(b.PieceAt(to).Type())
 	}
 	return seeFull(b, m)
+}
+
+// seeQuiet is SEE for a quiet move (no capture, promotion or castling): the
+// exchange the opponent can start on the destination square, from the point of
+// view of the mover. 0 means the piece is not attacked at all (or is
+// adequately defended); a negative value is how much it is expected to lose.
+func seeQuiet(b *board.Board, m board.Move) int {
+	if m.Flag != board.Quiet && m.Flag != board.DoublePawnPush {
+		return 0
+	}
+	mover := b.PieceAt(m.From)
+	opp := mover.Color().Opposite()
+	to := m.To
+	occ := b.Occupied()&^squareBit(m.From) | squareBit(to)
+	if board.PawnAttacks(mover.Color(), to)&b.Pieces(board.Pawn, opp) == 0 &&
+		board.KnightAttacks(to)&b.Pieces(board.Knight, opp) == 0 &&
+		board.KingAttacks(to)&b.Pieces(board.King, opp) == 0 &&
+		board.BishopAttacks(to, occ)&(b.Pieces(board.Bishop, opp)|b.Pieces(board.Queen, opp)) == 0 &&
+		board.RookAttacks(to, occ)&(b.Pieces(board.Rook, opp)|b.Pieces(board.Queen, opp)) == 0 {
+		return 0
+	}
+	sb := newSeeBoard(b)
+	sb.remove(mover.Color(), mover.Type(), m.From)
+	sb.put(mover.Color(), mover.Type(), to)
+	return seeSwap(&sb, to, mover.Color(), mover.Type(), mover.Type(), mover.Color(), 0)
 }

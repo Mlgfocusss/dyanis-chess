@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getGame, socketUrl } from "./api.js";
+import { serverMsg, tr } from "../i18n/index.js";
 
 // Where a game is read and its socket opened: the online games by default; the chess variants
 // (variants/api.js) give their own. Keep the object the same between renders.
@@ -60,7 +61,7 @@ export function useGame(id, userId, api = ONLINE_API) {
         }
         if (m.type === "state" && m.game) take(m);
         if (m.type === "error") {
-          setNotice(m.error || "Действие отклонено");
+          setNotice(serverMsg(m.error) || tr("online.rejected"));
           setRev((r) => r + 1);
           clearTimeout(noticeTimer.current);
           noticeTimer.current = setTimeout(() => setNotice(""), 4000);

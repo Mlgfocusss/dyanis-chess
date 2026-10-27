@@ -1,0 +1,15 @@
+export default {
+  "challengesTab.1": "Challenges to you",
+  "challengesTab.2": "Nobody is challenging you now. Who may challenge you is set in \"Settings → Gameplay → Challenges\".",
+  "challengesTab.3": "friend",
+  "challengesTab.4": "not a friend",
+  "challengesTab.5": "rated",
+  "challengesTab.6": "no rating",
+  "challengesTab.7": "· left",
+  "challengesTab.10": "My challenges",
+  "challengesTab.11": "Challenge a friend",
+  "challengesTab.12": "You have not challenged anybody. Press \"Challenge\" next to a friend or on a player's page.",
+  "challengesTab.13": "waiting for an answer, {p} left",
+  "challengesTab.15": "Accepted: to the game",
+  "challengesTab.16": "declined",
+};

@@ -3,10 +3,38 @@
 // the three dice of the turn, thrown together when it began. "free": not used and a piece of the kind can move;
 // "used": a move was made with it; "skip": no piece of the kind could move, skipped for good (it never comes back).
 import { isBoardMove } from "../describe.js";
+import { tr } from "../../i18n/index.js";
 
 export const FACE = { P: 1, N: 2, B: 3, R: 4, Q: 5, K: 6 }; // the number on the die for a kind
-export const NAME = { P: "пешка", N: "конь", B: "слон", R: "ладья", Q: "ферзь", K: "король" };
-export const SIDE_NOM = { white: "Белые", black: "Чёрные" };
+// The names are read when they are used, so they follow the language of the site.
+export const NAME = {
+  get P() {
+    return tr("dice.piece.P");
+  },
+  get N() {
+    return tr("dice.piece.N");
+  },
+  get B() {
+    return tr("dice.piece.B");
+  },
+  get R() {
+    return tr("dice.piece.R");
+  },
+  get Q() {
+    return tr("dice.piece.Q");
+  },
+  get K() {
+    return tr("dice.piece.K");
+  },
+};
+export const SIDE_NOM = {
+  get white() {
+    return tr("online.white");
+  },
+  get black() {
+    return tr("online.black");
+  },
+};
 
 // Pip positions of a face on a 48 x 48 square.
 const A = 14;
@@ -65,22 +93,22 @@ export function leftNames(extra) {
 export function describeTurn(extra, myTurn, turn) {
   if (!extra?.dice?.length) return "";
   const left = extra.left ?? extra.dice.filter((d) => d.state === "free").length;
-  if (left === 0) return "Все три кубика сыграны.";
+  if (left === 0) return tr("dice.allPlayed");
   const names = leftNames(extra);
   return myTurn
-    ? `Осталось ходов: ${left} из ${extra.of || 3}. Ходите любой из фигур в любом порядке: ${names}.`
-    : `${SIDE_NOM[turn] || ""}: осталось ходов ${left} из ${extra.of || 3} (${names}).`;
+    ? tr("dice.left1", { left, of: extra.of || 3, names })
+    : tr("dice.left2", { side: SIDE_NOM[turn] || "", left, of: extra.of || 3, names });
 }
 
 /** The short caption under a die. */
 export function dieCaption(state) {
-  return { free: "можно ходить", skip: "нечем ходить, пропуск", used: "сыграно", empty: "" }[state] ?? "";
+  return { free: tr("dice.state.free"), skip: tr("dice.state.skip"), used: tr("dice.state.used"), empty: "" }[state] ?? "";
 }
 
 /** "Чёрные пропустили очередь: ..." for a turn that was lost whole, or "". */
 export function describeLost(lost) {
   if (!lost) return "";
-  return `${SIDE_NOM[lost.side]} пропустили очередь: выпали ${(lost.dice || []).map((d) => NAME[d]).join(", ")}, ходить было нечем.`;
+  return tr("dice.lost", { side: SIDE_NOM[lost.side], dice: (lost.dice || []).map((d) => NAME[d]).join(", ") });
 }
 
 /**

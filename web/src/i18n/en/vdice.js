@@ -1,0 +1,16 @@
+export default {
+  "vdice.1": "Die: {p}",
+  "vdice.2": "The die has not been thrown yet",
+  "vdice.3": "Throw the dice",
+  "vdice.4": "Three dice show which pieces to move with in this turn",
+  "vdice.5": "Throwing…",
+  "vdice.6": "At the start of a turn three dice are thrown and at once show three types of pieces; move with them in any order.",
+  "vdice.7": "At the start of a turn three dice are thrown. Each names a type of piece: 1 pawn, 2 knight, 3 bishop, 4 rook, 5 queen, 6 king. All three types are visible at once.",
+  "vdice.8": "Move with the pieces that came up in any order, one move per die. Identical dice are interchangeable; the same piece can move several times if the dice allow.",
+  "vdice.9": "If a piece that came up cannot move, it is skipped at once, and the skip is final: even if it gets a move after another move, the die does not come back. The same after every move: any remaining piece that cannot move is skipped. If only skipped ones remain, the turn ends, and if none of the three can move from the very start, it passes to the opponent as a whole.",
+  "vdice.10": "There is no check or checkmate: a king may stand under attack, and the game ends when it is captured. Castling counts as a king move.",
+  "vdice.11": "The server throws the dice, the opponent sees the same three pieces. After a page reload the dice are the same.",
+  "vdice.13": "50 turns without captures or pawn moves",
+  "vdice.14": "Throw the dice.",
+  "vdice.15": "The pieces you can move with are highlighted. The order of the dice is your choice.",
+};

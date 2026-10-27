@@ -1,22 +1,24 @@
 // Horde (as on Lichess; backend/internal/variants/horde.go): White has 36 pawns and no king, Black the usual army.
 // Nothing on the board differs from the common one; the card tells the size of the horde and what each side needs.
 import { describeHorde, hordeSize } from "./horde.js";
+import { useT } from "../../i18n/index.js";
 import "./horde.css";
 
 function HordeCard({ view, you }) {
+  const t = useT();
   const n = hordeSize(view);
   return (
     <section className="card vhorde__card">
-      <h2>Орда</h2>
+      <h2>{t("vhorde.1")}</h2>
       <p className="vhorde__size">
-        У белых осталось <strong>{describeHorde(n)}</strong>.
+        {t("vhorde.2")} <strong>{describeHorde(n)}</strong>.
       </p>
       <p className="vhorde__text">
         {you === "white"
-          ? "Вы играете ордой: у вас нет короля, и поставить мат нужно чёрному королю."
+          ? t("vhorde.3")
           : you === "black"
-            ? "Вы играете армией: чтобы победить, возьмите все белые фигуры или поставьте белым пат."
-            : "Белые побеждают матом, чёрные побеждают, взяв все белые фигуры."}
+            ? t("vhorde.4")
+            : t("vhorde.5")}
       </p>
     </section>
   );

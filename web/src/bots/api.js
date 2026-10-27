@@ -1,5 +1,6 @@
 // Client of the bots API (backend/internal/play: GET /api/bots, POST /api/games with "bot").
 import { useCallback, useEffect, useState } from "react";
+import { serverMsg, tr } from "../i18n/index.js";
 
 async function readJSON(res) {
   let body = null;
@@ -9,7 +10,7 @@ async function readJSON(res) {
     // not JSON: handled below
   }
   if (!res.ok) {
-    const e = new Error(body?.error || `Сервер ответил ${res.status}`);
+    const e = new Error(serverMsg(body?.error) || tr("common.serverReplied", { status: res.status }));
     e.status = res.status;
     throw e;
   }

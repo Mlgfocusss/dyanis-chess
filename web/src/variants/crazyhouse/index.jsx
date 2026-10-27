@@ -3,10 +3,12 @@
 // chosen by a click on the pocket's piece and then on a square, or by dragging the piece onto the board.
 import Pocket from "../pockets/Pocket.jsx";
 import { droppableKinds, dropClick, dropDots, kindOfCode, pocketCounts, promotedClasses, sideOfCode, dropAction } from "../pockets/pockets.js";
+import { useT } from "../../i18n/index.js";
 import "./crazyhouse.css";
 
 // the pocket at one end of the board: the side at that end plays from the bottom of the screen if it is the viewer's
 function PocketBar({ end, ...ctx }) {
+  const t = useT();
   const side = end === "top" ? (ctx.orientation === "white" ? "black" : "white") : ctx.orientation;
   const mine = ctx.you === side;
   const counts = pocketCounts(ctx.view?.extra, side);
@@ -19,8 +21,8 @@ function PocketBar({ end, ...ctx }) {
       droppable={usable ? droppableKinds(ctx.legal) : undefined}
       selected={mine ? ctx.ui.drop || null : null}
       onSelect={(k) => ctx.setUi({ drop: k })}
-      label="Резерв"
-      note={mine ? "ваш" : undefined}
+      label={t("vcrazy.1")}
+      note={mine ? t("vcrazy.2") : undefined}
     />
   );
 }

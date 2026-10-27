@@ -1,12 +1,14 @@
 import Icon from "../ui/Icon.jsx";
 import { BADGE_IMAGES } from "./badges/index.js";
-import { CLASSES } from "./classes.js";
+import { CLASSES, classLabel } from "./classes.js";
+import { useT } from "../i18n/index.js";
 
 // Badge of a move class. Colour is never the only signal: the glyph and the
 // title say the same thing. If a picture for the class is in review/badges/ it
 // is shown as it is; otherwise the badge is drawn here. size (pixels)
 // overrides the two stock sizes, for the badge drawn on a board square.
 export default function ClassBadge({ cls, large = false, size = 0 }) {
+  const t = useT();
   const c = CLASSES[cls];
   if (!c) return null;
 
@@ -21,8 +23,8 @@ export default function ClassBadge({ cls, large = false, size = 0 }) {
         src={picture}
         width={px}
         height={px}
-        alt={c.label}
-        title={c.label}
+        alt={classLabel(t, cls)}
+        title={classLabel(t, cls)}
         draggable={false}
       />
     );
@@ -36,7 +38,7 @@ export default function ClassBadge({ cls, large = false, size = 0 }) {
     <span
       className={`badge${large ? " badge--lg" : ""}`}
       style={{ background: c.color, color: c.ink, ...custom }}
-      title={c.label}
+      title={classLabel(t, cls)}
     >
       {c.icon ? <Icon name={c.icon} size={iconSize} /> : c.text}
     </span>

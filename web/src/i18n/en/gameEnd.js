@@ -1,0 +1,18 @@
+export default {
+  "gameEnd.3": "Resignation",
+  "gameEnd.4": "by resignation",
+  "gameEnd.5": "Checkmate",
+  "gameEnd.6": "by checkmate",
+  "gameEnd.7": "Stalemate",
+  "gameEnd.8": "Fifty-move rule",
+  "gameEnd.9": "Threefold repetition",
+  "gameEnd.11": "Draw: {toLowerCase}",
+  "gameEnd.12": "You won!",
+  "gameEnd.13": "You lost",
+  "gameEnd.14": "{p} won {how}",
+  "gameEnd.20": "{p} won",
+  "gameEnd.timeout": "Time is up",
+  "gameEnd.onTime": "on time",
+  "gameEnd.agreement": "By agreement",
+  "gameEnd.material": "Insufficient material",
+};

@@ -1,0 +1,16 @@
+export default {
+  "vatomic.1": "Last explosion",
+  "vatomic.2": "Centre:",
+  "vatomic.3": ". Gone: white",
+  "vatomic.4": ", black",
+  "vatomic.5": "Atomic chess",
+  "vatomic.6": "Every capture blows up everything around it except pawns; whoever blows up the opponent's king wins.",
+  "vatomic.7": "Every capture is an explosion. The capturing piece, the captured piece and all pieces on the neighbouring squares, except pawns, disappear.",
+  "vatomic.8": "Pawns next to an explosion stay. A pawn disappears only if it captures or is captured (en passant is an explosion too).",
+  "vatomic.9": "A king cannot capture, and you cannot blow up your own king by a capture.",
+  "vatomic.10": "Whoever blows up the opponent's king wins, even if their own king is in check. Checkmate and stalemate are as in ordinary chess.",
+  "vatomic.11": "When the kings stand next to each other there is no check: taking one king would blow up the other too. Kings may stand next to each other.",
+  "vatomic.12": "On a capture with promotion the pawn explodes at once, so no piece needs to be chosen.",
+  "vatomic.13": "King blown up",
+  "vatomic.14": "by blowing up the king",
+};

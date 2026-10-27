@@ -3,6 +3,7 @@
 // (result "1-0"), team 1 seats 1 and 2 ("0-1"); partners sit on different boards with opposite colours, and
 // the piece a player takes goes to the pocket of the partner.
 import { BASE_REASONS } from "../describe.js";
+import { tr, tx } from "../../i18n/index.js";
 
 export const SEATS = 4;
 const OTHER = { white: "black", black: "white" };
@@ -18,7 +19,7 @@ export const TEAM_SEATS = [
 ];
 
 /** "Доска 1, белые" */
-export const seatLabel = (seat) => `Доска ${seatBoard(seat) + 1}, ${seatSide(seat) === "white" ? "белые" : "чёрные"}`;
+export const seatLabel = (seat) => tr("bug.seat", { board: seatBoard(seat) + 1, side: tr(seatSide(seat) === "white" ? "gameRoom.sideWhite" : "gameRoom.sideBlack") });
 
 /** The boards in the order they are shown: the viewer's own first, else 1 and 2. */
 export const boardOrder = (yourSeat) => (yourSeat >= 0 && seatBoard(yourSeat) === 1 ? [1, 0] : [0, 1]);
@@ -38,7 +39,7 @@ export function bottomSides(yourSeat, whiteBottom = false) {
 
 /** The names of a team: "Анна и Борис" (a seat nobody has taken is "—"). */
 export function teamNames(players, team) {
-  return TEAM_SEATS[team].map((s) => players?.[s]?.name || "—").join(" и ");
+  return TEAM_SEATS[team].map((s) => players?.[s]?.name || "—").join(tr("bug.and"));
 }
 
 /**
@@ -56,10 +57,12 @@ export function bugClocks(clock, receivedAt, now) {
  * subtitle }. yourSeat < 0 for a spectator (then the title names the winners).
  */
 export function describeBugEnd({ result, termination, yourSeat, players, reasons }) {
-  const [reason, how] = { ...BASE_REASONS, ...reasons }[termination] || [termination || "", ""];
+  const [reasonRu, howRu] = { ...BASE_REASONS, ...reasons }[termination] || [termination || "", ""];
+  const reason = tx(reasonRu);
+  const how = tx(howRu);
   const winner = result === "1-0" ? 0 : result === "0-1" ? 1 : null;
   if (winner === null) {
-    return { result: "1/2-1/2", outcome: "neutral", reason, title: "Ничья", subtitle: reason ? `Ничья: ${reason.toLowerCase()}` : "Ничья" };
+    return { result: "1/2-1/2", outcome: "neutral", reason, title: tr("onlineGames.2"), subtitle: reason ? tr("gameEnd.11", { toLowerCase: reason.toLowerCase() }) : tr("onlineGames.2") };
   }
   const names = teamNames(players, winner);
   const outcome = yourSeat < 0 ? "neutral" : teamOf(yourSeat) === winner ? "win" : "loss";
@@ -67,8 +70,8 @@ export function describeBugEnd({ result, termination, yourSeat, players, reasons
     result,
     outcome,
     reason,
-    title: yourSeat < 0 ? `Победили ${names}` : outcome === "win" ? "Ваша команда победила!" : "Ваша команда проиграла",
-    subtitle: yourSeat < 0 ? reason : `Победили ${names} ${how}`.trim(),
+    title: yourSeat < 0 ? tr("bug.won", { names }) : outcome === "win" ? tr("bug.yourWon") : tr("bug.yourLost"),
+    subtitle: yourSeat < 0 ? reason : tr("bug.wonHow", { names, how }).trim(),
   };
 }
 
@@ -85,8 +88,8 @@ export function chatForRoom(game, yourSeat) {
 /** The wording of the rematch button: how many of the four have asked. */
 export function rematchLabel(rematch, yourSeat) {
   const n = rematch?.offers?.filter(Boolean).length || 0;
-  if (rematch?.offers?.[yourSeat]) return `Ждём остальных (${n}/4)`;
-  return n > 0 ? `Принять реванш (${n}/4)` : "Реванш";
+  if (rematch?.offers?.[yourSeat]) return tr("bug.waiting", { n });
+  return n > 0 ? tr("bug.accept", { n }) : tr("gameRoom.39");
 }
 
 /** The moves of one board for the list: [{ side, items }] rows as in describe.js, from the whole list of moves. */

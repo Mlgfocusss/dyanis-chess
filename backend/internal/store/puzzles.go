@@ -153,7 +153,7 @@ type PuzzleAttempt struct {
 	After   int
 	Record  PuzzleRating // the person's rating and record after the attempt
 	// Gained is the points this try earned and Points the person's points after it; set only when
-	// the try was made in the points mode (award was given).
+	// award was given (the rated puzzles always give it, together with the rating).
 	Gained int
 	Points *PuzzlePoints
 }
@@ -185,10 +185,10 @@ func (s *Store) PuzzlePointsOf(ctx context.Context, userID, day string) (PuzzleP
 
 // RecordPuzzleAttempt writes down the first try at a puzzle. update maps the
 // person's current rating and attempt count to the new rating. A puzzle tried
-// before changes nothing and reports Counted false. award, when not nil, switches to the points
-// mode: it maps the series of solved puzzles before this try to the points a solved try earns (it
-// is not called for a failed one, which ends the series and earns nothing); the caller then keeps
-// the rating by returning it from update.
+// before changes nothing and reports Counted false. award, when not nil, also counts the points
+// in the same transaction as the rating: it maps the series of solved puzzles before this try to
+// the points a solved try earns (it is not called for a failed one, which ends the series and
+// earns nothing). With award nil only the rating moves.
 func (s *Store) RecordPuzzleAttempt(ctx context.Context, userID, puzzleID string, solved bool, update func(rating, attempts int) int, award func(streak int) int) (PuzzleAttempt, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {

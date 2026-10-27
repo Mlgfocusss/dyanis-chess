@@ -2,9 +2,11 @@ import { useState } from "react";
 import { useAuth } from "./AuthContext.jsx";
 import Avatar from "./Avatar.jsx";
 import { GoogleButton, GoogleUpgrade, SignOut } from "./AccountParts.jsx";
+import { useT } from "../i18n/index.js";
 import "./auth.css";
 
 export default function AccountPage() {
+  const t = useT();
   const { status, user, google, authError, guest } = useAuth();
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -27,10 +29,10 @@ export default function AccountPage() {
     return (
       <div className="page account">
         <header className="page__head">
-          <h1 className="page__title">Аккаунт</h1>
+          <h1 className="page__title">{t("auth.account")}</h1>
         </header>
         <div className="banner banner--error">
-          Аккаунты сейчас недоступны: сервер запущен без базы данных. Разбор и игра с ботом работают как раньше.
+          {t("auth.unavailable")}
         </div>
       </div>
     );
@@ -40,22 +42,22 @@ export default function AccountPage() {
     return (
       <div className="page account">
         <header className="page__head">
-          <h1 className="page__title">Вход</h1>
-          <p className="page__sub">Чтобы ваши партии и настройки доски сохранялись и открывались на любом устройстве.</p>
+          <h1 className="page__title">{t("auth.signInTitle")}</h1>
+          <p className="page__sub">{t("auth.signInSub")}</p>
         </header>
-        {authError && <div className="banner banner--error">{authError}</div>}
+        {authError && <div className="banner banner--error">{t(authError)}</div>}
         {error && <div className="banner banner--error">{error}</div>}
         <div className="account__options">
           <section className="card account__option">
-            <h2>Через Google</h2>
-            <p>Партии и настройки привязаны к вашему аккаунту. Пароль мы не получаем и не храним.</p>
-            <GoogleButton enabled={google}>Войти через Google</GoogleButton>
+            <h2>{t("auth.viaGoogle")}</h2>
+            <p>{t("auth.viaGoogleText")}</p>
+            <GoogleButton enabled={google}>{t("auth.signInGoogle")}</GoogleButton>
           </section>
           <section className="card account__option">
-            <h2>Как гость</h2>
-            <p>Без регистрации, в один клик. Партии сохранятся в этом браузере; позже гостя можно привязать к Google.</p>
+            <h2>{t("auth.guestTitle")}</h2>
+            <p>{t("auth.guestText")}</p>
             <button type="button" className="btn btn--block" disabled={busy} onClick={() => run(guest)}>
-              Продолжить как гость
+              {t("auth.asGuest")}
             </button>
           </section>
         </div>
@@ -67,16 +69,16 @@ export default function AccountPage() {
   return (
     <div className="page account">
       <header className="page__head">
-        <h1 className="page__title">Аккаунт</h1>
+        <h1 className="page__title">{t("auth.account")}</h1>
       </header>
-      {authError && <div className="banner banner--error">{authError}</div>}
+      {authError && <div className="banner banner--error">{t(authError)}</div>}
       {error && <div className="banner banner--error">{error}</div>}
       <section className="card account__me">
         <Avatar user={user} size={56} />
         <div className="account__who">
           <div className="account__name">{user.name}</div>
           <div className="account__meta">
-            {isGuest ? "Гостевой аккаунт" : "Вход через Google"}
+            {isGuest ? t("auth.kindGuest") : t("auth.kindGoogle")}
             {user.email ? ` · ${user.email}` : ""}
           </div>
         </div>
@@ -86,10 +88,10 @@ export default function AccountPage() {
 
       <div className="account__actions">
         <a className="btn" href="#settings/profile">
-          Изменить имя
+          {t("auth.changeName")}
         </a>
         <a className="btn" href="#settings/account">
-          Учётная запись и удаление
+          {t("auth.accountAndDelete")}
         </a>
         <SignOut />
       </div>

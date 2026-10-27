@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import { CLASSES } from "./classes.js";
+import { useT } from "../i18n/index.js";
 
 // Win-probability curve of the game. The light area is White's share: the higher the curve, the better
 // for White. Click or drag to jump to a ply, point at it to see which move it is. The turning points
@@ -7,6 +8,7 @@ import { CLASSES } from "./classes.js";
 // larger ring with a line through it. The dots are HTML over the picture so the stretched drawing does
 // not squash them. labelOf(ply) is the text of the tooltip.
 export default function EvalChart({ evals, ply, marks = [], onSelect, labelOf }) {
+  const t = useT();
   const ref = useRef(null);
   const [hover, setHover] = useState(null);
   const n = evals.length - 1; // plies; evals has n+1 entries
@@ -41,7 +43,7 @@ export default function EvalChart({ evals, ply, marks = [], onSelect, labelOf })
       ref={ref}
       className="eval-chart"
       role="img"
-      aria-label="График оценки партии"
+      aria-label={t("evalChart.1")}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerLeave={() => setHover(null)}

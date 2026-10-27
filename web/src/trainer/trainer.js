@@ -1,3 +1,4 @@
+import { tx, getLanguage, serverMsg, tr } from "../i18n/index.js";
 // Pure helpers of the trainer page ("Тренер"): words, shares and the geometry of the charts, and the
 // two calls to the server. No React, so `npm test` covers the logic. The texts of the plan and of the
 // recommendations are made by the server (backend/internal/trainer); this file only lays them out.
@@ -18,7 +19,7 @@ async function readJSON(res) {
   } catch {
     // not JSON: handled below
   }
-  if (!res.ok) throw new Error(body?.error || `Сервер ответил ${res.status}`);
+  if (!res.ok) throw new Error(serverMsg(body?.error) || tr("common.serverReplied", { status: res.status }));
   return body;
 }
 
@@ -62,13 +63,13 @@ export function itemPercent(item) {
 
 // "3 из 5".
 export function progressText(item) {
-  return item.goal ? `${item.progress} из ${item.goal}` : "";
+  return item.goal ? tr("trainerJs.2", { progress: item.progress, goal: item.goal }) : "";
 }
 
 // The words under the day's bar: "Выполнено 2 из 3" or, when the plan is empty, "".
 export function dayText(day) {
   if (!day || !day.total) return "";
-  return day.done === day.total ? `Выполнено всё: ${day.done} из ${day.total}` : `Выполнено ${day.done} из ${day.total}`;
+  return day.done === day.total ? tr("trainerJs.3", { done: day.done, total: day.total }) : tr("trainerJs.4", { done: day.done, total: day.total });
 }
 
 export function dayPercent(day) {
@@ -111,21 +112,21 @@ export function phaseBars(phases) {
 
 // "61%" or "мало ходов".
 export function accuracyLabel(accuracy) {
-  return accuracy == null ? "мало ходов" : `${num(accuracy)}%`;
+  return accuracy == null ? tr("trainerJs.5") : `${num(accuracy)}%`;
 }
 
 // A number with a decimal comma: 61 -> "61", 88.4 -> "88,4".
 export function num(x) {
   if (x == null || Number.isNaN(Number(x))) return "—";
-  return String(Math.round(x * 10) / 10).replace(".", ",");
+  return String(Math.round(x * 10) / 10).replace(".", getLanguage() === "en" ? "." : ",");
 }
 
 // Tiles with the slips per 100 moves.
 export function rateTiles(rate) {
   return [
-    { id: "inaccuracies", label: "Неточности", value: num(rate?.inaccuracies ?? 0), tone: "warn" },
-    { id: "mistakes", label: "Ошибки", value: num(rate?.mistakes ?? 0), tone: "mid" },
-    { id: "blunders", label: "Зевки", value: num(rate?.blunders ?? 0), tone: "bad" },
+    { id: "inaccuracies", label: tr("trainerJs.6"), value: num(rate?.inaccuracies ?? 0), tone: "warn" },
+    { id: "mistakes", label: tr("trainerJs.7"), value: num(rate?.mistakes ?? 0), tone: "mid" },
+    { id: "blunders", label: tr("trainerJs.8"), value: num(rate?.blunders ?? 0), tone: "bad" },
   ];
 }
 
@@ -144,19 +145,19 @@ export function moveLabel(c) {
 
 const CLASS_WORDS = { inaccuracy: "Неточность", mistake: "Ошибка", blunder: "Зевок" };
 export function classWord(cls) {
-  return CLASS_WORDS[cls] || "Ошибка";
+  return tx(CLASS_WORDS[cls] || "Ошибка");
 }
 
-const MONTHS = ["янв", "фев", "мар", "апр", "мая", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"];
+const monthName = (i) => tr("stats.month." + (i + 1));
 // "18 окт" in the viewer's time zone.
 export function shortDate(iso) {
   const t = new Date(iso);
-  return Number.isNaN(t.getTime()) ? "" : `${t.getDate()} ${MONTHS[t.getMonth()]}`;
+  return Number.isNaN(t.getTime()) ? "" : `${t.getDate()} ${monthName(t.getMonth())}`;
 }
 
 // "соперник Лиза, 18 окт".
 export function costlyCaption(c) {
-  return [c.opponent ? `соперник ${c.opponent}` : "", shortDate(c.at)].filter(Boolean).join(", ");
+  return [c.opponent ? tr("trainerJs.24", { opponent: c.opponent }) : "", shortDate(c.at)].filter(Boolean).join(", ");
 }
 
 // ---------------------------------------------------------------- the chart of the dynamics
@@ -194,12 +195,11 @@ function round1(n) {
 export function skippedNote(insights) {
   const n = insights?.skipped || 0;
   if (!n) return "";
-  const word = n % 10 === 1 && n % 100 !== 11 ? "разбор" : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14) ? "разбора" : "разборов";
-  return `${n} ${word} я пропустил: имя игрока в записи партии не совпало с вашим, поэтому не ясно, за какую сторону вы играли, или запись не читается.`;
+  return tr("trainer.skippedNote", { n });
 }
 
 // How far the person is from the picture: "Разобрано 1 из 3" for the empty state.
 export function needText(insights) {
   const need = insights?.need || 3;
-  return `Разобрано с вашим цветом: ${Math.min(insights?.used || 0, need)} из ${need}`;
+  return tr("trainerJs.29", { p: Math.min(insights?.used || 0, need), need });
 }

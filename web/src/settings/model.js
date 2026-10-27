@@ -4,6 +4,8 @@
 // theme from the same place before the page is drawn; a test runs it and checks it still does.
 export const SETTINGS_KEY = "dyanis.settings.v1";
 
+import { detectLanguage } from "../i18n/detect.js";
+
 export const DEFAULTS = {
   boardTheme: "slate",
   pieceSet: "default",
@@ -22,7 +24,7 @@ export const DEFAULTS = {
   showLegalMoves: true, // dots and rings for where the selected piece may go
   whiteBottom: false, // White is at the bottom of the board whichever colour is played
   castling: "standard", // "standard" (the king two squares) | "rook" (the king onto its rook) | "both"
-  premoves: false, // a move made in advance in an online game, played when it becomes possible
+  premoveOn: true, // a move made in advance (online games and puzzles), played when it becomes possible (the key is new: an old saved "off" of premoves must not hold it back)
   timeWarning: true, // the clock turns red and beeps when the time is almost out
   confirmMove: false, // an online move is sent after a press on "confirm"
   multiGames: true, // more than one game at a time
@@ -35,26 +37,45 @@ export const DEFAULTS = {
   engineArrows: true, // the engine's three best lines are drawn on the board of the review as arrows
   puzzleLevel: "normal", // "random" | "easier" | "normal" | "harder"
   puzzleRating: true, // the puzzle rating is shown
-  puzzlePoints: false, // rated puzzles earn points instead of changing the rating (the server counts them)
+  puzzlePoints: false, // the points are the main number of the rated puzzles (the rating is hidden); the server counts both either way
   puzzleThemes: false, // the themes of a puzzle are shown before it is solved
   puzzleTimer: false, // the time spent on a puzzle is shown
+  puzzleAutoNext: true, // after a puzzle is solved the next one opens by itself (the key is new: an old saved "off" of puzzleAuto must not hold it back)
+  // correspondence games
+  corrConfirmMove: true, // a move in a correspondence game waits for "confirm"
+  corrAutoClaim: true, // a win on time is given at once (otherwise the winner claims it); the server reads this one
+  corrNextGame: false, // after a move go to the next correspondence game that waits for a move
+  corrDays: 3, // days per move of a new correspondence game
+  corrNotifySound: true, // a sound when a correspondence game gets a move to answer (notify/)
+  corrNotifyBrowser: false, // a system notification for the same, only once the browser has allowed them
+  showMoveTime: false, // the time each move took beside the move (the list of moves of a game and of the review)
+  // challenges (the server reads all of these but challengeNotify)
+  challengesFrom: "friends", // "all" | "friends" | "none": who may challenge me
+  challengeMin: 0, // the lowest rating of a challenger, 0 = no limit
+  challengeMax: 0, // the highest, 0 = no limit
+  challengeFriendsIgnoreRating: true, // friends may challenge whatever their rating
+  challengeOffline: true, // challenges are taken while I am away
+  challengeNotify: "all", // "all" | "friends" | "none": whose challenges are announced on the page
   // ---- "Интерфейс"
   theme: "dark", // "dark" | "light" | "system" (as the system's own light or dark choice)
   textSize: "normal", // "normal" | "large": the size of the text on the whole site
   reduceMotion: false, // no transitions and animations (on top of the system's own "reduce motion")
   highContrast: false, // stronger borders between the parts of the page
+  language: detectLanguage(), // "ru" | "en": the language of the site; the browser's own language until chosen (i18n/)
 };
 
 // The settings of the "Игровой процесс" page; the others belong to "Доска и фигуры". Each page
 // resets only its own.
 export const GAMEPLAY_KEYS = [
-  "focusBoard", "alwaysQueen", "confirmGiveUp", "showLegalMoves", "whiteBottom", "castling", "premoves", "timeWarning",
+  "focusBoard", "alwaysQueen", "confirmGiveUp", "showLegalMoves", "whiteBottom", "castling", "premoveOn", "timeWarning",
   "confirmMove", "multiGames", "seekDown", "seekUp", "showEval", "autoReview", "moveIcons", "showCoach", "engineArrows", "puzzleLevel", "puzzleRating",
-  "puzzleThemes", "puzzleTimer", "puzzlePoints",
+  "puzzleThemes", "puzzleTimer", "puzzlePoints", "puzzleAutoNext",
+  "corrConfirmMove", "corrAutoClaim", "corrNextGame", "corrDays", "corrNotifySound", "corrNotifyBrowser", "showMoveTime",
+  "challengesFrom", "challengeMin", "challengeMax", "challengeFriendsIgnoreRating", "challengeOffline", "challengeNotify",
 ];
 
 // The settings of the "Интерфейс" page.
-export const INTERFACE_KEYS = ["theme", "textSize", "reduceMotion", "highContrast"];
+export const INTERFACE_KEYS = ["theme", "textSize", "reduceMotion", "highContrast", "language"];
 
 // The defaults of one of the three pages: true is "Игровой процесс", "interface" is "Интерфейс",
 // false (or anything else) is "Доска и фигуры", which owns all that the other two do not.
@@ -96,10 +117,14 @@ const CHOICES = {
   puzzleLevel: ["random", "easier", "normal", "harder"],
   theme: ["dark", "light", "system"],
   textSize: ["normal", "large"],
+  language: ["ru", "en"],
+  corrDays: [1, 2, 3, 5, 7, 10, 14],
+  challengesFrom: ["all", "friends", "none"],
+  challengeNotify: ["all", "friends", "none"],
 };
 
 // Numbers: whole, within the range.
-const RANGES = { seekDown: [0, 3000], seekUp: [0, 3000] };
+const RANGES = { seekDown: [0, 3000], seekUp: [0, 3000], challengeMin: [0, 3500], challengeMax: [0, 3500] };
 
 // Duration of a piece animation, in milliseconds.
 export const ANIMATION_MS = { none: 0, slow: 450, medium: 200, fast: 80 };

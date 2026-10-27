@@ -6,20 +6,22 @@ import Segmented from "../ui/Segmented.jsx";
 import { TIME_CONTROLS, tcToRequest } from "../online/clock.js";
 import useSeek from "../online/useSeek.js";
 import { SEEK_API, createGame, ensureNoGameRunning } from "./api.js";
+import { tx, tOpts, useT, tr } from "../i18n/index.js";
 import "../online/online.css";
 import "./variants.css";
 
 const COLORS = [
-  ["white", "Белые"],
-  ["random", "Случайно"],
-  ["black", "Чёрные"],
+  ["white", "online.white"],
+  ["random", "bots.random"],
+  ["black", "online.black"],
 ];
 
-const label = ([m, inc]) => (m === 0 ? "без часов" : inc ? `${m} + ${inc}` : `${m} мин`);
+const label = ([m, inc]) => (m === 0 ? tr("clock.2") : inc ? `${m} + ${inc}` : tr("lobby.6", { m }));
 
 // The lobby of a variant: its rules, the choices it has (a def.lobby.Options form), a quick game with a
 // person who wants the same, and a game with a friend by a link. mode ("quick" or "link") puts that way first.
 export default function VariantLobby({ def, mode = "" }) {
+  const t = useT();
   const { status, user, guest } = useAuth();
   const { settings } = useSettings();
   const [tc, setTc] = useState([5, 0]);
@@ -36,7 +38,7 @@ export default function VariantLobby({ def, mode = "" }) {
   const Options = def.lobby?.Options;
   const optionsCard = Options && (
     <section key="options" className="card lobby__card">
-      <h2 className="lobby__h">Настройки партии</h2>
+      <h2 className="lobby__h">{t("vlobby.6")}</h2>
       <Options value={options} onChange={setOptions} />
     </section>
   );
@@ -76,25 +78,25 @@ export default function VariantLobby({ def, mode = "" }) {
 
   const quickCard = (
     <section key="quick" className="card lobby__card" id="quick">
-      <h2 className="lobby__h">Быстрая игра</h2>
+      <h2 className="lobby__h">{t("menu.quick")}</h2>
       {searchingNow ? (
         <div className="lobby__search" role="status" aria-live="polite">
           <span className="lobby__spin" aria-hidden="true" />
           <div>
-            <p className="lobby__searching">Ищем соперника: {searching ? label(searching) : ""}</p>
+            <p className="lobby__searching">{t("lobby.13")} {searching ? label(searching) : ""}</p>
             <p className="lobby__note">
-              {seek.status?.count > 1 ? `Ждут такую же игру: ${seek.status.count}. ` : ""}
-              Ждём {seek.status?.waited || 0} с. Партия начнётся, как только найдётся тот, кто выбрал то же.
+              {seek.status?.count > 1 ? t("vlobby.9", { count: seek.status.count }) : ""}
+              {t("vlobby.10")} {seek.status?.waited || 0} {t("vlobby.11")}
             </p>
           </div>
           <button type="button" className="btn" onClick={seek.cancel}>
-            Отмена
+            {t("common.cancel")}
           </button>
         </div>
       ) : (
         TIME_CONTROLS.map((g) => (
-          <div key={g.group} className="lobby__group">
-            <span className="lobby__gname">{g.group}</span>
+          <div key={t(g.group)} className="lobby__group">
+            <span className="lobby__gname">{t(g.group)}</span>
             <div className="lobby__opts">
               {g.options.map((o) => (
                 <button key={o.join("+")} type="button" className="chip chip--big" disabled={unavailable || status === "loading"} onClick={() => find(o)}>
@@ -107,21 +109,21 @@ export default function VariantLobby({ def, mode = "" }) {
       )}
       {!searchingNow && (
         <p className="lobby__note">
-          Партия без рейтинга. Соперник тот, кто выбрал этот же вид, время и настройки. Нажмите на время, и поиск начнётся.
+          {t("vlobby.13")}
         </p>
       )}
       {!user && status === "ready" && !searchingNow && (
-        <p className="lobby__note">Вы не вошли: мы создадим вам гостевой аккаунт. Позже его можно привязать к Google.</p>
+        <p className="lobby__note">{t("lobby.18")}</p>
       )}
     </section>
   );
 
   const linkCard = (
     <section key="link" className="card lobby__card" id="link">
-      <h2 className="lobby__h">Партия с другом по ссылке</h2>
-      {[...TIME_CONTROLS, { group: "Без часов", options: [[0, 0]] }].map((g) => (
-        <div key={g.group} className="lobby__group">
-          <span className="lobby__gname">{g.group}</span>
+      <h2 className="lobby__h">{t("lobby.19")}</h2>
+      {[...TIME_CONTROLS, { group: t("clock.noClock"), options: [[0, 0]] }].map((g) => (
+        <div key={t(g.group)} className="lobby__group">
+          <span className="lobby__gname">{t(g.group)}</span>
           <div className="lobby__opts">
             {g.options.map((o) => (
               <button key={o.join("+")} type="button" className={`chip${same(o) ? " chip--on" : ""}`} aria-pressed={same(o)} onClick={() => setTc(o)}>
@@ -131,15 +133,15 @@ export default function VariantLobby({ def, mode = "" }) {
           </div>
         </div>
       ))}
-      <h2 className="lobby__h">{four ? "Ваше место на доске 1" : "Ваш цвет"}</h2>
-      <Segmented label="Цвет" value={color} onChange={setColor} options={COLORS} />
+      <h2 className="lobby__h">{four ? t("vlobby.17") : t("lobby.20")}</h2>
+      <Segmented label={t("online.colour")} value={color} onChange={setColor} options={tOpts(t, COLORS)} />
       <button type="button" className="btn btn--primary lobby__go" onClick={create} disabled={busy || unavailable || status === "loading" || searchingNow}>
-        <Icon name="online" size={18} /> {busy ? "Создаю…" : "Создать партию"}
+        <Icon name="online" size={18} /> {busy ? t("lobby.24") : t("lobby.25")}
       </button>
       <p className="lobby__note">
         {four
-          ? "Откроется страница со ссылкой: отправьте её трём игрокам, места занимаются по порядку или по выбору. Партия начнётся, когда сядут все четверо."
-          : "Откроется партия со ссылкой-приглашением. Пока друг её не откроет, часы не идут."}
+          ? t("vlobby.22")
+          : t("vlobby.23")}
       </p>
     </section>
   );
@@ -148,21 +150,21 @@ export default function VariantLobby({ def, mode = "" }) {
     <div className="page lobby vlobby">
       <header className="page__head vlobby__head">
         <a className="vlobby__back" href="#variants">
-          <Icon name="back" size={16} /> Все виды
+          <Icon name="back" size={16} /> {t("vlobby.all")}
         </a>
-        <h1 className="page__title">{def.name}</h1>
-        <p className="page__sub">{def.short}</p>
+        <h1 className="page__title">{tx(def.name)}</h1>
+        <p className="page__sub">{tx(def.short)}</p>
       </header>
 
-      {unavailable && <div className="banner banner--error">Онлайн-игра недоступна: сервер запущен без базы данных.</div>}
+      {unavailable && <div className="banner banner--error">{t("lobby.9")}</div>}
       {(error || seek.error) && <div className="banner banner--error">{error || seek.error}</div>}
 
       {def.rules.length > 0 && (
         <section className="card vlobby__rules">
-          <h2 className="lobby__h">Правила</h2>
+          <h2 className="lobby__h">{t("vlobby.26")}</h2>
           <ul>
             {def.rules.map((r, i) => (
-              <li key={i}>{r}</li>
+              <li key={i}>{tx(r)}</li>
             ))}
           </ul>
         </section>

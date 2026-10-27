@@ -1,3 +1,4 @@
+import { serverMsg, tr } from "../i18n/index.js";
 // Client of the review API (internal/api).
 
 async function readJSON(res) {
@@ -8,7 +9,7 @@ async function readJSON(res) {
     // not JSON: handled below
   }
   if (!res.ok) {
-    throw new Error(body?.error || `Сервер ответил ${res.status}`);
+    throw new Error(serverMsg(body?.error) || tr("common.serverReplied", { status: res.status }));
   }
   return body;
 }
@@ -22,7 +23,7 @@ export async function createAnalysis({ pgn, game = 1, depth = 0 }) {
       body: JSON.stringify({ pgn, game, depth }),
     });
   } catch {
-    throw new Error("Не удалось связаться с сервером разбора. Запущен ли cmd/server?");
+    throw new Error(tr("reviewApi.2"));
   }
   return (await readJSON(res)).id;
 }

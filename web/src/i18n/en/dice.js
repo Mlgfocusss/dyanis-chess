@@ -1,0 +1,15 @@
+export default {
+  "dice.piece.P": "pawn",
+  "dice.piece.N": "knight",
+  "dice.piece.B": "bishop",
+  "dice.piece.R": "rook",
+  "dice.piece.Q": "queen",
+  "dice.piece.K": "king",
+  "dice.allPlayed": "All three dice have been played.",
+  "dice.left1": "Moves left: {left} of {of}. Move any of the pieces in any order: {names}.",
+  "dice.left2": "{side}: moves left {left} of {of} ({names}).",
+  "dice.state.free": "can move",
+  "dice.state.skip": "cannot move, skipped",
+  "dice.state.used": "played",
+  "dice.lost": "{side} lost their turn: {dice} came up, and there was nothing to move.",
+};

@@ -1,6 +1,7 @@
 // What the builder suggests at a position, with no imports of its own so that
 // `npm test` covers it (it uses the pure helpers of the review page).
 import { moverLoss } from "../review/branch.js";
+import { getLanguage, tr } from "../i18n/index.js";
 
 // A move that loses this many win-probability points against the position's own
 // value is shown as weak (the same cut as a mistake in the review).
@@ -14,12 +15,33 @@ export const RARE_GAMES_SHARE = 0.01;
 // The rating ranges of the statistics, as the Lichess explorer groups the players
 // (the explorer takes the lower bounds of its groups).
 export const RATING_PRESETS = [
-  { id: "low", label: "до 1400", ratings: "0,1000,1200" },
+  { id: "low", label: "suggest.presetLow", ratings: "0,1000,1200" },
   { id: "mid", label: "1400–1800", ratings: "1400,1600" },
   { id: "high", label: "1800–2200", ratings: "1800,2000" },
-  { id: "top", label: "2200 и выше", ratings: "2200,2500" },
+  { id: "top", label: "suggest.presetTop", ratings: "2200,2500" },
 ];
 export const DEFAULT_PRESET = "mid";
+const PRESET_KEY = "dyanis.explorerRating";
+
+// The rating range the person chose last (kept in the browser), shared by the list of moves and the search for holes.
+export function loadPreset() {
+  try {
+    const id = localStorage.getItem(PRESET_KEY);
+    return RATING_PRESETS.some((p) => p.id === id) ? id : DEFAULT_PRESET;
+  } catch {
+    return DEFAULT_PRESET;
+  }
+}
+
+export function storePreset(id) {
+  try {
+    localStorage.setItem(PRESET_KEY, id);
+  } catch {
+    // a private window: the choice is just not remembered
+  }
+}
+
+export const ratingsOf = (id) => (RATING_PRESETS.find((p) => p.id === id) || RATING_PRESETS[1]).ratings;
 
 // Rows of "moves in this position", from three sources:
 //   children  the moves already in the repertoire at this position (tree moves)
@@ -111,9 +133,9 @@ export function makeQueue(limit) {
 // "1,2 млн", "340 тыс.", "812": how many games, short enough for a row.
 export function formatGames(n) {
   if (!(n > 0)) return "0";
-  if (n >= 1e6) return `${(n / 1e6).toFixed(1).replace(".", ",")} млн`;
-  if (n >= 1e4) return `${Math.round(n / 1e3)} тыс.`;
-  if (n >= 1e3) return `${(n / 1e3).toFixed(1).replace(".", ",")} тыс.`;
+  if (n >= 1e6) return tr("suggest.3", { p: (n / 1e6).toFixed(1).replace(".", getLanguage() === "en" ? "." : ",") });
+  if (n >= 1e4) return tr("suggest.4", { p: Math.round(n / 1e3) });
+  if (n >= 1e3) return tr("suggest.4", { p: (n / 1e3).toFixed(1).replace(".", getLanguage() === "en" ? "." : ",") });
   return String(n);
 }
 

@@ -161,3 +161,23 @@ func TestUnterminatedComment(t *testing.T) {
 		t.Error("expected error")
 	}
 }
+
+func TestMoveTimeAnnotationRoundTrip(t *testing.T) {
+	g, err := ParseOne("1. e4 {[%clk 0:05:00] [%emt 0:00:02.5]} e5 {[%emt 50:20:07]} 2. Nf3 1-0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if g.Moves[0].Spent != 2500*time.Millisecond || g.Moves[0].Clock != 5*time.Minute ||
+		g.Moves[1].Spent != 50*time.Hour+20*time.Minute+7*time.Second || g.Moves[1].Clock >= 0 || g.Moves[2].Spent >= 0 {
+		t.Fatalf("parsed: %+v", g.Moves)
+	}
+	g2, err := ParseOne(g.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := range g.Moves {
+		if g.Moves[i].Spent != g2.Moves[i].Spent || g.Moves[i].Clock != g2.Moves[i].Clock {
+			t.Errorf("move %d: %v/%v vs %v/%v", i, g.Moves[i].Spent, g.Moves[i].Clock, g2.Moves[i].Spent, g2.Moves[i].Clock)
+		}
+	}
+}

@@ -1,3 +1,4 @@
+import { tr } from "../../i18n/index.js";
 // King of the Hill: the four central squares and how far each king is from them. Pure (covered by `npm test`).
 
 export const HILL = ["d4", "e4", "d5", "e5"];
@@ -21,9 +22,6 @@ export function hillDistance(board, side) {
 /** "на горе", "1 ход", "3 хода", "5 ходов". */
 export function describeDistance(n) {
   if (n === null || n === undefined) return "";
-  if (n === 0) return "на горе";
-  const last = n % 10;
-  const teen = n % 100 >= 11 && n % 100 <= 14;
-  const word = teen || last === 0 || last >= 5 ? "ходов" : last === 1 ? "ход" : "хода";
-  return `${n} ${word}`;
+  if (n === 0) return tr("variants.onHill");
+  return tr("variants.hillMoves", { n });
 }

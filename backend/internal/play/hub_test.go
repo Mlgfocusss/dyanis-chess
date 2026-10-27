@@ -15,6 +15,7 @@ import (
 	"github.com/coder/websocket"
 
 	"dyanis-chess/backend/internal/bots"
+	"dyanis-chess/backend/internal/pgn"
 	"dyanis-chess/backend/internal/store"
 )
 
@@ -260,7 +261,7 @@ func TestCreateJoinAndPlayOverWebSockets(t *testing.T) {
 
 	// The record: PGN for the review, the list of games, the stored row.
 	code, pgnText := call(t, srv, "anna", "GET", "/api/games/"+id+"/pgn", "")
-	if code != 200 || !strings.Contains(string(pgnText), "1. f3 e5 2. g4 Qh4# 0-1") {
+	if code != 200 || !strings.Contains(string(pgnText), "[%emt") || !strings.HasSuffix(strings.TrimSpace(string(pgnText)), "0-1") || sanLine(t, string(pgnText)) != "f3 e5 g4 Qh4#" {
 		t.Errorf("pgn: %d %s", code, pgnText)
 	}
 	deadline := time.Now().Add(3 * time.Second)
@@ -454,4 +455,19 @@ func (s *socket) sendRaw(b []byte) {
 	if err := s.c.Write(ctx, websocket.MessageText, b); err != nil {
 		s.t.Fatal(err)
 	}
+}
+
+// sanLine reads a PGN back with the review's parser and returns its moves, so that the comments with the
+// times (and the numbers they bring back) do not matter to a test of the moves.
+func sanLine(t *testing.T, text string) string {
+	t.Helper()
+	g, err := pgn.ParseOne(text)
+	if err != nil {
+		t.Fatalf("pgn: %v: %s", err, text)
+	}
+	var sans []string
+	for _, m := range g.Moves {
+		sans = append(sans, m.SAN)
+	}
+	return strings.Join(sans, " ")
 }

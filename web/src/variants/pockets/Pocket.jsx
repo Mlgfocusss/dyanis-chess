@@ -3,6 +3,7 @@ import { SparePiece } from "react-chessboard";
 import { useSettings } from "../../settings/SettingsContext.jsx";
 import { getPieceSet } from "../../themes/index.js";
 import { POCKET_ORDER, pocketTotal } from "./pockets.js";
+import { tx, useT } from "../../i18n/index.js";
 import "./pockets.css";
 
 const NAMES = { Q: "ферзь", R: "ладья", B: "слон", N: "конь", P: "пешка" };
@@ -27,7 +28,8 @@ function useSlotSize() {
 //   selected    the chosen kind or null;  onSelect(kind | null)
 //   boardId     the id of the board the pieces are dragged to (react-chessboard draws the dragged piece only for its own board)
 //   label       text before the slots ("Резерв"); note: text after them (whose pocket it is)
-export default function Pocket({ side, counts, interactive = false, droppable, selected = null, onSelect, boardId = "DyanisBoard", label = "Резерв", note }) {
+export default function Pocket({ side, counts, interactive = false, droppable, selected = null, onSelect, boardId = "DyanisBoard", label, note }) {
+  const t = useT();
   const { settings } = useSettings();
   const set = getPieceSet(settings.pieceSet);
   const size = useSlotSize();
@@ -46,8 +48,8 @@ export default function Pocket({ side, counts, interactive = false, droppable, s
   const colour = side === "white" ? "w" : "b";
   const total = pocketTotal(counts);
   return (
-    <div className={`pocket pocket--${side}${interactive ? " pocket--mine" : ""}`} role="group" aria-label={`Резерв ${side === "white" ? "белых" : "чёрных"}`} data-pocket={side}>
-      {label && <span className="pocket__label">{label}</span>}
+    <div className={`pocket pocket--${side}${interactive ? " pocket--mine" : ""}`} role="group" aria-label={t("pocket.title", { side: side === "white" ? t("pocket.white") : t("pocket.black") })} data-pocket={side}>
+      {(label ?? t("vcrazy.1")) && <span className="pocket__label">{label ?? t("vcrazy.1")}</span>}
       <div className="pocket__slots">
         {POCKET_ORDER.map((k) => {
           const n = counts[k] || 0;
@@ -64,8 +66,8 @@ export default function Pocket({ side, counts, interactive = false, droppable, s
               role={usable ? "button" : undefined}
               tabIndex={usable ? 0 : undefined}
               aria-pressed={usable ? selected === k : undefined}
-              aria-label={`${NAMES[k]}: ${n}`}
-              title={`${NAMES[k]}: ${n}`}
+              aria-label={`${tx(NAMES[k])}: ${n}`}
+              title={`${tx(NAMES[k])}: ${n}`}
               onPointerDown={() => {
                 if (!usable) return;
                 wasSelected.current = selected === k;
@@ -91,7 +93,7 @@ export default function Pocket({ side, counts, interactive = false, droppable, s
           );
         })}
       </div>
-      {total === 0 && <span className="pocket__none">пусто</span>}
+      {total === 0 && <span className="pocket__none">{t("vpocket.8")}</span>}
       {note && <span className="pocket__note">{note}</span>}
     </div>
   );

@@ -1,4 +1,6 @@
 import Icon from "../ui/Icon.jsx";
+import { useT } from "../i18n/index.js";
+import { botText } from "./botText.js";
 
 // A bot has no photo: a round badge in its own colour (taken from its id)
 // with its initials; the engine itself gets the chip.
@@ -9,8 +11,9 @@ function hue(id) {
 }
 
 export default function BotAvatar({ bot, size = 40 }) {
+  const t = useT();
   const id = bot?.id || bot?.bot || "bot";
-  const name = bot?.name || "";
+  const name = botText(t, id, "name", bot?.name || "");
   const h = hue(id);
   const initials = name
     .split(/\s+/)

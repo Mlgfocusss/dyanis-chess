@@ -1,0 +1,16 @@
+export default {
+  "accountPanel.2": "The account has been deleted together with your data.",
+  "accountPanel.3": "How you sign in to the site and what happens to your data.",
+  "accountPanel.5": "Account type",
+  "accountPanel.6": "Guest",
+  "accountPanel.7": "E-mail",
+  "accountPanel.8": "Registered",
+  "accountPanel.10": "A guest cannot come back after signing out: link Google if you want to keep your games.",
+  "accountPanel.11": "End the session on this device. Your games and settings stay in the account.",
+  "accountPanel.12": "Delete account",
+  "accountPanel.13": "The account itself, the settings, ratings, progress in puzzles and against the bots, and the opening repository are deleted. Game reviews stay without a name, and games with other players stay with the opponent. This cannot be undone.",
+  "accountPanel.14": "Delete account…",
+  "accountPanel.15": "To confirm, type the word",
+  "accountPanel.16": "or your own name",
+  "accountPanel.18": "Delete for good",
+};

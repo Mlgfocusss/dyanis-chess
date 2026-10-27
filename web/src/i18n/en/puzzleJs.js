@@ -1,0 +1,18 @@
+export default {
+  "puzzleJs.4": "White",
+  "puzzleJs.5": "Black",
+  "puzzleJs.6": "Loading the puzzle…",
+  "puzzleJs.7": "Picking a puzzle by your rating.",
+  "puzzleJs.8": "Look carefully",
+  "puzzleJs.9": "The opponent makes a move, then it is your turn.",
+  "puzzleJs.10": "Solved, but with a mistake",
+  "puzzleJs.11": "The first try did not count as right. The next puzzle will help fix that.",
+  "puzzleJs.12": "Correct!",
+  "puzzleJs.13": "The puzzle is solved. Keep it up!",
+  "puzzleJs.14": "Here is the solution",
+  "puzzleJs.15": "See how it is solved and move on to the next puzzle.",
+  "puzzleJs.16": "Not that",
+  "puzzleJs.17": "Try again. You can take a hint or look at the solution.",
+  "puzzleJs.18": "Keep going, find the next move.",
+  "puzzleJs.20": "Find the best move for {side}.",
+};

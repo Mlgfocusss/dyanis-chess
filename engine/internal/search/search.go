@@ -306,24 +306,47 @@ func runIterativeDeepening(b *board.Board, maxDepth int, deadline time.Time, tt 
 		}
 
 		alpha, beta := -Infinity, Infinity
+		delta := aspirationDelta
 		if depth >= aspirationMinDepth {
-			alpha, beta = prevScore-aspirationDelta, prevScore+aspirationDelta
+			alpha, beta = prevScore-delta, prevScore+delta
 		}
 
-		score, m := negamax(b, depth, 0, alpha, beta, true, tt, maxSearchCheckExtensions)
-		if tt.stopped {
-			break
-		}
-		if score <= alpha || score >= beta {
-			// Fail-low or fail-high: the narrow window didn't contain
-			// the true score, so the move/score above can't be
-			// trusted as-is. Re-search this same depth with the full
-			// window rather than either widening incrementally or
-			// silently accepting a bound as if it were exact.
-			score, m = negamax(b, depth, 0, -Infinity, Infinity, true, tt, maxSearchCheckExtensions)
+		var score int
+		var m board.Move
+		for {
+			tt.rootPartialOK = false
+			score, m = negamax(b, depth, 0, alpha, beta, true, tt, maxSearchCheckExtensions)
 			if tt.stopped {
 				break
 			}
+			if score > alpha && score < beta {
+				break
+			}
+			if alpha <= -Infinity && beta >= Infinity {
+				break
+			}
+			// Fail-low or fail-high: the narrow window didn't contain the
+			// true score, so the move/score above can't be trusted as-is.
+			if !swAspWiden {
+				alpha, beta = -Infinity, Infinity
+				continue
+			}
+			delta += delta / 2
+			if score <= alpha {
+				beta = (alpha + beta) / 2
+				alpha = score - delta
+			} else {
+				beta = score + delta
+			}
+			if delta > 600 || alpha < -2000 || beta > 2000 {
+				alpha, beta = -Infinity, Infinity
+			}
+		}
+		if tt.stopped {
+			if swPartial && depth > 1 && tt.rootPartialOK {
+				bestMove = tt.rootPartial
+			}
+			break
 		}
 
 		bestMove = m
@@ -471,7 +494,7 @@ func bestMoveTimedMT(b *board.Board, maxDepth int, budget time.Duration, threads
 			threadBoard := b.Copy()
 			tt := &TranspositionTable{
 				shared:      shared,
-				history:     make([]int, historySize),
+				hist:        newHistTables(),
 				pawnCache:   eval.NewPawnCache(),
 				gameHistory: gameHistory,
 			}

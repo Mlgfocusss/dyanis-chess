@@ -49,28 +49,45 @@ test("a preview shows the move, with the rook of a castling, en passant and a pr
   assert.equal(previewPlacement(START, "e4e5"), piecesOf(START) && "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR"); // nothing on e4: unchanged
 });
 
-test("premoves follow the geometry and stop at the person's own pieces", () => {
-  // a pawn also premoves onto its diagonals: a piece may arrive there
+test("premoves follow the geometry only: nothing blocks them, not even the person's own pieces", () => {
+  // a pawn also premoves onto its diagonals: a piece may arrive there, or an own one be taken
   assert.deepEqual(sorted(premoveMoves(START, "e2")), ["e2d3", "e2e3", "e2e4", "e2f3"]);
-  assert.deepEqual(sorted(premoveMoves(START, "g1")), ["g1f3", "g1h3"]);
-  assert.deepEqual(premoveMoves(START, "a1"), []); // shut in by its own pieces
+  assert.deepEqual(sorted(premoveMoves(START, "g1")), ["g1e2", "g1f3", "g1h3"]); // e2 is an own pawn: a recapture there
+  assert.deepEqual(sorted(premoveMoves(START, "a1")), ["a1a2", "a1a3", "a1a4", "a1a5", "a1a6", "a1a7", "a1a8", "a1b1", "a1c1", "a1d1", "a1e1", "a1f1", "a1g1", "a1h1"]);
   assert.deepEqual(premoveMoves(START, "e4"), []); // no piece
-  // a rook goes through the opponent's pieces (they may move) and stops before its own
+  // a rook goes through the opponent's pieces (they may move) and through its own (they may be taken)
   const fen = "4k3/8/8/8/4p3/8/4R3/4K3 w - - 0 1";
-  assert.deepEqual(sorted(premoveMoves(fen, "e2")), ["e2a2", "e2b2", "e2c2", "e2d2", "e2e3", "e2e4", "e2e5", "e2e6", "e2e7", "e2e8", "e2f2", "e2g2", "e2h2"]);
+  assert.deepEqual(sorted(premoveMoves(fen, "e2")), ["e2a2", "e2b2", "e2c2", "e2d2", "e2e1", "e2e3", "e2e4", "e2e5", "e2e6", "e2e7", "e2e8", "e2f2", "e2g2", "e2h2"]);
   // a pawn takes diagonally even where nothing stands (the piece may arrive), and promotes to a queen
   assert.deepEqual(sorted(premoveMoves("4k3/P7/8/8/8/8/8/4K3 w - - 0 1", "a7")), ["a7a8q", "a7b8q"]);
-  // castling is premoved only with the rook at home and the way clear of own pieces
+  // a pawn pushes onto a square of its own piece (it may leave), never onto an opposing one
+  assert.ok(premoveMoves("4k3/8/8/8/8/N7/P7/4K3 w - - 0 1", "a2").includes("a2a3"));
+  assert.ok(!premoveMoves("4k3/8/8/8/8/n7/P7/4K3 w - - 0 1", "a2").includes("a2a3"));
+  assert.ok(!premoveMoves("4k3/8/8/8/n7/8/P7/4K3 w - - 0 1", "a2").includes("a2a4")); // nor the double step onto one
+  // castling is premoved with the rook at home, whatever stands between (the pieces may move out)
   assert.ok(premoveMoves(CASTLE, "e1").includes("e1g1") && premoveMoves(CASTLE, "e1").includes("e1c1"));
-  assert.ok(!premoveMoves("r3k2r/8/8/8/8/8/8/R2QK2R w KQkq - 0 1", "e1").includes("e1c1"));
+  assert.ok(premoveMoves("r3k2r/8/8/8/8/8/8/R2QK2R w KQkq - 0 1", "e1").includes("e1c1"));
+  assert.ok(!premoveMoves("r3k2r/8/8/8/8/8/8/R3K3 w KQkq - 0 1", "e1").includes("e1g1")); // no rook on h1
+  // a king can take a square of its own piece (a recapture), but not step onto its rook of the back rank (a Chess960 castling)
+  assert.ok(premoveMoves("4k3/8/8/8/8/8/3PP3/4K3 w - - 0 1", "e1").includes("e1e2"));
+  assert.ok(!premoveMoves("4k3/8/8/8/8/8/8/4KR2 w - - 0 1", "e1").includes("e1f1"));
   // black pawns go down
   assert.deepEqual(sorted(premoveMoves(START, "d7")), ["d7c6", "d7d5", "d7d6", "d7e6"]);
 });
 
+test("a premove onto an own piece is a legal choice of the board and shows as that piece's square", () => {
+  // the knight on g1 may be sent to e2, where its own pawn stands
+  const moves = premoveList(START, "w");
+  assert.equal(resolveMove(moves, START, "g1", "e2"), "g1e2");
+  assert.ok(targetSquares(moves, START, "g1").has("e2"));
+  // the queue shows that the pawn is replaced: the position as it would be after the trade
+  assert.equal(queuedPosition(START, ["g1e2"]).split(" ")[0], "rnbqkbnr/pppppppp/8/8/8/8/PPPPNPPP/RNBQKB1R");
+});
+
 test("the premoves of a side are the moves of its pieces only", () => {
   const w = premoveList(START, "w").map((m) => m.uci);
-  assert.equal(w.length, 34); // 8 pawns (2 forward, 1 or 2 diagonals) and 2 knights (2 each)
-  assert.ok(w.every((u) => "12".includes(u[1])));
+  assert.ok(w.length > 34);
+  assert.ok(w.every((u) => "12".includes(u[1]))); // from squares of the first two ranks only
   assert.ok(premoveList(START, "b").every((m) => "78".includes(m.uci[1])));
 });
 

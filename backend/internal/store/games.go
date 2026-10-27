@@ -18,17 +18,27 @@ type Game struct {
 	State     []byte
 	CreatedAt time.Time
 	UpdatedAt time.Time
+	// Correspondence games (days per move): who is to move and until when. Written by SaveGame,
+	// not read back with the game (the state document has it all).
+	Corr   bool
+	TurnID string // the person to move, "" for a bot or nobody
+	DueAt  time.Time
 }
 
 // SaveGame inserts or updates a game.
 func (s *Store) SaveGame(ctx context.Context, g *Game) error {
+	var due any
+	if !g.DueAt.IsZero() {
+		due = g.DueAt.UTC()
+	}
 	_, err := s.db.ExecContext(ctx, `INSERT INTO games
-		(id, white_id, black_id, status, result, state, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+		(id, white_id, black_id, status, result, state, created_at, updated_at, corr, turn_id, due_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON DUPLICATE KEY UPDATE white_id = VALUES(white_id), black_id = VALUES(black_id),
-			status = VALUES(status), result = VALUES(result), state = VALUES(state), updated_at = VALUES(updated_at)`,
+			status = VALUES(status), result = VALUES(result), state = VALUES(state), updated_at = VALUES(updated_at),
+			corr = VALUES(corr), turn_id = VALUES(turn_id), due_at = VALUES(due_at)`,
 		g.ID, nullIfEmpty(g.WhiteID), nullIfEmpty(g.BlackID), g.Status, nullIfEmpty(g.Result), string(g.State),
-		g.CreatedAt.UTC(), g.UpdatedAt.UTC())
+		g.CreatedAt.UTC(), g.UpdatedAt.UTC(), g.Corr, nullIfEmpty(g.TurnID), due)
 	return err
 }
 
@@ -70,6 +80,51 @@ func (s *Store) ListGames(ctx context.Context, userID string, limit int) ([]*Gam
 			return nil, err
 		}
 		out = append(out, g)
+	}
+	return out, rows.Err()
+}
+
+// CorrespondenceGames returns the unfinished correspondence games of a user, the nearest deadline first.
+func (s *Store) CorrespondenceGames(ctx context.Context, userID string) ([]*Game, error) {
+	rows, err := s.db.QueryContext(ctx, "SELECT "+gameColumns+` FROM games
+		WHERE corr = 1 AND status = 'playing' AND (white_id = ? OR black_id = ?) ORDER BY due_at`, userID, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []*Game
+	for rows.Next() {
+		g, err := scanGame(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, g)
+	}
+	return out, rows.Err()
+}
+
+// CountMyTurn counts the correspondence games in which the user is to move.
+func (s *Store) CountMyTurn(ctx context.Context, userID string) (int, error) {
+	var n int
+	err := s.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM games WHERE corr = 1 AND status = 'playing' AND turn_id = ?", userID).Scan(&n)
+	return n, err
+}
+
+// ActiveCorrespondenceIDs lists every unfinished correspondence game, to bring them back into memory
+// (and their deadlines back to life) when the server starts.
+func (s *Store) ActiveCorrespondenceIDs(ctx context.Context) ([]string, error) {
+	rows, err := s.db.QueryContext(ctx, "SELECT id FROM games WHERE corr = 1 AND status = 'playing'")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		out = append(out, id)
 	}
 	return out, rows.Err()
 }

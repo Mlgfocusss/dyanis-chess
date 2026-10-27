@@ -33,7 +33,7 @@ func TestPuzzlePoints(t *testing.T) {
 	}
 }
 
-func TestResultInPointsMode(t *testing.T) {
+func TestResultCountsRatingAndPoints(t *testing.T) {
 	f, h := newTest("u1") // puzzle 00008 has rating 1900, the person 1200
 	var got resultResponse
 	post := func(body string) {
@@ -44,9 +44,11 @@ func TestResultInPointsMode(t *testing.T) {
 		got = resultResponse{}
 		json.Unmarshal(rec.Body.Bytes(), &got)
 	}
-	post(`{"solved":true,"mode":"points"}`)
-	if !got.Counted || got.After != 1200 || got.You.Rating != 1200 || got.You.Attempts != 31 {
-		t.Errorf("the rating must stay: %+v", got)
+	// no mode at all: the rating moves and the points are counted, both in the one answer
+	post(`{"solved":true}`)
+	want := NewRating(1200, 30, 1900, true)
+	if !got.Counted || got.Before != 1200 || got.After != want || got.You.Rating != want || got.You.Attempts != 31 {
+		t.Errorf("the rating must move: %+v, want after=%d", got, want)
 	}
 	if got.Points == nil || got.Points.Gained != 19 || got.Points.Total != 19 || got.Points.Streak != 1 {
 		t.Errorf("points: %+v", got.Points)
@@ -54,42 +56,54 @@ func TestResultInPointsMode(t *testing.T) {
 	if len(f.recorded) != 1 || !f.recorded[0] {
 		t.Errorf("the try is recorded as the first: %v", f.recorded)
 	}
-	post(`{"solved":true,"mode":"points","hint":true}`)
+	post(`{"solved":true,"hint":true}`)
 	if got.Points.Gained != 9 || got.Points.Total != 28 || got.Points.Streak != 2 {
 		t.Errorf("with the hint: %+v", got.Points)
 	}
-	post(`{"solved":false,"mode":"points"}`)
+	post(`{"solved":false}`)
 	if got.Points.Gained != 0 || got.Points.Total != 28 || got.Points.Streak != 0 || got.Points.Best != 2 {
 		t.Errorf("a failure takes nothing and ends the series: %+v", got.Points)
 	}
-	f.tried = true // a repeat: nothing earned, the standing is shown
-	post(`{"solved":true,"mode":"points"}`)
-	if got.Counted || got.Points == nil || got.Points.Gained != 0 || got.Points.Total != 28 {
+	if got.After >= got.Before {
+		t.Errorf("a failure lowers the rating: %+v", got)
+	}
+	f.tried = true // a repeat: nothing earned, no rating change, the standing is shown
+	post(`{"solved":true}`)
+	if got.Counted || got.After != got.Before || got.Points == nil || got.Points.Gained != 0 || got.Points.Total != 28 {
 		t.Errorf("a repeat: %+v", got)
 	}
 	// the browser cannot send points of its own
-	post(`{"solved":true,"mode":"points","points":1000,"gained":1000}`)
+	post(`{"solved":true,"points":1000,"gained":1000}`)
 	if got.Points.Total != 28 {
 		t.Errorf("client points taken: %+v", got.Points)
+	}
+	// the old pages still send mode: "points"; it changes nothing
+	f.tried = false
+	post(`{"solved":true,"mode":"points"}`)
+	if !got.Counted || got.After == got.Before || got.Points.Gained != 19 || got.Points.Total != 47 {
+		t.Errorf("old mode field: %+v", got)
 	}
 	if rec := do(h, "POST", "/api/puzzles/00008/result", `{"solved":true,"mode":"zzz"}`); rec.Code != 400 {
 		t.Errorf("unknown mode: %d", rec.Code)
 	}
 }
 
-func TestNextAsksForPoints(t *testing.T) {
+func TestNextCarriesThePoints(t *testing.T) {
 	f, h := newTest("u1")
 	f.points.Total = 77
-	rec := do(h, "GET", "/api/puzzles/next?mode=points", "")
+	for _, url := range []string{"/api/puzzles/next", "/api/puzzles/next?mode=points", "/api/puzzles/00008"} {
+		rec := do(h, "GET", url, "")
+		var got nextResponse
+		json.Unmarshal(rec.Body.Bytes(), &got)
+		if got.Points == nil || got.Points.Total != 77 {
+			t.Errorf("%s: points %+v", url, got.Points)
+		}
+	}
+	_, anon := newTest("")
+	rec := do(anon, "GET", "/api/puzzles/next", "")
 	var got nextResponse
 	json.Unmarshal(rec.Body.Bytes(), &got)
-	if got.Points == nil || got.Points.Total != 77 {
-		t.Errorf("points: %+v", got.Points)
-	}
-	rec = do(h, "GET", "/api/puzzles/next", "")
-	got = nextResponse{}
-	json.Unmarshal(rec.Body.Bytes(), &got)
 	if got.Points != nil {
-		t.Errorf("points without asking: %+v", got.Points)
+		t.Errorf("points for nobody: %+v", got.Points)
 	}
 }

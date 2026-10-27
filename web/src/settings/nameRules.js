@@ -1,3 +1,4 @@
+import { tr } from "../i18n/index.js";
 // The rules for a display name, the same as the server's (backend/internal/auth/profile.go): so the
 // form can say what is wrong before the request. The server checks again. Plain JavaScript, tested.
 export const NAME_MIN = 2;
@@ -19,11 +20,11 @@ export function checkName(raw) {
   const name = normalizeName(raw);
   const n = nameLength(name);
   if (!/^[\p{L}\p{Nd} _.-]*$/u.test(name)) {
-    return { name, error: "В имени можно использовать буквы, цифры, пробел, дефис, подчёркивание и точку." };
+    return { name, error: tr("nameRules.1") };
   }
-  if (n < NAME_MIN) return { name, error: `Имя слишком короткое: нужно от ${NAME_MIN} до ${NAME_MAX} символов.` };
-  if (n > NAME_MAX) return { name, error: `Имя слишком длинное: нужно от ${NAME_MIN} до ${NAME_MAX} символов.` };
-  if (!/[\p{L}\p{Nd}]/u.test(name)) return { name, error: "В имени должна быть хотя бы одна буква или цифра." };
+  if (n < NAME_MIN) return { name, error: tr("nameRules.2", { NAME_MIN, NAME_MAX }) };
+  if (n > NAME_MAX) return { name, error: tr("nameRules.3", { NAME_MIN, NAME_MAX }) };
+  if (!/[\p{L}\p{Nd}]/u.test(name)) return { name, error: tr("nameRules.4") };
   return { name, error: "" };
 }
 

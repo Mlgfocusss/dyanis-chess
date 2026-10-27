@@ -1,0 +1,28 @@
+export default {
+  // time of a move (online/moveTime.js, MoveTime.jsx, review/TimeSection.jsx)
+  "notify.unitS": "с",
+  "notify.unitM": "м",
+  "notify.unitH": "ч",
+  "notify.unitD": "д",
+  "notify.decimal": ",",
+  "notify.moveTimeTitle": "Показывать время хода",
+  "notify.moveTimeHint": "Рядом с каждым ходом в списке ходов партии и разбора мелко пишется, сколько времени он занял. Для партий, сыгранных до появления этой функции, и для вставленных PGN без часов времени нет.",
+  "notify.timeTitle": "Время на ход",
+  "notify.timeAverage": "Среднее время хода",
+  "notify.timeLongest": "Самые долгие ходы",
+  "notify.timeBlack": "чёрные",
+  "notify.timeWhite": "белые",
+  // a move to answer in a correspondence game (notify/useCorrNotify.js, NotifyRows.jsx)
+  "notify.body": "Ваш ход в заочной партии против {name}.",
+  "notify.bodyAnon": "Ваш ход в заочной партии.",
+  "notify.bodyMany": "Ваш ход в заочных партиях: {n}.",
+  "notify.action": "Играть",
+  "notify.soundTitle": "Звук при ходе соперника",
+  "notify.soundHint": "Короткий сигнал, когда в заочной партии соперник сходил и очередь за вами. Работает, пока сайт открыт, и выключается вместе с общим звуком.",
+  "notify.soundTest": "Проверить",
+  "notify.browserTitle": "Уведомления о ходе",
+  "notify.browserHint": "Системное уведомление «Ваш ход в заочной партии», пока вкладка свёрнута или закрыта другим окном. Браузер спросит разрешение один раз, при включении. Нужно, чтобы вкладка сайта оставалась открытой.",
+  "notify.browserOn": "Уведомления разрешены.",
+  "notify.browserDenied": "Браузер запретил уведомления для этого сайта. Разрешите их в настройках сайта (значок слева от адреса) и включите снова.",
+  "notify.browserUnsupported": "Этот браузер не показывает системные уведомления.",
+};

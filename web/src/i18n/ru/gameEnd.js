@@ -1,0 +1,18 @@
+export default {
+  "gameEnd.3": "Сдача",
+  "gameEnd.4": "по сдаче соперника",
+  "gameEnd.5": "Мат",
+  "gameEnd.6": "матом",
+  "gameEnd.7": "Пат",
+  "gameEnd.8": "Правило 50 ходов",
+  "gameEnd.9": "Троекратное повторение",
+  "gameEnd.11": "Ничья: {toLowerCase}",
+  "gameEnd.12": "Вы победили!",
+  "gameEnd.13": "Вы проиграли",
+  "gameEnd.14": "{p} победили {how}",
+  "gameEnd.20": "{p} победили",
+  "gameEnd.timeout": "Время вышло",
+  "gameEnd.onTime": "по времени",
+  "gameEnd.agreement": "По соглашению",
+  "gameEnd.material": "Недостаточно материала",
+};

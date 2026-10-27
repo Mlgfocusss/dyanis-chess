@@ -121,16 +121,19 @@ func TestNewSearchSharesHashTableNotPerCallState(t *testing.T) {
 
 	parent := NewTranspositionTable()
 	a := parent.NewSearch()
-	a.recordHistory(m, 5)
-	if a.historyScore(m) == 0 {
+	piece := b.PieceAt(m.From)
+	a.recordHistory(piece, m, 0, 5)
+	if a.historyScore(piece, m, 0) == 0 {
 		t.Fatal("sanity check failed: recordHistory should have made historyScore nonzero on a")
 	}
 	a.nodes = 12345
 	a.store(999, ttEntry{depth: 2, score: 7})
 
 	c := parent.NewSearch()
-	if got := c.historyScore(m); got != 0 {
-		t.Errorf("expected a fresh NewSearch() table to start with empty history, got %d for a's move", got)
+	// History now lives through the whole game (swHistKeep): a new search
+	// keeps it, while killers/nodes start fresh.
+	if got := c.historyScore(piece, m, 0); got == 0 {
+		t.Errorf("expected NewSearch() to keep the game's history, got 0 for a's move")
 	}
 	if c.nodes != 0 {
 		t.Errorf("expected a fresh NewSearch() table to start with nodes == 0, got %d", c.nodes)

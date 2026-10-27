@@ -1,16 +1,18 @@
 // Atomic chess (as on Lichess; the rules are in backend/internal/variants/atomic.go). A capture is an explosion:
 // the screen tints the squares of the last blast and the card lists the pieces it destroyed.
 import { blastClasses, blastOf, describeBlast } from "./blast.js";
+import { useT } from "../../i18n/index.js";
 import "./atomic.css";
 
 function BlastCard({ view }) {
+  const t = useT();
   const d = describeBlast(blastOf(view?.extra));
   if (!d) return null;
   return (
     <section className="card vatomic__card" aria-live="polite">
-      <h2>Последний взрыв</h2>
+      <h2>{t("vatomic.1")}</h2>
       <p className="vatomic__center">
-        Центр: <strong>{d.center}</strong>. Исчезло: белых {d.white}, чёрных {d.black}.
+        {t("vatomic.2")} <strong>{d.center}</strong>{t("vatomic.3")} {d.white}{t("vatomic.4")} {d.black}.
       </p>
       <ul className="vatomic__lost">
         {d.lost.map((l) => (

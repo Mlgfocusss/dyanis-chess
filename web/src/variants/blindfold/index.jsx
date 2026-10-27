@@ -20,6 +20,7 @@ import {
   targetsOf,
   writePrefs,
 } from "./blindfold.js";
+import { tx, useT } from "../../i18n/index.js";
 import "./blindfold.css";
 
 // ---------------------------------------------------- the person's settings of the room (kept in the browser)
@@ -48,24 +49,25 @@ const usePrefs = () => useSyncExternalStore(subscribe, getPrefs);
 // ------------------------------------------------------------------------------------- lobby
 
 function PeekOptions({ value, onChange }) {
+  const t = useT();
   const on = !!value?.peek;
   return (
     <div className="blind-opts">
-      <p className="blind-opts__title">Подглядывание</p>
+      <p className="blind-opts__title">{t("vblind.1")}</p>
       <Segmented
-        label="Подглядывание"
+        label={t("vblind.1")}
         value={on ? "on" : "off"}
         onChange={(v) => onChange({ peek: v === "on" })}
         options={[
-          ["off", "Выключено"],
-          ["on", "Разрешено"],
+          ["off", t("vblind.2")],
+          ["on", t("vblind.3")],
         ]}
       />
       <p className="blind-opts__note">
         {on
-          ? "У каждого игрока будет кнопка «Подсмотреть позицию на 3 секунды»; зрители видят доску."
-          : "Доска пуста всю партию, позицию нельзя посмотреть: только держать в голове (подсвечен лишь последний ход соперника). Позиция откроется после конца партии."}{" "}
-        Быстрая игра подбирает соперника с таким же выбором.
+          ? t("vblind.4")
+          : t("vblind.5")}{" "}
+        {t("vblind.6")}
       </p>
     </div>
   );
@@ -74,22 +76,23 @@ function PeekOptions({ value, onChange }) {
 // ------------------------------------------------------------------------- the room: above the board
 
 function Top({ game, you, playing }) {
+  const t = useT();
   if (game.status === "waiting") return null;
   const ended = game.status === "ended";
   const moves = game.moves || [];
   const line = lastMoveLine(moves, you, ended);
   let sub;
-  if (ended) sub = "Партия окончена: позиция открыта.";
+  if (ended) sub = t("vblind.7");
   else if (!playing) sub = "";
-  else if (moves.length === 0) sub = you ? "Фигур на доске не видно. Ходите кликами по клеткам или записью хода." : "Игроки ходят вслепую.";
-  else sub = moveNumber(moves) ? `Ход ${moveNumber(moves)}` : "";
+  else if (moves.length === 0) sub = you ? t("vblind.8") : t("vblind.9");
+  else sub = moveNumber(moves) ? t("vblind.10", { p: moveNumber(moves) }) : "";
   return (
     <div className="blind-top" role="status" aria-live="polite">
       <span className="blind-top__icon">
         <Icon name="blindfold" size={20} />
       </span>
       <div className="blind-top__text">
-        <p className="blind-top__main">{line || (playing ? "Партия началась" : "")}</p>
+        <p className="blind-top__main">{line || (playing ? t("vblind.11") : "")}</p>
         {sub && <p className="blind-top__sub">{sub}</p>}
       </div>
     </div>
@@ -99,6 +102,7 @@ function Top({ game, you, playing }) {
 // -------------------------------------------------------------------- the room: below the board
 
 function Bottom({ game, you, myTurn, ui, setUi, act, notice, view }) {
+  const t = useT();
   const [text, setText] = useState("");
   const [error, setError] = useState("");
   const moves = game.moves?.length || 0;
@@ -125,25 +129,25 @@ function Bottom({ game, you, myTurn, ui, setUi, act, notice, view }) {
 
   function submit(e) {
     e.preventDefault();
-    const t = text.trim();
-    if (!t) return setError("Введите ход, например Nf3, e4 или O-O.");
+    const entered = text.trim();
+    if (!entered) return setError(t("vblind.12"));
     setError("");
-    if (!act(t)) setError("Нет связи с сервером, попробуйте ещё раз.");
+    if (!act(entered)) setError(t("vblind.13"));
   }
 
   const promo = ui.promo;
   return (
     <div className="blind-bottom">
       {promo && (
-        <div className="blind-promo" role="group" aria-label="Во что превратить пешку">
-          <span className="blind-promo__lab">Пешка превращается в:</span>
+        <div className="blind-promo" role="group" aria-label={t("promo.group")}>
+          <span className="blind-promo__lab">{t("vblind.15")}</span>
           {promo.letters.map((l) => (
             <button key={l} type="button" className="chip" onClick={() => act(promo.from + promo.to + l)}>
               {PROMOTION_NAMES[l]}
             </button>
           ))}
           <button type="button" className="btn btn--ghost" onClick={() => setUi({ promo: null })}>
-            Отмена
+            {t("common.cancel")}
           </button>
         </div>
       )}
@@ -156,8 +160,8 @@ function Bottom({ game, you, myTurn, ui, setUi, act, notice, view }) {
             setError("");
           }}
           disabled={!myTurn}
-          placeholder={myTurn ? "Ход: Nf3, e4, O-O, e2e4" : "Дождитесь хода соперника"}
-          aria-label="Ход текстом"
+          placeholder={myTurn ? t("vblind.17") : t("vblind.18")}
+          aria-label={t("vblind.19")}
           autoComplete="off"
           autoCapitalize="none"
           autoCorrect="off"
@@ -165,11 +169,11 @@ function Bottom({ game, you, myTurn, ui, setUi, act, notice, view }) {
           maxLength={16}
         />
         <button type="submit" className="btn btn--primary" disabled={!myTurn}>
-          Сделать ход
+          {t("vblind.20")}
         </button>
         {canPeek && (
           <button type="button" className="btn blind-form__peek" disabled={peeking} onClick={() => setUi({ peek: true })}>
-            <Icon name="board" size={16} /> {peeking ? "Позиция открыта…" : "Подсмотреть позицию на 3 секунды"}
+            <Icon name="board" size={16} /> {peeking ? t("vblind.21") : t("vblind.22")}
           </button>
         )}
       </form>
@@ -185,24 +189,25 @@ function Bottom({ game, you, myTurn, ui, setUi, act, notice, view }) {
 // ------------------------------------------------------------------- the room: card on the right
 
 function Side({ game, view, you, setUi }) {
+  const t = useT();
   const p = usePrefs();
   const ended = game.status === "ended";
   const peek = !!view?.extra?.peek;
   return (
     <section className="card blind-note">
       <h2>
-        <Icon name="blindfold" size={18} /> Слепые шахматы
+        <Icon name="blindfold" size={18} /> {t("vblind.23")}
       </h2>
       {ended ? (
-        <p className="blind-note__over">Партия окончена: позиция и ходы открыты.</p>
+        <p className="blind-note__over">{t("vblind.24")}</p>
       ) : (
         <>
-          <p>Фигур не видно. Нажмите клетку, с которой ходите, потом клетку, куда идёт фигура, или впишите ход в поле под доской.</p>
-          <p>Ход соперника подсвечивается на доске двумя клетками (какая фигура, не показано) и пишется текстом над доской. Подсмотреть позицию {peek ? "можно кнопкой под доской" : "нельзя (выключено в этой партии)"}.</p>
+          <p>{t("vblind.25")}</p>
+          <p>{t("vblind.26")} {peek ? t("vblind.27") : t("vblind.28")}.</p>
           {you && (
             <label className="blind-note__check">
               <input type="checkbox" checked={p.dots} onChange={(e) => setPrefs({ dots: e.target.checked })} />
-              <span>Точки допустимых ходов у выбранной клетки</span>
+              <span>{t("vblind.29")}</span>
             </label>
           )}
           {you && (
@@ -211,10 +216,10 @@ function Side({ game, view, you, setUi }) {
                   setPrefs({ oppLast: e.target.checked });
                   setUi({}); // the room draws again with the new choice
                 }} />
-              <span>Подсвечивать последний ход соперника (если включена подсветка хода в настройках доски)</span>
+              <span>{t("vblind.30")}</span>
             </label>
           )}
-          {!you && <p>Вы наблюдаете за партией{peek ? "" : ": позиция зрителям тоже не видна"}.</p>}
+          {!you && <p>{t("vblind.31")}{peek ? "" : t("vblind.32")}.</p>}
         </>
       )}
     </section>
@@ -226,20 +231,21 @@ function Side({ game, view, you, setUi }) {
 // The list of moves is hidden from the players unless they ask (the point is to keep the position in the head);
 // a spectator and everyone after the end see it.
 function MovesCard({ game, you, moves, children }) {
+  const t = useT();
   const p = usePrefs();
   const over = game.status !== "playing" && game.status !== "waiting";
   const shown = !you || over || p.showMoves;
   return (
     <section className="card room__moves blind-moves">
       <div className="blind-moves__head">
-        <h2>Ходы</h2>
+        <h2>{t("vblind.33")}</h2>
         {!!you && !over && (
           <button type="button" className="btn btn--ghost" aria-pressed={p.showMoves} onClick={() => setPrefs({ showMoves: !p.showMoves })}>
-            {p.showMoves ? "Скрыть" : "Показать"}
+            {p.showMoves ? t("vblind.34") : t("vblind.35")}
           </button>
         )}
       </div>
-      {shown ? children : <p className="blind-moves__off">Лента ходов скрыта: держите позицию в голове. Сыграно полуходов: {moves.length}.</p>}
+      {shown ? children : <p className="blind-moves__off">{t("vblind.36")} {moves.length}.</p>}
     </section>
   );
 }

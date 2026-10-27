@@ -188,6 +188,9 @@ type MoveReport struct {
 	// Clock is the mover's remaining time after the move, in
 	// milliseconds, or -1 when the PGN had no clock annotation.
 	ClockMs int64 `json:"clockMs"`
+	// TimeMs is how long the move took, in milliseconds. Left out when
+	// the game carried no clock or move times (older reports have none).
+	TimeMs *int64 `json:"timeMs,omitempty"`
 	// Opening is set on the plies whose position has a name in the ECO
 	// reference; Book is set on every theory move (including a ply or
 	// two between named positions).
@@ -331,6 +334,9 @@ type playedMove struct {
 	HasMove bool
 	// ClockMs is the mover's time left, -1 when unknown.
 	ClockMs int64
+	// SpentMs is how long the move took when HasSpent (see times.go).
+	SpentMs  int64
+	HasSpent bool
 	// Legal is how many moves the mover had (1 means a forced move).
 	Legal int
 }
@@ -379,6 +385,11 @@ func Analyze(g *pgn.Game, opt Options) (*Report, error) {
 		}
 		cur.Play(m.Move)
 		tl.boards[i+1], tl.spare[i+1], tl.hashes[i+1] = cur.Copy(), cur.Copy(), cur.Hash()
+	}
+	for i, ms := range moveTimes(g, tl.startBlack) {
+		if ms >= 0 {
+			tl.moves[i].SpentMs, tl.moves[i].HasSpent = ms, true
+		}
 	}
 	return review(tl, opt), nil
 }
@@ -450,7 +461,6 @@ func review(tl *timeline, opt Options) *Report {
 	}
 	weights := volatilityWeights(winPcts)
 	var accs, accWeights [2][]float64
-	var played [2]int // moves per player, book ones included
 	rep.Counts = [2]map[Class]int{{}, {}}
 	for i, m := range tl.moves {
 		color := i % 2
@@ -468,6 +478,10 @@ func review(tl *timeline, opt Options) *Report {
 		mr := MoveReport{
 			Ply: i + 1, SAN: m.SAN, UCI: uci, Loss: loss,
 			Forced: m.Legal == 1, ClockMs: m.ClockMs,
+		}
+		if m.HasSpent {
+			t := m.SpentMs
+			mr.TimeMs = &t
 		}
 		if color == 0 {
 			mr.Color = "white"
@@ -509,25 +523,22 @@ func review(tl *timeline, opt Options) *Report {
 			mr.Opening = &o
 			rep.Opening = &o
 		}
-		played[color]++
 		if i+1 <= bookPlies {
 			// Theory: the engine's opinion is kept in Loss/BestSAN for
-			// the curious, but the move is not judged and not scored.
+			// the curious, but the move is not judged: it counts as a perfect one.
 			mr.Book, mr.Class, mr.Accuracy = true, Book, 100
-			rep.Moves[i] = mr
 			rep.Counts[color][Book]++
-			continue
+		} else {
+			rep.Counts[color][mr.Class]++
 		}
 		rep.Moves[i] = mr
-		rep.Counts[color][mr.Class]++
+		// Theory moves are scored too (100, with the weight of their quiet position): a
+		// blunder on move 8 after seven book moves is a bad game, but not one of 3 points.
 		accs[color] = append(accs[color], mr.Accuracy)
 		accWeights[color] = append(accWeights[color], weights[i])
 	}
 	for c := 0; c < 2; c++ {
 		rep.Accuracy[c] = playerAccuracy(accs[c], accWeights[c])
-		if len(accs[c]) == 0 && played[c] > 0 {
-			rep.Accuracy[c] = 100 // every move was theory
-		}
 	}
 	rep.Key = keyMoments(rep.Moves, 5, opt.Thresholds.Inaccuracy)
 	return rep

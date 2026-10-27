@@ -1,3 +1,4 @@
+import { tr, serverMsg } from "../i18n/index.js";
 // Client of the public leaderboard and profile API (backend/internal/profiles).
 
 async function readJSON(res) {
@@ -8,7 +9,7 @@ async function readJSON(res) {
     // not JSON: handled below
   }
   if (!res.ok) {
-    const e = new Error(body?.error || `Сервер ответил ${res.status}`);
+    const e = new Error(serverMsg(body?.error) || tr("common.serverReplied", { status: res.status }));
     e.status = res.status;
     throw e;
   }

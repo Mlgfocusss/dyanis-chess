@@ -64,12 +64,13 @@
     padding-bottom: max(6px, env(safe-area-inset-bottom));
   }
   .nav__brand, .nav__foot, .nav__soon-item, .acard { display: none; }
-  .nav__list--bottom .nav__mobile-only { display: block; }
-  .nav__list { flex-direction: row; flex: 2; justify-content: space-around; }
-  .nav__list--bottom { flex: 1; margin-top: 0; padding-top: 0; border-top: 0; }
+  /* five buttons on the bar; what does not fit (and the profile, the settings) is behind "More" */
+  .nav__more-item, .nav__list--bottom { display: none; }
+  .nav__mobile-only { display: block; }
+  .nav__list { flex-direction: row; flex: 1; justify-content: space-around; }
   .nav__list li { flex: 1; }
   .nav__item { flex-direction: column; gap: 2px; justify-content: center; min-height: 52px; padding: 4px; text-align: center; }
-  .nav__label { font-size: 0.66rem; }
+  .nav__label { font-size: 0.72rem; }
   .nav__list, .nav__list li, .nav__item { min-width: 0; }
   .nav__item { padding: 4px 2px; }
   .nav__label { max-width: 100%; }
@@ -117,6 +118,32 @@
   .focus-toggle__text { display: none; }
   .shell--focus .focus-toggle { bottom: 18px; }
 }
+/* the "More" sheet of the phone menu: it rises over the page, above the bar */
+.msheet { display: none; }
+@media (max-width: 860px) {
+  .msheet { position: fixed; inset: 0; z-index: 35; display: flex; flex-direction: column; justify-content: flex-end; }
+  .msheet__scrim { position: absolute; inset: 0 0 calc(64px + env(safe-area-inset-bottom)) 0; border: 0; padding: 0; background: var(--scrim); }
+  .msheet__panel {
+    position: relative; max-height: calc(100dvh - 96px - env(safe-area-inset-bottom)); overflow-y: auto; overscroll-behavior: contain;
+    margin: 0 8px calc(70px + env(safe-area-inset-bottom)); padding: 12px; display: flex; flex-direction: column; gap: 14px;
+    background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--radius); box-shadow: var(--shadow);
+  }
+  .msheet__title { display: flex; align-items: center; gap: 8px; margin: 0 4px 6px; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
+  .msheet__grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .msheet__grid--one { grid-template-columns: 1fr; }
+  .msheet__item {
+    display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 0 12px; min-width: 0;
+    background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text);
+    font-size: 0.92rem; font-weight: 500; text-align: left;
+  }
+  .msheet__item:active { background: var(--surface-3); }
+  .msheet__item--active { background: var(--primary-soft); border-color: transparent; color: var(--primary); }
+  .msheet__label { min-width: 0; line-height: 1.2; overflow-wrap: anywhere; }
+  .msheet__item .cbadge { margin-left: auto; }
+  /* the board already fills the phone screen: the "board in the centre" button would only sit on the content */
+  .shell:not(.shell--focus) .focus-toggle { display: none; }
+}
+
 .shell--focus .nav { display: none; }
 .shell--focus .main { margin-left: 0; padding-bottom: 0; }
 .shell--focus .room__side,

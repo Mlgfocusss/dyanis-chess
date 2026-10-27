@@ -10,16 +10,18 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Icon from "../../ui/Icon.jsx";
 import { NAME, describeLost, describeTurn, dieCaption, diceSlots, movableSquares, needsRoll, newThrow, pieceIcon, shakeKinds, sideOfDice } from "./dice.js";
+import { useT } from "../../i18n/index.js";
 import "./dice.css";
 
 // One die with the piece on its face. state: "free", "used", "skip", "empty" (nothing there yet).
 export function PieceDie({ kind, state, side, size = 52, rolling = false, landing = false }) {
+  const t = useT();
   return (
     <div
       className={`pdie pdie--${state} pdie--${side}${rolling ? " pdie--rolling" : ""}${landing ? " pdie--landing" : ""}`}
       style={{ width: size, height: size }}
       role="img"
-      aria-label={kind ? `Кубик: ${NAME[kind]}` : "Кубик ещё не брошен"}
+      aria-label={kind ? t("vdice.1", { p: NAME[kind] }) : t("vdice.2")}
     >
       {kind && <Icon name={pieceIcon(kind)} size={Math.round(size * 0.68)} />}
     </div>
@@ -34,6 +36,7 @@ const LAND_MS = 380; // they shrink into the strip
 // The big animation over the middle of the screen. dice: the three dice as thrown; onLand: they begin to land
 // (the strip shows them); onDone: it is over. Esc or a click on the veil ends it at once.
 function RollOverlay({ dice, side, onLand, onDone }) {
+  const t = useT();
   const [shown, setShown] = useState(() => shakeKinds());
   const [stopped, setStopped] = useState(0);
   const [leaving, setLeaving] = useState(false);
@@ -100,6 +103,7 @@ function RollOverlay({ dice, side, onLand, onDone }) {
 }
 
 function DiceBar(ctx) {
+  const t = useT();
   const { playing, view, myTurn, ui, setUi, settings } = ctx;
   const ex = view?.extra;
   const [anim, setAnim] = useState(null); // { dice, side, landed } while the big animation runs
@@ -157,8 +161,8 @@ function DiceBar(ctx) {
         <button type="button" className="btn btn--primary dice-roll" onClick={roll}>
           <Icon name="dice" size={36} />
           <span className="dice-roll__text">
-            <strong>Бросить кубики</strong>
-            <span>Три кубика покажут, какими фигурами ходить в этой очереди</span>
+            <strong>{t("vdice.3")}</strong>
+            <span>{t("vdice.4")}</span>
           </span>
         </button>
       </div>
@@ -181,7 +185,7 @@ function DiceBar(ctx) {
           ))}
         </div>
         <div className="dice-bar__text">
-          <span className="dice-bar__now">{hold ? "Бросаем…" : describeTurn(ex, myTurn, view.turn)}</span>
+          <span className="dice-bar__now">{hold ? t("vdice.5") : describeTurn(ex, myTurn, view.turn)}</span>
           {ex.lost && !hold && (
             <span className="dice-bar__lost">
               <Icon name="flag" size={14} /> {describeLost(ex.lost)}

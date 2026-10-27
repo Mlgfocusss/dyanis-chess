@@ -7,14 +7,16 @@ import { TIME_CONTROLS, tcToRequest } from "../online/clock.js";
 import Icon from "../ui/Icon.jsx";
 import Segmented from "../ui/Segmented.jsx";
 import BotAvatar from "./BotAvatar.jsx";
+import { botCategoryName, botText } from "./botText.js";
 import { ensureNoGameRunning } from "../online/api.js";
 import { createBotGame, useBots } from "./api.js";
+import { tOpts, useT } from "../i18n/index.js";
 import "./bots.css";
 
 const COLORS = [
-  ["white", "Белыми"],
-  ["random", "Случайно"],
-  ["black", "Чёрными"],
+  ["white", "onlineGames.8"],
+  ["random", "bots.random"],
+  ["black", "onlineGames.9"],
 ];
 const NO_CLOCK = "none";
 const START = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
@@ -26,30 +28,32 @@ function idFromHash() {
 }
 
 export default function BotsPage() {
+  const t = useT();
   const [id, setId] = useState(idFromHash);
   useEffect(() => {
     const onHash = () => setId(idFromHash());
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
-  return id ? <GameRoom key={id} id={id} backHash="bots" backLabel="К ботам" /> : <BotPicker />;
+  return id ? <GameRoom key={id} id={id} backHash="bots" backLabel={t("botsPage.4")} /> : <BotPicker />;
 }
 
 function Row({ bot, selected, progress, onSelect }) {
+  const t = useT();
   const beaten = progress?.beaten;
   return (
     <button type="button" className={`botrow${selected ? " botrow--on" : ""}`} onClick={() => onSelect(bot.id)} aria-pressed={selected}>
       <BotAvatar bot={bot} size={44} />
       <span className="botrow__main">
-        <span className="botrow__name">{bot.name}</span>
+        <span className="botrow__name">{botText(t, bot.id, "name", bot.name)}</span>
         <span className="botrow__elo">{bot.elo}</span>
       </span>
       {beaten ? (
-        <span className="botrow__done" title="Бот побеждён">
-          <Icon name="check" size={16} /> побеждён
+        <span className="botrow__done" title={t("botsPage.5")}>
+          <Icon name="check" size={16} /> {t("botsPage.6")}
         </span>
       ) : (
-        <span className="botrow__pts" title="Очки за первую победу">
+        <span className="botrow__pts" title={t("botsPage.7")}>
           +{bot.points}
         </span>
       )}
@@ -58,6 +62,7 @@ function Row({ bot, selected, progress, onSelect }) {
 }
 
 function BotPicker() {
+  const t = useT();
   const { status, user, guest } = useAuth();
   const { settings } = useSettings();
   const { data, error: loadError } = useBots(user?.id);
@@ -105,21 +110,21 @@ function BotPicker() {
           <div className="botspage__who">
             {bot && <BotAvatar bot={bot} size={36} />}
             <span className="botspage__name">
-              {bot?.name} <span className="botspage__elo">({bot?.elo})</span>
+              {botText(t, bot?.id, "name", bot?.name)} <span className="botspage__elo">({bot?.elo})</span>
             </span>
           </div>
           <ThemedBoard id="BotsPreview" position={START} orientation={orientation} arePiecesDraggable={false} settings={settings} />
           <div className="botspage__who">
-            <span className="botspage__name">{user?.name || "Вы"}</span>
+            <span className="botspage__name">{user?.name || t("botsPage.8")}</span>
           </div>
         </div>
 
         <aside className="card botspanel">
           <header className="botspanel__head">
-            <h1>Боты</h1>
+            <h1>{t("avatar.bots")}</h1>
             {user && data && (
-              <span className="botspanel__score" title="Очки за первые победы над ботами">
-                <Icon name="trophy" size={16} /> {data.points} очков · {beaten} из {total}
+              <span className="botspanel__score" title={t("botsPage.10")}>
+                <Icon name="trophy" size={16} /> {data.points} {t("botsPage.11")} {beaten} {t("botsPage.12")} {total}
               </span>
             )}
           </header>
@@ -128,20 +133,20 @@ function BotPicker() {
             <section className="botcard">
               <BotAvatar bot={bot} size={72} />
               <div className="botcard__text">
-                <p className="botcard__bubble">{bot.greeting}</p>
+                <p className="botcard__bubble">{botText(t, bot.id, "greeting", bot.greeting)}</p>
                 <p className="botcard__title">
-                  <b>{bot.name}</b> <span>{bot.elo}</span>
+                  <b>{botText(t, bot.id, "name", bot.name)}</b> <span>{bot.elo}</span>
                 </p>
-                <p className="botcard__desc">{bot.desc}</p>
+                <p className="botcard__desc">{botText(t, bot.id, "desc", bot.desc)}</p>
                 <p className="botcard__reward">
                   {bp?.beaten ? (
                     <>
-                      <Icon name="check" size={14} /> Побеждён, очки получены (+{bp.points}). Побед: {bp.wins}, ничьих: {bp.draws}, поражений: {bp.losses}
+                      <Icon name="check" size={14} /> {t("botsPage.13")}{bp.points}{t("botsPage.14")} {bp.wins}{t("botsPage.15")} {bp.draws}{t("botsPage.16")} {bp.losses}
                     </>
                   ) : (
                     <>
-                      <Icon name="trophy" size={14} /> Первая победа: +{bot.points} очков
-                      {bp ? `. Ничьих: ${bp.draws}, поражений: ${bp.losses}` : ""}
+                      <Icon name="trophy" size={14} /> {t("botsPage.17")}{bot.points} {t("botsPage.18")}
+                      {bp ? t("botsPage.19", { draws: bp.draws, losses: bp.losses }) : ""}
                     </>
                   )}
                 </p>
@@ -162,7 +167,7 @@ function BotPicker() {
                     aria-expanded={!collapsed}
                     onClick={() => setOpen((o) => ({ ...o, [g.id]: collapsed }))}
                   >
-                    <span>{g.name}</span>
+                    <span>{botCategoryName(t, g)}</span>
                     <span className="botgroup__count">
                       {done}/{g.bots.length}
                     </span>
@@ -178,16 +183,16 @@ function BotPicker() {
           </div>
 
           <div className="botopts">
-            <Segmented label="Цвет" value={color} onChange={setColor} options={COLORS} />
+            <Segmented label={t("online.colour")} value={color} onChange={setColor} options={tOpts(t, COLORS)} />
             <label className="botopts__clock">
               <Icon name="clock" size={16} />
-              <select className="field" value={clock} onChange={(e) => setClock(e.target.value)} aria-label="Время на партию">
-                <option value={NO_CLOCK}>Без часов</option>
+              <select className="field" value={clock} onChange={(e) => setClock(e.target.value)} aria-label={t("botsPage.21")}>
+                <option value={NO_CLOCK}>{t("botsPage.22")}</option>
                 {TIME_CONTROLS.map((g) => (
-                  <optgroup key={g.group} label={g.group}>
+                  <optgroup key={g.group} label={t(g.group)}>
                     {g.options.map((o) => (
                       <option key={o.join("+")} value={o.join("+")}>
-                        {o[1] ? `${o[0]} + ${o[1]}` : `${o[0]} мин`}
+                        {o[1] ? `${o[0]} + ${o[1]}` : t("botsPage.23", { p: o[0] })}
                       </option>
                     ))}
                   </optgroup>
@@ -197,11 +202,11 @@ function BotPicker() {
           </div>
           {error && <div className="banner banner--error">{error}</div>}
           <button type="button" className="btn btn--primary botspanel__play" onClick={play} disabled={busy || !bot || status === "unavailable"}>
-            {busy ? "Начинаем…" : "Играть"}
+            {busy ? t("botsPage.24") : t("botsPage.play")}
           </button>
-          {status === "unavailable" && <p className="botspanel__note">Игра с ботами недоступна: сервер запущен без базы данных.</p>}
+          {status === "unavailable" && <p className="botspanel__note">{t("botsPage.26")}</p>}
           <p className="botspanel__note">
-            Рейтинги ботов ориентировочные, по шкале нашего движка: это не рейтинг FIDE и не рейтинг chess.com.
+            {t("botsPage.27")}
           </p>
         </aside>
       </div>

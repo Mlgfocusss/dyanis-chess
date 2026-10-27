@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import Icon from "../ui/Icon.jsx";
+import { categoryName } from "../online/rating.js";
 import {
   accuracyChart,
   accuracyNote,
@@ -16,6 +17,7 @@ import {
   weakRows,
   dayLabel,
 } from "./stats.js";
+import { locale, tr, useT, serverMsg } from "../i18n/index.js";
 import "./stats.css";
 
 // GET /api/stats: the numbers of the signed-in person (guests too).
@@ -27,7 +29,7 @@ export async function fetchStats() {
   } catch {
     // not JSON: handled below
   }
-  if (!res.ok) throw new Error(body?.error || `Сервер ответил ${res.status}`);
+  if (!res.ok) throw new Error(serverMsg(body?.error) || tr("common.serverReplied", { status: res.status }));
   return body;
 }
 
@@ -75,6 +77,7 @@ function Tile({ label, value, sub, icon }) {
 
 // Wins, draws and losses as one bar with the numbers under it.
 function ResultBar({ title, rec }) {
+  const t = useT();
   const bar = recordBar(rec);
   return (
     <div className="stats__result">
@@ -83,7 +86,7 @@ function ResultBar({ title, rec }) {
         <b>{rec.total}</b>
       </div>
       {rec.total > 0 ? (
-        <div className="stats__bar" role="img" aria-label={`${title}: побед ${rec.wins}, ничьих ${rec.draws}, поражений ${rec.losses}`}>
+        <div className="stats__bar" role="img" aria-label={t("statsTab.2", { title, wins: rec.wins, draws: rec.draws, losses: rec.losses })}>
           {bar.win > 0 && <span className="stats__seg stats__seg--win" style={{ width: `${bar.win}%` }} />}
           {bar.draw > 0 && <span className="stats__seg stats__seg--draw" style={{ width: `${bar.draw}%` }} />}
           {bar.loss > 0 && <span className="stats__seg stats__seg--loss" style={{ width: `${bar.loss}%` }} />}
@@ -94,15 +97,15 @@ function ResultBar({ title, rec }) {
       <div className="stats__rnums">
         <span>
           <i className="stats__dot stats__dot--win" />
-          побед {rec.wins}
+          {t("statsTab.3")} {rec.wins}
         </span>
         <span>
           <i className="stats__dot stats__dot--draw" />
-          ничьих {rec.draws}
+          {t("statsTab.4")} {rec.draws}
         </span>
         <span>
           <i className="stats__dot stats__dot--loss" />
-          поражений {rec.losses}
+          {t("statsTab.5")} {rec.losses}
         </span>
       </div>
     </div>
@@ -114,6 +117,7 @@ function ResultBar({ title, rec }) {
 const CHART_HEIGHT = 220;
 
 function AccuracyChart({ reviews }) {
+  const t = useT();
   const box = useRef(null);
   const [width, setWidth] = useState(0);
   const [hover, setHover] = useState(-1);
@@ -136,7 +140,7 @@ function AccuracyChart({ reviews }) {
   return (
     <div className="stats__chart" ref={box} onPointerLeave={() => setHover(-1)}>
       {width > 0 && chart.points.length > 0 && (
-        <svg width={width} height={CHART_HEIGHT} role="img" aria-label="Точность в последних разборах, от старых к новым">
+        <svg width={width} height={CHART_HEIGHT} role="img" aria-label={t("statsTab.6")}>
           {chart.ticks.map((t) => (
             <g key={t.value}>
               <line className="stats__grid" x1={left} x2={width - right} y1={t.y} y2={t.y} />
@@ -152,7 +156,7 @@ function AccuracyChart({ reviews }) {
             <a
               key={p.id}
               href={`#review/${p.id}`}
-              aria-label={`Разбор ${i + 1}: точность ${p.accuracy}, ${sideText(p.side)}`}
+              aria-label={t("statsTab.7", { p: i + 1, accuracy: p.accuracy, p2: sideText(p.side) })}
               onPointerEnter={() => setHover(i)}
               onFocus={() => setHover(i)}
               onBlur={() => setHover(-1)}
@@ -162,10 +166,10 @@ function AccuracyChart({ reviews }) {
             </a>
           ))}
           <text className="stats__axis" x={left} y={CHART_HEIGHT - 5} textAnchor="start">
-            давно
+            {t("statsTab.8")}
           </text>
           <text className="stats__axis" x={width - right} y={CHART_HEIGHT - 5} textAnchor="end">
-            недавно
+            {t("statsTab.9")}
           </text>
         </svg>
       )}
@@ -173,7 +177,7 @@ function AccuracyChart({ reviews }) {
         <div className="stats__tip" style={{ left: tipLeft, top: Math.max(0, active.y - 64) }}>
           <b>{active.accuracy}</b>
           <span>{sideText(active.side)}</span>
-          <span>{new Date(active.at).toLocaleDateString("ru-RU", { day: "numeric", month: "short" })}</span>
+          <span>{new Date(active.at).toLocaleDateString(locale(), { day: "numeric", month: "short" })}</span>
         </div>
       )}
     </div>
@@ -183,59 +187,61 @@ function AccuracyChart({ reviews }) {
 // ---------------------------------------------------------------- sections
 
 function GamesSection({ games }) {
+  const t = useT();
   if (!games.total) {
     return (
       <Empty
         actions={
           <>
             <a className="btn btn--primary" href="#online">
-              Играть онлайн
+              {t("home.playOnline")}
             </a>
             <a className="btn btn--ghost" href="#bots">
-              Сыграть с ботом
+              {t("statsTab.11")}
             </a>
           </>
         }
       >
-        Пока нет данных, сыграйте партию.
+        {t("statsTab.12")}
       </Empty>
     );
   }
   return (
     <>
       <div className="stats__results">
-        <ResultBar title="Все партии" rec={games} />
-        <ResultBar title="С людьми" rec={games.humans} />
-        <ResultBar title="С ботами" rec={games.bots} />
+        <ResultBar title={t("statsTab.13")} rec={games} />
+        <ResultBar title={t("statsTab.14")} rec={games.humans} />
+        <ResultBar title={t("statsTab.15")} rec={games.bots} />
       </div>
-      <h3 className="stats__sub">Рейтинги по видам игры</h3>
+      <h3 className="stats__sub">{t("statsTab.16")}</h3>
       <ul className="stats__cats">
         {[...games.categories, ...(games.duel ? [games.duel] : [])].map((c) => (
           <li key={c.category} className="stats__cat">
-            <span className="stats__cname">{c.name}</span>
+            <span className="stats__cname">{categoryName(c.category) || c.name}</span>
             <b className="stats__cvalue">{c.games ? `${c.rating}${c.provisional ? "?" : ""}` : "—"}</b>
-            <span className="stats__csub">{c.games ? `партий ${c.games}: ${recordText(c)}` : "ещё не играли"}</span>
+            <span className="stats__csub">{c.games ? t("statsTab.17", { games: c.games, p: recordText(c) }) : t("profile.notPlayedYet")}</span>
           </li>
         ))}
       </ul>
       <p className="stats__note">
-        Рейтинг считается только по рейтинговым партиям с людьми. Строка «побед / ничьих / поражений» идёт в том же порядке.
+        {t("statsTab.19")}
       </p>
     </>
   );
 }
 
 function ReviewsSection({ reviews }) {
+  const t = useT();
   if (!reviews.count) {
     return (
       <Empty
         actions={
           <a className="btn btn--primary" href="#review">
-            Разобрать партию
+            {t("home.reviewGame")}
           </a>
         }
       >
-        Пока нет данных: разберите партию, и здесь появится ваша точность.
+        {t("statsTab.21")}
       </Empty>
     );
   }
@@ -246,11 +252,11 @@ function ReviewsSection({ reviews }) {
         <>
           <AccuracyChart reviews={reviews} />
           <details className="stats__table">
-            <summary>Показать таблицей</summary>
+            <summary>{t("statsTab.22")}</summary>
             <ul>
               {[...reviews.series].reverse().map((p) => (
                 <li key={p.id}>
-                  <a href={`#review/${p.id}`}>{new Date(p.at).toLocaleDateString("ru-RU", { day: "numeric", month: "short" })}</a>
+                  <a href={`#review/${p.id}`}>{new Date(p.at).toLocaleDateString(locale(), { day: "numeric", month: "short" })}</a>
                   <b>{p.accuracy}</b>
                   <span>{sideText(p.side)}</span>
                 </li>
@@ -259,14 +265,15 @@ function ReviewsSection({ reviews }) {
           </details>
         </>
       ) : (
-        <p className="stats__note">Разборы есть, но сводки точности у них нет.</p>
+        <p className="stats__note">{t("statsTab.23")}</p>
       )}
-      {note && <p className="stats__note">{note} Пунктир показывает среднее, точка открывает разбор; пустая точка значит, что взято среднее по обеим сторонам.</p>}
+      {note && <p className="stats__note">{note} {t("statsTab.24")}</p>}
     </>
   );
 }
 
 function PuzzlesSection({ puzzles }) {
+  const t = useT();
   const rush = rushRows(puzzles.rush);
   const duels = puzzles.duels;
   const points = puzzles.points || { total: 0, today: 0, streak: 0, best: 0 };
@@ -277,34 +284,35 @@ function PuzzlesSection({ puzzles }) {
         actions={
           <>
             <a className="btn btn--primary" href="#puzzles">
-              Решать задачи
+              {t("statsTab.25")}
             </a>
             <a className="btn btn--ghost" href="#puzzles/daily">
-              Задача дня
+              {t("menu.puzzlesDaily")}
             </a>
           </>
         }
       >
-        Пока нет данных, решите первую задачу.
+        {t("statsTab.27")}
       </Empty>
     );
   }
   return (
     <div className="stats__tiles stats__tiles--inner">
-      <Tile label="Попыток" value={puzzles.attempts} sub="первых попыток по каждой задаче" />
-      <Tile label="Решено" value={puzzles.solved} sub={percentText(puzzles.solved, puzzles.attempts)} />
-      <Tile label="Рейтинг задач" value={puzzles.attempts ? puzzles.rating : "—"} />
-      {collecting && <Tile label="Очки за задачи" value={points.total} sub={`сегодня: ${points.today}`} icon="star" />}
-      {collecting && <Tile label="Лучшая серия" value={points.best} sub={`верных подряд, сейчас ${points.streak}`} icon="flame" />}
+      <Tile label={t("statsTab.28")} value={puzzles.attempts} sub={t("statsTab.29")} />
+      <Tile label={t("statsTab.30")} value={puzzles.solved} sub={percentText(puzzles.solved, puzzles.attempts)} />
+      <Tile label={t("statsTab.31")} value={puzzles.attempts ? puzzles.rating : "—"} />
+      {collecting && <Tile label={t("statsTab.32")} value={points.total} sub={t("statsTab.33", { today: points.today })} icon="star" />}
+      {collecting && <Tile label={t("statsTab.34")} value={points.best} sub={t("statsTab.35", { streak: points.streak })} icon="flame" />}
       {rush.map((r) => (
-        <Tile key={r.mode} label={r.name} value={r.best} sub={`лучший результат, заездов ${r.runs}`} icon="bolt" />
+        <Tile key={r.mode} label={r.name} value={r.best} sub={t("statsTab.36", { runs: r.runs })} icon="bolt" />
       ))}
-      {duels.total > 0 && <Tile label="Дуэли" value={recordText(duels)} sub="побед / ничьих / поражений" icon="duel" />}
+      {duels.total > 0 && <Tile label={t("statsTab.37")} value={recordText(duels)} sub={t("statsTab.38")} icon="duel" />}
     </div>
   );
 }
 
 function StreakSection({ streak }) {
+  const t = useT();
   const cells = activityCells(streak);
   const active = activeDays(streak);
   return (
@@ -313,50 +321,50 @@ function StreakSection({ streak }) {
         <div className="stats__streakbig">
           <Icon name="flame" size={26} className={streak.current > 0 ? "stats__flame stats__flame--on" : "stats__flame"} />
           <div>
-            <b>{streak.current > 0 ? daysText(streak.current) : "Серии нет"}</b>
+            <b>{streak.current > 0 ? daysText(streak.current) : t("statsTab.39")}</b>
             <span>
               {streak.current > 0
                 ? streak.today
-                  ? "решаете сегодня, так держать"
-                  : "решите задачу сегодня, чтобы не прервать"
-                : "решите задачу, чтобы начать серию"}
+                  ? t("statsTab.40")
+                  : t("statsTab.41")
+                : t("statsTab.42")}
             </span>
           </div>
         </div>
         <div className="stats__streakbest">
-          <span>Лучшая серия</span>
+          <span>{t("statsTab.34")}</span>
           <b>{streak.best > 0 ? daysText(streak.best) : "—"}</b>
         </div>
         <div className="stats__streakbest">
-          <span>Дней с задачами за 30 дней</span>
+          <span>{t("statsTab.43")}</span>
           <b>{active}</b>
         </div>
       </div>
-      <ol className="stats__strip" aria-label="Задачи по дням за последние 30 дней">
+      <ol className="stats__strip" aria-label={t("statsTab.44")}>
         {cells.map((c) => (
           <li key={c.date} className={`stats__cell stats__cell--${c.level}`} title={c.label} aria-label={c.label} />
         ))}
       </ol>
       <div className="stats__stripaxis">
         <span>{cells.length ? dayLabel(cells[0].date) : ""}</span>
-        <span>сегодня</span>
+        <span>{t("statsTab.45")}</span>
       </div>
       <p className="stats__note">
-        День засчитывается, если в нём была хотя бы одна задача: рейтинговая, задача дня, заезд штурма или дуэль. Дни считаются по
-        календарю UTC (полночь по Гринвичу), серия не прерывается, пока не закончился сегодняшний день.
+        {t("statsTab.46")}
       </p>
     </>
   );
 }
 
 function WeakSection({ weak, attempts }) {
+  const t = useT();
   const rows = weakRows(weak);
   if (!rows.length) {
     return (
       <Empty>
         {attempts > 0
-          ? "Ошибок в задачах пока нет: слабых тем не видно."
-          : "Пока нет данных, решите несколько задач, и здесь появятся темы, где вы чаще ошибаетесь."}
+          ? t("statsTab.47")
+          : t("statsTab.48")}
       </Empty>
     );
   }
@@ -365,34 +373,35 @@ function WeakSection({ weak, attempts }) {
       <ul className="stats__weak">
         {rows.map((r) => (
           <li key={r.theme}>
-            <a className="stats__wname" href="#puzzles/themes" title="Тренировать по темам">
+            <a className="stats__wname" href="#puzzles/themes" title={t("statsTab.49")}>
               {r.name}
             </a>
             <span className="stats__wbar" aria-hidden="true">
               <i style={{ width: `${r.share}%` }} />
             </span>
             <span className="stats__wnum">
-              <b>{r.failed}</b> из {r.attempts}
+              <b>{r.failed}</b> {t("statsTab.50")} {r.attempts}
             </span>
           </li>
         ))}
       </ul>
-      <p className="stats__note">Темы, где больше всего неудачных первых попыток. Длину и стадию партии (короткая задача, миттельшпиль) не считаем.</p>
+      <p className="stats__note">{t("statsTab.51")}</p>
     </>
   );
 }
 
 function HistorySection({ history }) {
+  const t = useT();
   const rows = historyRows(history);
-  if (!rows.length) return <Empty>Пока нет данных: здесь будут последние 30 задач с изменением рейтинга.</Empty>;
+  if (!rows.length) return <Empty>{t("statsTab.52")}</Empty>;
   return (
     <ul className="stats__hist">
       {rows.map((r, i) => (
         <li key={`${r.id}-${i}`}>
-          <a href={r.href} title="Открыть задачу">
+          <a href={r.href} title={t("statsTab.53")}>
             <span className={`stats__mark stats__mark--${r.solved ? "ok" : "bad"}`}>
               <Icon name={r.solved ? "check" : "close"} size={14} />
-              <span className="stats__sr">{r.solved ? "решена" : "не решена"}</span>
+              <span className="stats__sr">{r.solved ? t("statsTab.54") : t("statsTab.55")}</span>
             </span>
             <span className="stats__hmain">
               <span className="stats__hid">{r.id}</span>
@@ -412,12 +421,13 @@ function HistorySection({ history }) {
 // ---------------------------------------------------------------- the tab
 
 export default function StatsTab({ stats, error, loading }) {
-  if (loading) return <section className="card stats__status">Загружаем статистику…</section>;
+  const t = useT();
+  if (loading) return <section className="card stats__status">{t("statsTab.56")}</section>;
   if (error || !stats) {
     return (
       <section className="card stats__status">
         <div className="banner banner--error" role="alert">
-          {error || "Не удалось загрузить статистику."}
+          {error || t("statsTab.57")}
         </div>
       </section>
     );
@@ -428,36 +438,36 @@ export default function StatsTab({ stats, error, loading }) {
     <div className="stats">
       {isEmpty(stats) && (
         <section className="card stats__hello">
-          <h2>Пока нет данных</h2>
-          <p>Сыграйте партию, разберите её или решите задачу: цифры и графики появятся здесь сами.</p>
+          <h2>{t("statsTab.58")}</h2>
+          <p>{t("statsTab.59")}</p>
         </section>
       )}
 
       <div className="stats__tiles">
-        <Tile label="Партий" value={games.total} sub={games.total ? `побед ${percentText(games.wins, games.total)}` : "ещё не играли"} />
-        <Tile label="Разобрано" value={reviews.count} sub={reviews.average != null ? `точность ${reviews.average}` : "разборов нет"} />
+        <Tile label={t("statsTab.60")} value={games.total} sub={games.total ? t("statsTab.61", { p: percentText(games.wins, games.total) }) : t("profile.notPlayedYet")} />
+        <Tile label={t("statsTab.62")} value={reviews.count} sub={reviews.average != null ? t("statsTab.63", { average: reviews.average }) : t("statsTab.64")} />
         <Tile
-          label="Задач решено"
+          label={t("statsTab.65")}
           value={puzzles.attempts ? percentText(puzzles.solved, puzzles.attempts) : "—"}
-          sub={puzzles.attempts ? `${puzzles.solved} из ${puzzles.attempts}` : "задач нет"}
+          sub={puzzles.attempts ? t("statsTab.66", { solved: puzzles.solved, attempts: puzzles.attempts }) : t("statsTab.67")}
         />
-        <Tile label="Рейтинг задач" value={puzzles.attempts ? puzzles.rating : "—"} />
-        <Tile label="Серия дней" value={streak.current} sub={`лучшая: ${streak.best}`} icon="flame" />
+        <Tile label={t("statsTab.31")} value={puzzles.attempts ? puzzles.rating : "—"} />
+        <Tile label={t("statsTab.68")} value={streak.current} sub={t("statsTab.69", { best: streak.best })} icon="flame" />
       </div>
 
       <section className="card stats__sec">
         <header>
-          <h2>Партии</h2>
-          <span className="stats__hint">Онлайн и с ботами, победы / ничьи / поражения</span>
+          <h2>{t("profile.tabGames")}</h2>
+          <span className="stats__hint">{t("statsTab.71")}</span>
         </header>
         <GamesSection games={games} />
       </section>
 
       <section className="card stats__sec">
         <header>
-          <h2>Точность в разборах</h2>
+          <h2>{t("statsTab.72")}</h2>
           <span className="stats__hint">
-            {reviews.average != null ? `в среднем ${reviews.average}, последних ${reviews.series.length}` : "последние 20 разборов"}
+            {reviews.average != null ? t("statsTab.73", { average: reviews.average, length: reviews.series.length }) : t("statsTab.74")}
           </span>
         </header>
         <ReviewsSection reviews={reviews} />
@@ -465,32 +475,32 @@ export default function StatsTab({ stats, error, loading }) {
 
       <section className="card stats__sec">
         <header>
-          <h2>Серия дней</h2>
-          <span className="stats__hint">Задачи подряд, день за днём</span>
+          <h2>{t("statsTab.68")}</h2>
+          <span className="stats__hint">{t("statsTab.75")}</span>
         </header>
         <StreakSection streak={streak} />
       </section>
 
       <section className="card stats__sec">
         <header>
-          <h2>Задачи</h2>
-          <span className="stats__hint">Рейтинг, штурм и дуэли</span>
+          <h2>{t("menu.puzzles")}</h2>
+          <span className="stats__hint">{t("statsTab.77")}</span>
         </header>
         <PuzzlesSection puzzles={puzzles} />
       </section>
 
       <section className="card stats__sec">
         <header>
-          <h2>Слабые темы</h2>
-          <span className="stats__hint">Где вы чаще всего ошибаетесь</span>
+          <h2>{t("statsTab.78")}</h2>
+          <span className="stats__hint">{t("statsTab.79")}</span>
         </header>
         <WeakSection weak={puzzles.weak} attempts={puzzles.attempts} />
       </section>
 
       <section className="card stats__sec">
         <header>
-          <h2>История попыток</h2>
-          <span className="stats__hint">Последние 30 задач, нажмите на задачу, чтобы открыть её</span>
+          <h2>{t("statsTab.80")}</h2>
+          <span className="stats__hint">{t("statsTab.81")}</span>
         </header>
         <HistorySection history={puzzles.history} />
       </section>

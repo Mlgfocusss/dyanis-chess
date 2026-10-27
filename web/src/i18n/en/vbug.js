@@ -1,0 +1,15 @@
+export default {
+  "vbug.1": "Bughouse (Swedish chess)",
+  "vbug.2": "Four play in teams of two on two boards: a piece you capture goes at once to your partner, who can drop it on their board.",
+  "vbug.3": "Two teams of two play. A team has White on one board and Black on the other; partners sit side by side and play different colours.",
+  "vbug.4": "A piece you capture goes at once to your partner's reserve (a promoted pawn returns as a pawn). Instead of a move you can drop a piece from the reserve onto any free square; a pawn cannot be dropped on the first or eighth rank.",
+  "vbug.5": "Each player has their own clock. The game ends when checkmate is given on either board, someone's clock falls or someone resigns; the whole team loses.",
+  "vbug.6": "There is no draw by agreement. A player with no moves who is not in check (stalemate) waits: the move stays with them, the clock runs, and the partner can free them with a captured piece. Checkmate is given at once, even if the partner could send a piece.",
+  "vbug.7": "The game can be cancelled until a move has been made. Play is by link: the creator shares it, seats are taken in order or by choice, and the game starts when all four have sat down.",
+  "vbug.8": "Checkmate",
+  "vbug.9": "by checkmate",
+  "vbug.10": "Time is up",
+  "vbug.11": "on time",
+  "vbug.12": "Resignation",
+  "vbug.13": "by resignation",
+};

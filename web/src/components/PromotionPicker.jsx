@@ -1,14 +1,14 @@
 import { SparePiece } from "react-chessboard";
+import { useT } from "../i18n/index.js";
 import "./promotion.css";
-
-const NAMES = { q: "Ферзь", n: "Конь", r: "Ладья", b: "Слон" };
 
 // The choice of the piece a pawn becomes: a column of squares that opens on the square the pawn
 // moves to and runs inwards. Drawn inside that square (see ThemedBoard.jsx), so it needs
 // no knowledge of where the board is. letters: "q" | "n" | "r" | "b" in the order offered.
 export default function PromotionPicker({ letters, side, size, up, set, onPick }) {
+  const t = useT();
   return (
-    <div className={`promo${up ? " promo--up" : ""}`} role="group" aria-label="Во что превратить пешку">
+    <div className={`promo${up ? " promo--up" : ""}`} role="group" aria-label={t("promo.group")}>
       {letters.map((l) => {
         const code = side + l.toUpperCase();
         return (
@@ -16,8 +16,8 @@ export default function PromotionPicker({ letters, side, size, up, set, onPick }
             key={l}
             type="button"
             className="promo__btn"
-            title={NAMES[l]}
-            aria-label={NAMES[l]}
+            title={t("piece." + l)}
+            aria-label={t("piece." + l)}
             // the board under the picker would take the click as a click on a square
             onClick={(e) => {
               e.stopPropagation();

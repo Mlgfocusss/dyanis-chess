@@ -72,12 +72,12 @@ test("the gameplay settings are checked: a bad choice falls back, numbers are wh
   assert.equal(out.seekDown, 251);
   assert.equal(out.seekUp, 3000);
   assert.equal(out.alwaysQueen, true);
-  const bad = sanitize({ castling: "swap", puzzleLevel: "insane", seekDown: -5, seekUp: "10", premoves: 1, confirmGiveUp: "no" });
+  const bad = sanitize({ castling: "swap", puzzleLevel: "insane", seekDown: -5, seekUp: "10", premoveOn: 1, confirmGiveUp: "no" });
   assert.equal(bad.castling, DEFAULTS.castling);
   assert.equal(bad.puzzleLevel, DEFAULTS.puzzleLevel);
   assert.equal(bad.seekDown, 0);
   assert.equal(bad.seekUp, 0);
-  assert.equal(bad.premoves, DEFAULTS.premoves);
+  assert.equal(bad.premoveOn, DEFAULTS.premoveOn);
   assert.equal(bad.confirmGiveUp, DEFAULTS.confirmGiveUp);
   assert.equal(sanitize({ seekDown: NaN }).seekDown, 0);
 });

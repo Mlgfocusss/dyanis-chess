@@ -3,6 +3,8 @@
 // a glyph from ui/Icon.jsx; otherwise text is drawn. From the best to the
 // worst: brilliant, great, best, excellent, good, then theory (not judged),
 // inaccuracy, mistake, blunder.
+import { tOr } from "../i18n/index.js";
+
 export const CLASSES = {
   brilliant: {
     label: "Блестящий ход",
@@ -33,6 +35,10 @@ export const CLASSES = {
   mistake: { label: "Ошибка", text: "?", color: "#fb923c", ink: "#431407", hint: "Серьёзная потеря: позиция стала заметно хуже." },
   blunder: { label: "Зевок", text: "??", color: "#ef4444", ink: "#ffffff", hint: "Грубая ошибка, которая резко меняет оценку." },
 };
+
+// The name and the hint of a class in the language of the site (t: from useT).
+export const classLabel = (t, cls) => tOr(t, `review.class.${cls}.label`, CLASSES[cls]?.label || "");
+export const classHint = (t, cls) => tOr(t, `review.class.${cls}.hint`, CLASSES[cls]?.hint || "");
 
 // Order used in the summary table (best first, theory with the good ones).
 export const SUMMARY_ORDER = ["brilliant", "great", "best", "excellent", "good", "book", "miss", "inaccuracy", "mistake", "blunder"];

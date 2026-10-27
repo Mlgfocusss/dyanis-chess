@@ -1,0 +1,17 @@
+export default {
+  "openings.imp.games": {"one":"{n} партия","few":"{n} партии","many":"{n} партий","other":"{n} партии"},
+  "openings.imp.moves": {"one":"{n} ход","few":"{n} хода","many":"{n} ходов","other":"{n} хода"},
+  "openings.imp.skippedN": {"one":"{n} партия пропущена","few":"{n} партии пропущены","many":"{n} партий пропущено","other":"{n} партии пропущены"},
+  "openings.imp.none": "Новых ходов нет: все ходы из файла уже были в репозитории ({games}).",
+  "openings.imp.added": "Добавлено {moves} из файла ({games}).",
+  "openings.imp.skipTail": " {skipped}: они начинаются не с начальной позиции.",
+  "openings.forWhite": "За белых",
+  "openings.forBlack": "За чёрных",
+  "openings.asInFile": "Как в файле",
+  "openings.status.opponent": "ход соперника",
+  "openings.status.new": "новый",
+  "openings.status.due": "пора повторить",
+  "openings.status.learning": "учится",
+  "openings.status.learned": "выучен",
+  "openings.opponent": "Соперник",
+};

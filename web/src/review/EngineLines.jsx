@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { formatEval } from "./classes.js";
 import { numberedSans } from "./branch.js";
 import Icon from "../ui/Icon.jsx";
+import { useT } from "../i18n/index.js";
 
 // The engine's best lines of the position on the board (MultiPV) as slim rows, three of them taking
 // about as much room as one: the evaluation and the moves on one line, cut off where the panel ends
@@ -10,6 +11,7 @@ import Icon from "../ui/Icon.jsx";
 // lines: [{score, mate, pv}] or null while they are being worked out; first is shown meanwhile
 // ({score, mate, pv}, the one the review already has). onPlay(pv, k) plays pv[0..k].
 export default function EngineLines({ fen, lines, first, showEval, onPlay }) {
+  const t = useT();
   const rows = useMemo(() => (lines && lines.length ? lines : first?.pv?.length ? [first] : []), [lines, first]);
   const numbered = useMemo(() => rows.map((r) => numberedSans(fen, r.pv.map((san) => ({ san })))), [fen, rows]);
   const [open, setOpen] = useState(-1); // the row shown whole
@@ -17,14 +19,14 @@ export default function EngineLines({ fen, lines, first, showEval, onPlay }) {
   if (rows.length === 0) return null;
   const loading = !lines;
   return (
-    <section className="linebox" aria-label="Лучшие ходы движка">
-    <h4 className="linebox__title">Лучшие ходы движка <span>= стрелки на доске</span></h4>
+    <section className="linebox" aria-label={t("engineLines.1")}>
+    <h4 className="linebox__title">{t("engineLines.1")} <span>{t("engineLines.2")}</span></h4>
     <ol className="lines">
       {rows.map((r, i) => {
         const whole = open === i;
         return (
           <li key={i} className={`lines__row${whole ? " lines__row--open" : ""}`}>
-            <span className={`lines__rank lines__rank--${i + 1}`} title={`Линия ${i + 1}: стрелка на доске`}>
+            <span className={`lines__rank lines__rank--${i + 1}`} title={t("engineLines.3", { p: i + 1 })}>
               {i + 1}
             </span>
             <button
@@ -32,25 +34,25 @@ export default function EngineLines({ fen, lines, first, showEval, onPlay }) {
               className={`lines__eval lines__eval--${(r.mate ? r.mate > 0 : r.score >= 0) ? "w" : "b"}`}
               onClick={() => setOpen(whole ? -1 : i)}
               aria-expanded={whole}
-              title={whole ? "Свернуть линию" : "Показать линию целиком"}
+              title={whole ? t("engineLines.4") : t("engineLines.5")}
             >
               {showEval ? formatEval(r) : i + 1}
             </button>
             <span className="lines__moves" title={numbered[i].map((m) => (m.label ? `${m.label} ${m.san}` : m.san)).join(" ")}>
               {numbered[i].map((m, k) => (
-                <button key={k} type="button" className="pv-move" onClick={() => onPlay(r.pv, k)} title="Сыграть эту линию до этого хода на доске">
+                <button key={k} type="button" className="pv-move" onClick={() => onPlay(r.pv, k)} title={t("engineLines.6")}>
                   {m.label && <span className="pv-move__no">{m.label}</span>}
                   {m.san}
                 </button>
               ))}
             </span>
-            <button type="button" className="lines__chev" onClick={() => setOpen(whole ? -1 : i)} aria-label={whole ? "Свернуть линию" : "Показать линию целиком"} tabIndex={-1}>
+            <button type="button" className="lines__chev" onClick={() => setOpen(whole ? -1 : i)} aria-label={whole ? t("engineLines.4") : t("engineLines.5")} tabIndex={-1}>
               <Icon name="chevron" size={14} />
             </button>
           </li>
         );
       })}
-      {loading && <li className="lines__more review__thinking">ищу ещё две линии…</li>}
+      {loading && <li className="lines__more review__thinking">{t("engineLines.7")}</li>}
     </ol>
     </section>
   );

@@ -221,6 +221,83 @@ func (s *Service) handle(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, resp)
 }
 
+// ---------------------------------------------------------------- for other packages
+
+// WaitError is Lichess asking to be left alone for Wait.
+type WaitError struct{ Wait time.Duration }
+
+func (e *WaitError) Error() string { return fmt.Sprintf("lichess asks to wait %s", e.Wait) }
+
+// Enabled says whether the server has a token, so that statistics can be had at all.
+func (s *Service) Enabled() bool { return s.cfg.Token != "" }
+
+// Params cleans the rating groups and speeds of a query the way the endpoint does
+// (white lists, defaults for empty); ok is false when nothing allowed is left.
+func Params(ratings, speeds string) (string, string, bool) {
+	r := list(ratings, defaultRatings, allowedRatings)
+	sp := list(speeds, defaultSpeeds, allowedSpeeds)
+	return r, sp, r != "" && sp != ""
+}
+
+func (s *Service) cacheKey(fen, ratings, speeds string) (string, string, error) {
+	pos, err := engine.ParseFEN(fen)
+	if err != nil {
+		return "", "", err
+	}
+	fen = pos.FEN()
+	return fen, fen + "|" + ratings + "|" + speeds, nil
+}
+
+// Cached gives the remembered answer for a position, if there is a fresh one; it asks
+// nobody. ratings and speeds are as Params returns them.
+func (s *Service) Cached(fen, ratings, speeds string) (Response, bool) {
+	_, key, err := s.cacheKey(fen, ratings, speeds)
+	if err != nil || !s.Enabled() {
+		return Response{}, false
+	}
+	return s.fromCache(key)
+}
+
+// Lookup is the endpoint for code on the server: the statistics of a position.
+// cached says that the answer came from memory and cost Lichess nothing. Without a
+// token the answer is {Available: false}; when Lichess has asked to wait (now or just
+// now) the error is a *WaitError. ratings and speeds are as Params returns them.
+func (s *Service) Lookup(ctx context.Context, fen, ratings, speeds string) (resp Response, cached bool, err error) {
+	if !s.Enabled() {
+		return Response{Moves: []Move{}}, true, nil
+	}
+	fen, key, err := s.cacheKey(fen, ratings, speeds)
+	if err != nil {
+		return Response{}, false, err
+	}
+	if resp, ok := s.fromCache(key); ok {
+		return resp, true, nil
+	}
+	if wait := s.blocked(); wait > 0 {
+		return Response{}, false, &WaitError{Wait: wait}
+	}
+	select {
+	case s.sem <- struct{}{}:
+		defer func() { <-s.sem }()
+	case <-ctx.Done():
+		return Response{}, false, ctx.Err()
+	}
+	resp, err = s.fetch(ctx, fen, ratings, speeds)
+	var limited *rateLimited
+	switch {
+	case errors.As(err, &limited):
+		s.mu.Lock()
+		s.blockedUntil = s.cfg.Now().Add(limited.wait)
+		s.mu.Unlock()
+		return Response{}, false, &WaitError{Wait: limited.wait}
+	case err != nil:
+		log.Printf("explorer: %v", err)
+		return Response{}, false, err
+	}
+	s.remember(key, resp)
+	return resp, false, nil
+}
+
 func (s *Service) fromCache(key string) (Response, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

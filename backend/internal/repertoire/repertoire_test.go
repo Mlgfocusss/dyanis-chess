@@ -170,6 +170,7 @@ type memStore struct {
 	moves []store.RepMove
 	next  int64
 	games []*store.Game
+	scans map[int64]store.RepScan
 }
 
 func (m *memStore) ListGames(_ context.Context, userID string, limit int) ([]*store.Game, error) {
@@ -358,6 +359,61 @@ func (m *memStore) ReviewRepMove(_ context.Context, repID, id int64, next func(b
 		}
 	}
 	return store.Card{}, store.ErrNotFound
+}
+
+func (m *memStore) SaveRepScan(_ context.Context, userID string, sc store.RepScan) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for _, r := range m.reps {
+		if r.ID == sc.RepertoireID && r.UserID == userID {
+			if m.scans == nil {
+				m.scans = map[int64]store.RepScan{}
+			}
+			m.scans[sc.RepertoireID] = sc
+			return nil
+		}
+	}
+	return store.ErrNotFound
+}
+
+func (m *memStore) RepScan(_ context.Context, userID string, id int64) (store.RepScan, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for _, r := range m.reps {
+		if r.ID == id && r.UserID == userID {
+			if sc, ok := m.scans[id]; ok {
+				return sc, nil
+			}
+		}
+	}
+	return store.RepScan{}, store.ErrNotFound
+}
+
+func (m *memStore) RepOverviews(_ context.Context, userID string) (map[int64]store.RepOverview, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	out := map[int64]store.RepOverview{}
+	for _, r := range m.reps {
+		if r.UserID != userID {
+			continue
+		}
+		var mv []store.RepMove
+		for _, x := range m.moves {
+			if x.RepertoireID == r.ID {
+				mv = append(mv, x)
+			}
+		}
+		o := store.RepOverview{Open: len(Gaps(mv))}
+		for _, x := range mv {
+			o.MaxMove = max(o.MaxMove, x.ID)
+		}
+		if sc, ok := m.scans[r.ID]; ok {
+			sc := sc
+			o.Scan = &sc
+		}
+		out[r.ID] = o
+	}
+	return out, nil
 }
 
 type api struct {

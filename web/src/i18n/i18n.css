@@ -1,0 +1,28 @@
+/* the RU | EN switch of the menu and of the home page */
+.langsw { display: inline-flex; align-self: flex-start; border: 1px solid var(--border-strong); border-radius: 999px; padding: 2px; background: var(--surface-2); }
+.langsw__opt {
+  min-width: 38px; min-height: 28px; padding: 0 10px; border: 0; border-radius: 999px; background: none;
+  color: var(--text-2); font-size: 0.78rem; font-weight: 700; letter-spacing: 0.04em; cursor: pointer;
+}
+.langsw__opt:hover { color: var(--text); }
+.langsw__opt--on, .langsw__opt--on:hover { background: var(--primary-soft); color: var(--primary); }
+/* a switch that stands on the page itself, for a narrow screen where the menu is a bar without room for it */
+.langsw--mobile { display: none; }
+@media (max-width: 860px) {
+  .langsw--mobile { display: inline-flex; }
+}
+/* the choice of the language on the settings page */
+.langpick { display: flex; flex-wrap: wrap; gap: 10px; }
+.langopt {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 150px; padding: 12px 16px;
+  border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--surface-2); color: var(--text); text-align: left; cursor: pointer;
+}
+.langopt:hover { background: var(--surface-3); }
+.langopt--on { border-color: var(--primary); background: var(--primary-soft); }
+.langopt__code { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.06em; color: var(--muted); }
+.langopt__name { font-weight: 600; display: flex; align-items: center; gap: 6px; }
+/* on the phone the menu is a bottom bar without room for the switch: the home page has one instead */
+@media (max-width: 860px) {
+  .langsw--nav { display: none; }
+}
+.nav .langsw--nav { margin: 0 8px; }

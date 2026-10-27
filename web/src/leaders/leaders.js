@@ -1,6 +1,7 @@
 // Pure logic of the leaderboard and public profile pages, with no imports from React, so `npm test` covers it.
 import { countryName } from "../countries/countryList.js";
-import { CATEGORY_NAMES, ratingText } from "../online/rating.js";
+import { categoryName as catName, ratingText } from "../online/rating.js";
+import { getLanguage, locale, tr } from "../i18n/index.js";
 
 // Categories in the order of the tabs.
 export const CATEGORIES = ["bullet", "blitz", "rapid", "duel"];
@@ -10,7 +11,7 @@ export const DEFAULT_CATEGORY = "blitz";
 export const MIN_GAMES = 5;
 
 export function categoryName(category) {
-  return CATEGORY_NAMES[category] || "Рейтинг";
+  return catName(category) || tr("rating.rating");
 }
 
 // A country code as the server takes it: two capital Latin letters ("" for all countries).
@@ -61,7 +62,7 @@ export function userFromHash(hash) {
 // counted again from 1. The server sends them sorted already; this keeps the page right if it did not.
 export function rankRows(rows) {
   const sorted = [...(rows || [])].sort(
-    (a, b) => b.rating - a.rating || b.games - a.games || String(a.name).localeCompare(String(b.name), "ru"),
+    (a, b) => b.rating - a.rating || b.games - a.games || String(a.name).localeCompare(String(b.name), locale()),
   );
   return sorted.map((r, i) => ({ ...r, place: i + 1 }));
 }
@@ -78,7 +79,7 @@ export function placeText(place) {
 
 // "3-е место" for a profile; "" when there is no place.
 export function placeLine(place) {
-  return place > 0 ? `${place}-е место` : "";
+  return place > 0 ? tr("leaders.2", { place }) : "";
 }
 
 // 1, 2, 3 get a medal colour in the table: "gold", "silver", "bronze", otherwise "".
@@ -88,14 +89,14 @@ export function medal(place) {
 
 // "Гость" or "Google": how the person signed in.
 export function kindLabel(kind) {
-  return kind === "google" ? "Google" : "Гость";
+  return kind === "google" ? "Google" : tr("leaders.3");
 }
 
 // "12 октября 2026", or "" for a date that is missing or silly.
 export function joinedText(iso) {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime()) || d.getFullYear() < 2000) return "";
-  return d.toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" });
+  return d.toLocaleDateString(locale(), { day: "numeric", month: "long", year: "numeric" });
 }
 
 // "12 / 3 / 5": wins, draws, losses.
@@ -115,7 +116,7 @@ export function profileRatings(profile) {
       name: categoryName(category),
       games,
       value: games ? ratingText(r.rating, r.provisional) : "—",
-      record: games ? `партий ${games}: ${recordText(r)}` : "ещё не играл",
+      record: games ? tr("leaders.4", { games, p: recordText(r) }) : tr("leaders.5"),
       place: r.place || 0,
       placeLine: placeLine(r.place || 0),
     };
@@ -125,14 +126,14 @@ export function profileRatings(profile) {
 // "Побеждено 3 из 10 ботов".
 export function botsLine(bots) {
   if (!bots || !bots.total) return "";
-  return `побеждено ${bots.beaten || 0} из ${bots.total}`;
+  return tr("leaders.6", { p: bots.beaten || 0, total: bots.total });
 }
 
 // Words under an empty table.
 export function emptyLine(category) {
   return category === "duel"
-    ? "Пока никто не набрал рейтинг. Сыграйте тактическую дуэль: после пяти партий вы попадёте в таблицу."
-    : "Пока никто не набрал рейтинг. Сыграйте рейтинговые партии: после пяти вы попадёте в таблицу.";
+    ? tr("leaders.7")
+    : tr("leaders.8");
 }
 
 // Where "play" leads from the table of a category.
@@ -144,15 +145,15 @@ export function playHash(category) {
 // there (or does not know it), an em dash for a person who named none.
 export function countryCell(list, code) {
   if (!code) return "—";
-  return countryName(list, code);
+  return countryName(list, code, getLanguage());
 }
 
 // The line over the table: "Страна: Беларусь" or "Все страны".
 export function countryFilterLine(list, code) {
-  return code ? `Страна: ${countryName(list, code)}` : "Все страны";
+  return code ? tr("leaders.9", { p: countryName(list, code, getLanguage()) }) : tr("countries.all");
 }
 
 // The words under an empty table of one country.
 export function emptyCountryLine(list, code) {
-  return `В стране «${countryName(list, code)}» пока никто не набрал рейтинг в этой категории. Выберите «Все страны», чтобы увидеть всех.`;
+  return tr("leaders.11", { p: countryName(list, code, getLanguage()) });
 }

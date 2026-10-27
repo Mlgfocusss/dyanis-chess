@@ -211,6 +211,9 @@ func (p *movePicker) build() {
 		switch {
 		case m.IsCapture():
 			v := mvvLva(b, m)
+			if tt != nil && swHistCapt {
+				v += tt.captHistScore(b.PieceAt(m.From), m, capturedType(b, m)) / captHistDiv
+			}
 			if losingCapture(b, m) {
 				cat[idx], key[idx] = 4, badCaptureBand+v
 			} else {
@@ -291,8 +294,9 @@ func (p *movePicker) sortQuiets() {
 		scores = make([]int, len(q))
 	}
 	scores = scores[:len(q)]
+	b1, b2 := p.tt.contBases(p.ply)
 	for i, m := range q {
-		scores[i] = p.tt.historyScore(m)
+		scores[i] = p.tt.quietHist(p.b.PieceAt(m.From), m, b1, b2)
 	}
 	insertionSortByScoreDesc(q, scores)
 }

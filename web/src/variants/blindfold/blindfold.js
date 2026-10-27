@@ -2,6 +2,7 @@
 // board knows: the position is hidden), the words about the last move, the board that is drawn, and the
 // person's own settings of the room. The rules and the hiding live in backend/internal/variants/blindfold.go.
 import { isBoardMove } from "../describe.js";
+import { tr } from "../../i18n/index.js";
 
 // ------------------------------------------------------------------ clicks
 
@@ -27,7 +28,20 @@ export function promotionLetters(legal, from, to) {
   return out.length ? out.sort((x, y) => ORDER.indexOf(x) - ORDER.indexOf(y)) : null;
 }
 
-export const PROMOTION_NAMES = { q: "Ферзь", r: "Ладья", b: "Слон", n: "Конь" };
+export const PROMOTION_NAMES = {
+  get q() {
+    return tr("piece.q");
+  },
+  get r() {
+    return tr("piece.r");
+  },
+  get b() {
+    return tr("piece.b");
+  },
+  get n() {
+    return tr("piece.n");
+  },
+};
 
 // What a click on `square` does, given the half-made move in `ui` ({ from }): one of
 //   { type: "select", from }   the square is picked as the start
@@ -58,11 +72,11 @@ export function lastMoveLine(moves, you, ended = false) {
   if (!moves || moves.length === 0) return "";
   const m = moves[moves.length - 1];
   const san = m.san || "";
-  const who = !you ? (m.side === "white" ? "Белые сыграли" : "Чёрные сыграли") : m.side === you ? "Вы сыграли" : "Соперник сыграл";
+  const who = !you ? (m.side === "white" ? tr("blindfold.whiteMoved") : tr("blindfold.blackMoved")) : m.side === you ? tr("blindfold.youMoved") : tr("blindfold.oppMoved");
   let line = `${who} ${san}`;
-  if (san.endsWith("#")) line += ": мат";
-  else if (san.endsWith("+")) line += ": шах";
-  if (!ended && you && m.side === you) line += ". Ждём ответа";
+  if (san.endsWith("#")) line += tr("blindfold.mate");
+  else if (san.endsWith("+")) line += tr("blindfold.check");
+  if (!ended && you && m.side === you) line += tr("blindfold.waiting");
   return line;
 }
 

@@ -47,6 +47,8 @@ type Config struct {
 	Bot func(id string) (*bots.Bot, bool)
 	// Ratings keeps the Glicko-2 ratings of rated games between people; nil: every game is casual.
 	Ratings Ratings
+	// Prefs gives what the deadlines of correspondence games ask about a person (nil: the defaults).
+	Prefs func(userID string) CorrPrefs
 	// AllowedOrigins are extra origin patterns the WebSocket accepts (the
 	// request's own host is always accepted).
 	AllowedOrigins []string
@@ -157,6 +159,19 @@ func (h *Hub) persist(g *Game, state []byte) {
 	if g.black != nil && !g.black.IsBot() {
 		row.BlackID = g.black.ID
 	}
+	if g.corr() {
+		row.Corr = true
+		if g.status == StatusPlaying {
+			row.DueAt = g.dueAt()
+			p := g.white
+			if g.turn == Black {
+				p = g.black
+			}
+			if p != nil && !p.IsBot() {
+				row.TurnID = p.ID
+			}
+		}
+	}
 	h.saveMu.Lock()
 	h.pending[g.ID] = row
 	h.saveMu.Unlock()
@@ -240,6 +255,7 @@ var errNoGame = errors.New("партия не найдена")
 func (h *Hub) register(g *Game) {
 	g.persist = h.persist
 	g.after = h.after
+	g.prefs = h.cfg.Prefs
 	h.mu.Lock()
 	h.games[g.ID] = g
 	h.mu.Unlock()
@@ -279,6 +295,7 @@ func (h *Hub) find(ctx context.Context, id string) (*Game, error) {
 	}
 	loaded.persist = h.persist
 	loaded.after = h.after
+	loaded.prefs = h.cfg.Prefs
 	h.mu.Lock()
 	if existing := h.games[id]; existing != nil { // someone else loaded it meanwhile
 		h.mu.Unlock()
@@ -327,6 +344,7 @@ type createRequest struct {
 	Color  string `json:"color"` // "white", "black" or "random"
 	TimeMs int64  `json:"timeMs"`
 	IncMs  int64  `json:"incMs"`
+	Days   int    `json:"days,omitempty"`  // days per move: a correspondence game (no clock, no rating)
 	Bot    string `json:"bot,omitempty"`   // play against this bot instead of inviting a person
 	Rated  bool   `json:"rated,omitempty"` // counts for the rating of both people (needs a clock, not with a bot)
 }
@@ -342,7 +360,7 @@ func (h *Hub) create(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "ожидался JSON {color, timeMs, incMs}")
 		return
 	}
-	tc := TimeControl{BaseMs: req.TimeMs, IncMs: req.IncMs}
+	tc := TimeControl{BaseMs: req.TimeMs, IncMs: req.IncMs, Days: req.Days}
 	if err := tc.Validate(); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
@@ -363,6 +381,10 @@ func (h *Hub) create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if req.Bot != "" {
+		if tc.Days > 0 {
+			writeError(w, http.StatusBadRequest, "с ботом заочные партии не играются")
+			return
+		}
 		b, ok := h.cfg.bot(req.Bot)
 		if !ok {
 			writeError(w, http.StatusBadRequest, "такого бота нет")
@@ -631,6 +653,8 @@ func (h *Hub) handle(g *Game, uid string, in incoming) error {
 		return g.OfferDraw(uid)
 	case "drawDecline":
 		return g.DeclineDraw(uid)
+	case "claim":
+		return g.Claim(uid)
 	case "chat":
 		return g.Chat(uid, in.Text)
 	case "rematch":

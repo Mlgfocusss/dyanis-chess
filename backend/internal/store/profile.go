@@ -91,8 +91,8 @@ func (s *Store) UpdateProfile(ctx context.Context, id string, p ProfileUpdate) e
 // What would be left with nobody on either side (games against a bot, open
 // invitations, duels whose other side is already gone) is deleted here.
 //
-// A game with another person that is still going gives ErrActiveGame and
-// nothing is deleted.
+// A game with another person that is still going (a correspondence game, however long it has
+// waited) gives ErrActiveGame and nothing is deleted.
 func (s *Store) DeleteUser(ctx context.Context, id string) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -111,7 +111,7 @@ func (s *Store) DeleteUser(ctx context.Context, id string) error {
 	var active int
 	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM games
 		WHERE status = 'playing' AND white_id IS NOT NULL AND black_id IS NOT NULL AND (white_id = ? OR black_id = ?)
-		AND updated_at > ?`, id, id, time.Now().Add(-ActiveGameWindow).UTC()).Scan(&active); err != nil {
+		AND (updated_at > ? OR corr = 1)`, id, id, time.Now().Add(-ActiveGameWindow).UTC()).Scan(&active); err != nil {
 		return err
 	}
 	var activeVariants int

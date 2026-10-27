@@ -22,10 +22,12 @@ import {
   rankRows,
   userHash,
 } from "./leaders.js";
+import { useT } from "../i18n/index.js";
 import "./leaders.css";
 
 // The leaderboard: tabs of the rating categories, the best players of the chosen one.
 export default function LeadersPage() {
+  const t = useT();
   const { user } = useAuth();
   const [category, setCategory] = useState(() => categoryFromHash(window.location.hash));
   const [country, setCountry] = useState(() => countryFromHash(window.location.hash));
@@ -58,11 +60,11 @@ export default function LeadersPage() {
   return (
     <div className="page leaders">
       <header className="page__head">
-        <h1 className="page__title">Таблица лидеров</h1>
-        <p className="page__sub">Лучшие игроки сайта по рейтингу Glicko-2: партии между людьми и тактическая дуэль.</p>
+        <h1 className="page__title">{t("menu.leaders")}</h1>
+        <p className="page__sub">{t("leadersPage.2")}</p>
       </header>
 
-      <div className="leaders__tabs" role="tablist" aria-label="Категория рейтинга">
+      <div className="leaders__tabs" role="tablist" aria-label={t("leadersPage.3")}>
         {CATEGORIES.map((c) => (
           <a
             key={c}
@@ -78,14 +80,14 @@ export default function LeadersPage() {
 
       <div className="leaders__filter">
         <label className="leaders__filterlabel" htmlFor="leaders-country">
-          Страна
+          {t("countries.country")}
         </label>
         <div className="leaders__filterpick">
           <CountryPicker
             id="leaders-country"
             value={country}
             countries={countries}
-            emptyLabel="Все страны"
+            emptyLabel={t("countries.all")}
             onChange={(code) => {
               window.location.hash = leadersHash(category, code);
             }}
@@ -96,19 +98,19 @@ export default function LeadersPage() {
       {error && <div className="banner banner--error">{error}</div>}
 
       <section className="card leaders__card" aria-live="polite" aria-busy={rows === null}>
-        {rows === null && <p className="leaders__note">Загрузка…</p>}
+        {rows === null && <p className="leaders__note">{t("leadersPage.loading")}</p>}
         {rows && rows.length === 0 && !error && (
           <div className="leaders__empty">
             <Icon name="trophy" size={32} />
-            <h2>Пока никто не набрал рейтинг</h2>
+            <h2>{t("leadersPage.7")}</h2>
             <p>{country ? emptyCountryLine(countries, country) : emptyLine(category)}</p>
             {country ? (
               <a className="btn" href={leadersHash(category)}>
-                Все страны
+                {t("countries.all")}
               </a>
             ) : (
               <a className="btn btn--primary" href={playHash(category)}>
-                {category === "duel" ? "Тактическая дуэль" : "Играть онлайн"}
+                {category === "duel" ? t("menu.duel") : t("home.playOnline")}
               </a>
             )}
           </div>
@@ -120,15 +122,15 @@ export default function LeadersPage() {
                 <th className="leaders__place" scope="col">
                   №
                 </th>
-                <th scope="col">Игрок</th>
+                <th scope="col">{t("leadersPage.10")}</th>
                 <th className="leaders__country" scope="col">
-                  Страна
+                  {t("countries.country")}
                 </th>
                 <th className="leaders__num" scope="col">
-                  Рейтинг
+                  {t("rating.rating")}
                 </th>
                 <th className="leaders__num leaders__games" scope="col">
-                  Партий
+                  {t("leadersPage.12")}
                 </th>
               </tr>
             </thead>
@@ -144,7 +146,7 @@ export default function LeadersPage() {
                         {r.country && <span className="leaders__subcountry">{countryCell(countries, r.country)}</span>}
                       </span>
                     </a>
-                    {isMine(r, user) && <span className="leaders__you">вы</span>}
+                    {isMine(r, user) && <span className="leaders__you">{t("leadersPage.13")}</span>}
                   </td>
                   <td className="leaders__country" title={countryCell(countries, r.country)}>
                     {countryCell(countries, r.country)}
@@ -159,8 +161,7 @@ export default function LeadersPage() {
       </section>
 
       <p className="leaders__foot">
-        В таблицу попадают игроки, сыгравшие не меньше {MIN_GAMES} партий в категории, с уже не примерным рейтингом (без «?»). Рейтинг игрока, который
-        долго не играет, снова становится примерным, и он на время уходит из таблицы.
+        {t("leadersPage.14")} {MIN_GAMES} {t("leadersPage.15")}
       </p>
     </div>
   );

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Board from "../components/Board.jsx";
 import Avatar, { GoogleLogo } from "../auth/Avatar.jsx";
 import BotAvatar from "../bots/BotAvatar.jsx";
+import { botText } from "../bots/botText.js";
 import { useBots } from "../bots/api.js";
 import { useAuth } from "../auth/AuthContext.jsx";
 import { useSettings } from "../settings/SettingsContext.jsx";
@@ -12,25 +13,30 @@ import ReviewInline from "../review/ReviewInline.jsx";
 import Icon from "../ui/Icon.jsx";
 import Captured from "../components/Captured.jsx";
 import Chat from "./Chat.jsx";
+import MoveTime from "./MoveTime.jsx";
 import { fetchPgn, inviteUrl, joinGame } from "./api.js";
 import { describeTC, formatClock } from "./clock.js";
+import { fetchCorrespondence } from "../community/api.js";
+import { timeLeft, urgent } from "../community/logic.js";
 import { changeLine, ratingText } from "./rating.js";
 import { userHash } from "../leaders/leaders.js";
 import { LOW_MS, beepDue } from "./lowtime.js";
 import { colourLetter, premoveToPlay } from "../components/boardrules.js";
 import { useClocks, useGame } from "./useGame.js";
 import { openingName, openingTitle } from "../openings/names.js";
+import { tOpts, useT } from "../i18n/index.js";
 import "./online.css";
 
 const MAX_PREMOVES = 30; // how many premoves may wait
-const SIDE_NAME = { white: "белые", black: "чёрные" };
-const SIDE_GEN = { white: "белых", black: "чёрных" }; // "ход белых"
-const SIDE_INS = { white: "белыми", black: "чёрными" }; // "играете белыми"
+const SIDE_NAME = { white: "gameRoom.sideWhite", black: "gameRoom.sideBlack" };
+const SIDE_GEN = { white: "gameRoom.genWhite", black: "gameRoom.genBlack" }; // "ход белых"
+const SIDE_INS = { white: "gameRoom.insWhite", black: "gameRoom.insBlack" }; // "играете белыми"
 
 // A person's name links to their public profile; a bot, or a seat with no account, is plain text.
 export function PlayerName({ player, fallback }) {
+  const t = useT();
   if (!player) return fallback;
-  if (player.bot || !player.id || player.id.startsWith("bot:")) return player.name;
+  if (player.bot || !player.id || player.id.startsWith("bot:")) return player.bot ? botText(t, player.bot, "name", player.name) : player.name;
   return (
     <a className="pbar__link" href={userHash(player.id)}>
       {player.name}
@@ -39,6 +45,7 @@ export function PlayerName({ player, fallback }) {
 }
 
 export function PlayerBar({ player, side, ms, running, present, you, fen, warn }) {
+  const t = useT();
   const low = warn && running && ms !== null && ms < LOW_MS;
   return (
     <div className={`pbar${running ? " pbar--turn" : ""}`}>
@@ -51,14 +58,14 @@ export function PlayerBar({ player, side, ms, running, present, you, fen, warn }
       )}
       <div className="pbar__who">
         <span className="pbar__name">
-          <PlayerName player={player} fallback="Ждём соперника…" />
+          <PlayerName player={player} fallback={t("gameRoom.7")} />
           {player?.elo ? <span className="pbar__elo"> ({ratingText(player.elo, player.prov)})</span> : null}
-          {you && <span className="pbar__you">вы</span>}
+          {you && <span className="pbar__you">{t("leadersPage.13")}</span>}
         </span>
         <span className="pbar__sub">
           <span className={`pbar__dot${player && present ? " pbar__dot--on" : ""}`} aria-hidden="true" />
-          {SIDE_NAME[side]}
-          {player && !present ? ", не в сети" : ""}
+          {t(SIDE_NAME[side])}
+          {player && !present ? t("gameRoom.9") : ""}
           {fen && <Captured fen={fen} side={side} />}
         </span>
       </div>
@@ -68,6 +75,7 @@ export function PlayerBar({ player, side, ms, running, present, you, fen, warn }
 }
 
 function MoveListing({ moves }) {
+  const t = useT();
   const end = useRef(null);
   useEffect(() => {
     end.current?.scrollIntoView?.({ block: "nearest" });
@@ -75,13 +83,19 @@ function MoveListing({ moves }) {
   const rows = [];
   for (let i = 0; i < moves.length; i += 2) rows.push([moves[i], moves[i + 1]]);
   return (
-    <div className="moves" aria-label="Ходы партии">
-      {rows.length === 0 && <p className="moves__empty">Ходов пока нет</p>}
+    <div className="moves" aria-label={t("gameRoom.10")}>
+      {rows.length === 0 && <p className="moves__empty">{t("gameRoom.11")}</p>}
       {rows.map(([w, b], i) => (
         <div key={i} className="moves__row">
           <span className="moves__no">{i + 1}.</span>
-          <span className="moves__san">{w.san}</span>
-          <span className="moves__san">{b?.san || ""}</span>
+          <span className="moves__san">
+            {w.san}
+            <MoveTime ms={w.ms} />
+          </span>
+          <span className="moves__san">
+            {b?.san || ""}
+            {b && <MoveTime ms={b.ms} />}
+          </span>
         </div>
       ))}
       <div ref={end} />
@@ -91,6 +105,7 @@ function MoveListing({ moves }) {
 
 // Waiting for a friend: the address to send.
 function InviteCard({ id, game, onCancel }) {
+  const t = useT();
   const [copied, setCopied] = useState(false);
   const url = inviteUrl(id);
   const input = useRef(null);
@@ -106,18 +121,18 @@ function InviteCard({ id, game, onCancel }) {
   }
   return (
     <section className="card invite">
-      <h2>Отправьте ссылку сопернику</h2>
+      <h2>{t("gameRoom.12")}</h2>
       <p className="invite__sub">
-        Партия {describeTC(game.tc)}. Как только соперник откроет ссылку и нажмёт «Играть», она начнётся.
+        {t("gameRoom.13")} {describeTC(game.tc)}{t("gameRoom.14")}
       </p>
       <div className="invite__row">
-        <input ref={input} className="field" readOnly value={url} onFocus={(e) => e.target.select()} aria-label="Ссылка-приглашение" />
+        <input ref={input} className="field" readOnly value={url} onFocus={(e) => e.target.select()} aria-label={t("gameRoom.15")} />
         <button type="button" className="btn btn--primary" onClick={copy}>
-          {copied ? "Скопировано" : "Копировать"}
+          {copied ? t("gameRoom.16") : t("gameRoom.17")}
         </button>
       </div>
       <button type="button" className="btn btn--ghost" onClick={onCancel}>
-        Отменить партию
+        {t("gameRoom.18")}
       </button>
     </section>
   );
@@ -125,6 +140,7 @@ function InviteCard({ id, game, onCancel }) {
 
 // Someone opened the link of a game that waits for a second player.
 function JoinCard({ id, game, onJoined }) {
+  const t = useT();
   const { user, google, guest } = useAuth();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -146,26 +162,27 @@ function JoinCard({ id, game, onJoined }) {
 
   return (
     <section className="card invite">
-      <h2>{host?.name} приглашает вас сыграть</h2>
+      <h2>{host?.name} {t("gameRoom.19")}</h2>
       <p className="invite__sub">
-        Партия {describeTC(game.tc)}. Вы играете {SIDE_INS[mySide]}.
+        {t("gameRoom.13")} {describeTC(game.tc)}{t("gameRoom.20")} {t(SIDE_INS[mySide])}.
       </p>
       {error && <div className="banner banner--error">{error}</div>}
       <button type="button" className="btn btn--primary btn--block" onClick={join} disabled={busy}>
-        {busy ? "Входим в партию…" : user ? "Играть" : "Играть как гость"}
+        {busy ? t("gameRoom.21") : user ? t("botsPage.play") : t("gameRoom.23")}
       </button>
       {!user && google && (
         <a className="btn btn--google btn--block" href={`/api/auth/google/login?next=${encodeURIComponent(`#online/${id}`)}`}>
-          <GoogleLogo size={16} /> Войти через Google
+          <GoogleLogo size={16} /> {t("auth.signInGoogle")}
         </a>
       )}
-      <p className="invite__hint">Или просто смотрите: ссылка открывается без входа.</p>
+      <p className="invite__hint">{t("gameRoom.25")}</p>
     </section>
   );
 }
 
 // backHash / backLabel: where "a new game" leads (the lobby, or the list of bots).
-export default function GameRoom({ id, backHash = "online", backLabel = "Новая партия" }) {
+export default function GameRoom({ id, backHash = "online", backLabel }) {
+  const t = useT();
   const { user } = useAuth();
   const { settings } = useSettings();
   const { snap, status, notice, rev, send } = useGame(id, user?.id);
@@ -181,6 +198,15 @@ export default function GameRoom({ id, backHash = "online", backLabel = "Нов�
 
   const game = snap?.game;
   const you = snap?.you || "";
+  // A correspondence game counts days: the time left is shown to the minute and looked at again every half minute.
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  const corr = !!game?.tc?.days;
+  useEffect(() => {
+    if (!corr) return undefined;
+    setNowMs(Date.now());
+    const t = setInterval(() => setNowMs(Date.now()), 30000);
+    return () => clearInterval(t);
+  }, [corr]);
   const moves = game?.moves || [];
 
   // A game against a bot: who it is, what it says, and what the first win earned.
@@ -283,14 +309,14 @@ export default function GameRoom({ id, backHash = "online", backLabel = "Нов�
   if (status === "notfound") {
     return (
       <div className="page room">
-        <div className="banner banner--error">Такой партии нет. Возможно, ссылка неверна или партия давно удалена.</div>
+        <div className="banner banner--error">{t("gameRoom.27")}</div>
         <a className="btn btn--primary" href="#online">
-          Создать новую партию
+          {t("gameRoom.28")}
         </a>
       </div>
     );
   }
-  if (!game) return <div className="page room room--loading">Открываю партию…</div>;
+  if (!game) return <div className="page room room--loading">{t("gameRoom.29")}</div>;
 
   if (reviewPgn) {
     return (
@@ -328,7 +354,20 @@ export default function GameRoom({ id, backHash = "online", backLabel = "Нов�
   );
 
   function onPlayerMove(uci) {
-    return { ok: send("move", { uci }) };
+    const ok = send("move", { uci });
+    // "After a move go to the next game": the next correspondence game that waits for a move of mine.
+    if (ok && corr && settings.corrNextGame) {
+      setTimeout(() => {
+        fetchCorrespondence().then(
+          (list) => {
+            const next = list.find((g) => g.yourTurn && g.id !== id);
+            if (next) window.location.hash = `online/${next.id}`;
+          },
+          () => {},
+        );
+      }, 700);
+    }
+    return { ok };
   }
 
   // The review opens in place of the game, so the page does not jump.
@@ -354,29 +393,29 @@ export default function GameRoom({ id, backHash = "online", backLabel = "Нов�
     if (now > winsBefore.current) {
       reward =
         winsBefore.current === 0
-          ? `Бот побеждён! +${botMeta?.points ?? 0} очков`
-          : "Победа засчитана. Очки за этого бота вы уже получали.";
+          ? t("gameRoom.30", { p: botMeta?.points ?? 0 })
+          : t("gameRoom.31");
     }
   }
   // What a rated game did to the rating of the person who played it.
   if (!botSeat && ended && game.rated && you) {
     const line = changeLine(game.ratingChange?.[you]);
-    if (line) reward = `Рейтинг. ${line}`;
-    else reward = game.ratingChange ? "Партия слишком короткая: рейтинг не изменился." : "Считаю рейтинг…";
+    if (line) reward = t("gameRoom.32", { line });
+    else reward = game.ratingChange ? t("gameRoom.33") : t("gameRoom.34");
   }
   // The bot's line: a greeting at the start, a remark at the end.
   let botLine = "";
   if (botMeta) {
     if (ended) {
-      botLine = info?.outcome === "win" ? botMeta.onLose : info?.outcome === "loss" ? botMeta.onWin : "Ничья. Хорошая партия!";
+      botLine = info?.outcome === "win" ? botText(t, botMeta.id, "onLose", botMeta.onLose) : info?.outcome === "loss" ? botText(t, botMeta.id, "onWin", botMeta.onWin) : t("gameRoom.35");
     } else if (game.status === "playing") {
-      botLine = moves.length < 2 ? botMeta.greeting : game.turn !== you ? "Думаю…" : "";
+      botLine = moves.length < 2 ? botText(t, botMeta.id, "greeting", botMeta.greeting) : game.turn !== you ? t("gameRoom.36") : "";
     }
   }
   const rm = game.rematch;
   const rematch = you
     ? {
-        label: rm?.offer === you ? "Ждём ответа…" : rm?.offer ? "Принять реванш" : "Реванш",
+        label: rm?.offer === you ? t("gameRoom.37") : rm?.offer ? t("gameRoom.38") : t("gameRoom.39"),
         onClick: () => send("rematch"),
       }
     : undefined;
@@ -387,14 +426,14 @@ export default function GameRoom({ id, backHash = "online", backLabel = "Нов�
   const firstMoveLeft = game.firstMoveBy ? Math.max(0, Math.ceil((game.firstMoveBy - Date.now()) / 1000)) : 0;
 
   let statusLine = "";
-  if (game.status === "waiting") statusLine = "Ждём второго игрока";
-  else if (playing) statusLine = myTurn ? "Ваш ход" : you ? "Ход соперника" : `Ход ${SIDE_GEN[game.turn]}`;
-  else if (game.status === "aborted") statusLine = "Партия отменена";
-  else if (ended) statusLine = info.title === "Ничья" ? "Ничья" : `${info.subtitle}`;
+  if (game.status === "waiting") statusLine = t("gameRoom.40");
+  else if (playing) statusLine = myTurn ? t("gameRoom.41") : you ? t("gameRoom.42") : t("gameRoom.43", { p: t(SIDE_GEN[game.turn]) });
+  else if (game.status === "aborted") statusLine = t("gameRoom.44");
+  else if (ended) statusLine = info.title === t("onlineGames.2") ? t("onlineGames.2") : `${info.subtitle}`;
 
   return (
     <div className="room">
-      {status === "reconnecting" && <div className="banner banner--error room__net">Нет связи с сервером, подключаюсь заново…</div>}
+      {status === "reconnecting" && <div className="banner banner--error room__net">{t("gameRoom.46")}</div>}
       <div className="room__grid">
         <div className="room__main">
           {bar(top)}
@@ -406,9 +445,9 @@ export default function GameRoom({ id, backHash = "online", backLabel = "Нов�
               disabled={!myTurn}
               lastMove={lastMove}
               onPlayerMove={onPlayerMove}
-              confirmMove={settings.confirmMove && myTurn}
+              confirmMove={(corr ? settings.corrConfirmMove : settings.confirmMove) && myTurn}
               premove={{
-                enabled: settings.premoves && playing && !!you,
+                enabled: settings.premoveOn && playing && !!you && !corr,
                 side: colourLetter(you),
                 queue: pre,
                 onSet: (uci) => setPre((q) => [...q, uci].slice(0, MAX_PREMOVES)),
@@ -418,8 +457,8 @@ export default function GameRoom({ id, backHash = "online", backLabel = "Нов�
             {ended && showSummary && info && (
               <GameSummary
                 info={info}
-                white={<PlayerName player={game.white} fallback="Белые" />}
-                black={<PlayerName player={game.black} fallback="Чёрные" />}
+                white={<PlayerName player={game.white} fallback={t("online.white")} />}
+                black={<PlayerName player={game.black} fallback={t("online.black")} />}
                 you={you}
                 moves={moves.length}
                 signedIn={!!user}
@@ -443,7 +482,7 @@ export default function GameRoom({ id, backHash = "online", backLabel = "Нов�
               <BotAvatar bot={botMeta} size={48} />
               <div className="botsay__text">
                 <div className="botsay__name">
-                  {botMeta.name}
+                  {botText(t, botMeta.id, "name", botMeta.name)}
                   <span>{botMeta.elo}</span>
                 </div>
                 {botLine && <p className="botsay__line">{botLine}</p>}
@@ -453,20 +492,25 @@ export default function GameRoom({ id, backHash = "online", backLabel = "Нов�
           <section className="card room__status">
             <p className="room__state">{statusLine}</p>
             <p className="room__meta">
-              {game.rated ? "Рейтинговая партия" : "Партия"} {describeTC(game.tc)}
-              {game.presence.watching > 0 ? ` · смотрят: ${game.presence.watching}` : ""}
+              {game.rated ? t("gameRoom.49") : t("gameRoom.13")} {describeTC(game.tc)}
+              {game.presence.watching > 0 ? t("gameRoom.50", { watching: game.presence.watching }) : ""}
             </p>
             {game.opening && (
               <p className="room__opening" title={openingTitle(game.opening)}>
                 <span className="review__eco">{game.opening.eco}</span> {openingName(game.opening)}
-                {game.book && <span className="room__theory">теория</span>}
+                {game.book && <span className="room__theory">{t("gameRoom.51")}</span>}
+              </p>
+            )}
+            {playing && corr && game.due > 0 && (
+              <p className={`room__meta room__due${myTurn && urgent(game.due, nowMs, game.tc.days) ? " room__due--warn" : ""}`}>
+                {myTurn ? t("gameRoom.52") : you ? t("gameRoom.53") : t("gameRoom.54", { p: t(SIDE_GEN[game.turn]) })}: {timeLeft(game.due, nowMs)}
               </p>
             )}
             {notice && <p className="room__notice">{notice}</p>}
             {playing && firstMoveLeft > 0 && moves.length < 2 && (
-              <p className="room__meta">Партия отменится, если первый ход не сделан в течение минуты.</p>
+              <p className="room__meta">{t("gameRoom.55")}</p>
             )}
-            {!you && playing && <p className="room__meta">Вы наблюдаете за партией.</p>}
+            {!you && playing && <p className="room__meta">{t("gameRoom.56")}</p>}
           </section>
 
           {game.status === "waiting" && you && <InviteCard id={id} game={game} onCancel={() => send("abort")} />}
@@ -474,22 +518,40 @@ export default function GameRoom({ id, backHash = "online", backLabel = "Нов�
 
           {game.status === "aborted" && (
             <section className="card room__status">
-              <p className="room__meta">Партия не состоялась.</p>
+              <p className="room__meta">{t("gameRoom.57")}</p>
               <a className="btn btn--primary" href={"#" + backHash}>
-                {backLabel}
+                {backLabel ?? t("gameRoom.newGame")}
               </a>
+            </section>
+          )}
+
+          {playing && corr && game.claimable && you && !myTurn && (
+            <section className="card room__offer">
+              <p>{t("gameRoom.58")}</p>
+              <div className="room__row">
+                <button type="button" className="btn btn--primary" onClick={() => send("claim")}>
+                  {t("gameRoom.59")}
+                </button>
+              </div>
+              <p className="room__meta">{t("gameRoom.60")}</p>
+            </section>
+          )}
+          {playing && corr && game.claimable && myTurn && (
+            <section className="card room__offer">
+              <p>{t("gameRoom.61")}</p>
+              <p className="room__meta">{t("gameRoom.62")}</p>
             </section>
           )}
 
           {drawFromOpponent && (
             <section className="card room__offer">
-              <p>Соперник предлагает ничью</p>
+              <p>{t("gameRoom.63")}</p>
               <div className="room__row">
                 <button type="button" className="btn btn--primary" onClick={() => send("draw")}>
-                  Принять
+                  {t("gameRoom.64")}
                 </button>
                 <button type="button" className="btn" onClick={() => send("drawDecline")}>
-                  Отклонить
+                  {t("gameRoom.65")}
                 </button>
               </div>
             </section>
@@ -507,40 +569,40 @@ export default function GameRoom({ id, backHash = "online", backLabel = "Нов�
                       send("draw");
                     }}
                   >
-                    Да, предложить ничью
+                    {t("gameRoom.66")}
                   </button>
                   <button type="button" className="btn btn--ghost" onClick={() => setConfirmDraw(false)}>
-                    Нет
+                    {t("gameRoom.67")}
                   </button>
                 </div>
               ) : confirmResign ? (
                 <div className="room__row">
                   <button type="button" className="btn btn--danger" onClick={() => send("resign")}>
-                    Да, сдаться
+                    {t("gameRoom.68")}
                   </button>
                   <button type="button" className="btn btn--ghost" onClick={() => setConfirmResign(false)}>
-                    Нет
+                    {t("gameRoom.67")}
                   </button>
                 </div>
               ) : (
                 <div className="room__row">
                   <button type="button" className="btn btn--danger-ghost" onClick={() => (settings.confirmGiveUp ? setConfirmResign(true) : send("resign"))}>
-                    <Icon name="flag" size={16} /> Сдаться
+                    <Icon name="flag" size={16} /> {t("gameRoom.69")}
                   </button>
                   {drawFromMe ? (
                     <button type="button" className="btn" onClick={() => send("drawDecline")}>
-                      Отозвать ничью
+                      {t("gameRoom.70")}
                     </button>
                   ) : (
                     <button type="button" className="btn" onClick={() => (settings.confirmGiveUp ? setConfirmDraw(true) : send("draw"))} disabled={moves.length < 2}>
-                      Ничья
+                      {t("onlineGames.2")}
                     </button>
                   )}
                 </div>
               )}
               {earlyAbort && (
                 <button type="button" className="btn btn--ghost" onClick={() => send("abort")}>
-                  Отменить партию
+                  {t("gameRoom.18")}
                 </button>
               )}
             </section>
@@ -548,12 +610,12 @@ export default function GameRoom({ id, backHash = "online", backLabel = "Нов�
 
           {ended && !showSummary && (
             <button type="button" className="btn btn--block" onClick={() => setShowSummary(true)}>
-              Итоги партии
+              {t("gameRoom.71")}
             </button>
           )}
 
           <section className="card room__moves">
-            <h2>Ходы</h2>
+            <h2>{t("gameRoom.72")}</h2>
             <MoveListing moves={moves} />
           </section>
 

@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import ClassBadge from "./ClassBadge.jsx";
+import MoveTime from "../online/MoveTime.jsx";
 import { nextScrollTop } from "../ui/scroll.js";
 import { useSettings } from "../settings/SettingsContext.jsx";
 
@@ -28,6 +29,7 @@ function Cell({ move, active, onSelect, boxRef }) {
     >
       {settings.moveIcons && <ClassBadge cls={move.class} />}
       <span className="move-cell__san">{move.san}</span>
+      <MoveTime ms={move.timeMs} />
     </button>
   );
 }

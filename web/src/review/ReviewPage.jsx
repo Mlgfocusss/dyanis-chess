@@ -3,6 +3,7 @@ import { useAnalysis } from "./useAnalysis.js";
 import ReviewView from "./ReviewView.jsx";
 import Icon from "../ui/Icon.jsx";
 import { useAuth } from "../auth/AuthContext.jsx";
+import { useT } from "../i18n/index.js";
 import "./review.css";
 
 const SAMPLE = `[White "Анна"]
@@ -22,6 +23,7 @@ function fromHash() {
 }
 
 export default function ReviewPage() {
+  const t = useT();
   const { status: authStatus, user } = useAuth();
   const [pgn, setPgn] = useState("");
   const [depth, setDepth] = useState(14);
@@ -78,10 +80,9 @@ export default function ReviewPage() {
       {!done && (
         <section className="review-form">
           <header className="page__head">
-            <h1 className="page__title">Разбор партии</h1>
+            <h1 className="page__title">{t("menu.review")}</h1>
             <p className="page__sub">
-              Вставьте партию в формате PGN (например, скачанную с chess.com или lichess): движок оценит
-              каждый ход, найдёт ошибки и назовёт дебют.
+              {t("reviewPage.3")}
             </p>
           </header>
           <textarea
@@ -95,22 +96,22 @@ export default function ReviewPage() {
           />
           <div className="review-form__row">
             <button type="button" className="btn btn--primary" onClick={startReview} disabled={busy || !pgn.trim()}>
-              {busy ? "Идёт разбор…" : "Разобрать"}
+              {busy ? t("analysisPage.5") : t("reviewPage.5")}
             </button>
             <label className="btn btn--ghost">
               <Icon name="upload" size={16} />
-              Загрузить файл
+              {t("reviewPage.6")}
               <input type="file" accept=".pgn,.txt" onChange={onFile} hidden disabled={busy} />
             </label>
             <button type="button" className="btn btn--ghost" onClick={() => setPgn(SAMPLE)} disabled={busy}>
-              Пример
+              {t("reviewPage.7")}
             </button>
             <label className="review-form__depth">
-              глубина
+              {t("reviewPage.8")}
               <select className="field" value={depth} onChange={(e) => setDepth(Number(e.target.value))} disabled={busy}>
-                <option value={10}>10 — быстро</option>
-                <option value={14}>14 — обычно</option>
-                <option value={18}>18 — точнее</option>
+                <option value={10}>{t("reviewPage.9")}</option>
+                <option value={14}>{t("reviewPage.10")}</option>
+                <option value={18}>{t("reviewPage.11")}</option>
               </select>
             </label>
           </div>
@@ -119,18 +120,18 @@ export default function ReviewPage() {
               <div className="progress__bar" style={{ width: `${job ? pct : 3}%` }} />
               <span>
                 {!job || job.status === "queued"
-                  ? "В очереди…"
-                  : `Позиций оценено: ${job.done} из ${job.total}`}
+                  ? t("reviewInline.3")
+                  : t("reviewPage.13", { done: job.done, total: job.total })}
               </span>
             </div>
           )}
           <p className="review-form__note">
-            Нужна свободная доска без партии, чтобы проверить позицию или идею? <a href="#analysis">Откройте доску анализа</a>.
+            {t("reviewPage.14")} <a href="#analysis">{t("reviewPage.15")}</a>.
           </p>
           {authStatus === "ready" && !user && (
             <p className="review-form__note">
-              Вы не вошли, поэтому партия не попадёт в ваш профиль (по ссылке она всё равно откроется).{" "}
-              <a href="#account">Войти</a>
+              {t("reviewPage.16")}{" "}
+              <a href="#account">{t("menu.signIn")}</a>
             </p>
           )}
           {error && <div className="banner banner--error">{error}</div>}

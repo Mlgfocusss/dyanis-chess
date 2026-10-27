@@ -1,3 +1,4 @@
+import { tx, tr } from "../i18n/index.js";
 // Pure helpers for the end of a game against the bot: what the result is,
 // how to say it, and the PGN to send to the review. No imports, so they are
 // covered by `npm test`.
@@ -20,32 +21,32 @@ export function describeResult({ status, sideToMove, resigned, playerSide }) {
   let how; // "матом" / "по сдаче" for the subtitle
   if (resigned) {
     winner = resigned === "white" ? "black" : "white";
-    reason = "Сдача";
-    how = "по сдаче соперника";
+    reason = tr("gameEnd.3");
+    how = tr("gameEnd.4");
   } else if (status === "checkmate") {
     winner = sideToMove === "white" ? "black" : "white";
-    reason = "Мат";
-    how = "матом";
+    reason = tr("gameEnd.5");
+    how = tr("gameEnd.6");
   } else if (status === "stalemate") {
-    reason = "Пат";
+    reason = tr("gameEnd.7");
   } else if (status === "draw-fifty-move") {
-    reason = "Правило 50 ходов";
+    reason = tr("gameEnd.8");
   } else if (status === "draw-repetition") {
-    reason = "Троекратное повторение";
+    reason = tr("gameEnd.9");
   } else {
     return null;
   }
 
   if (!winner) {
-    return { result: "1/2-1/2", outcome: "draw", reason, title: "Ничья", subtitle: `Ничья: ${reason.toLowerCase()}` };
+    return { result: "1/2-1/2", outcome: "draw", reason, title: tr("onlineGames.2"), subtitle: tr("gameEnd.11", { toLowerCase: reason.toLowerCase() }) };
   }
   const outcome = winner === playerSide ? "win" : "loss";
   return {
     result: winner === "white" ? "1-0" : "0-1",
     outcome,
     reason,
-    title: outcome === "win" ? "Вы победили!" : "Вы проиграли",
-    subtitle: `${SIDE_NAME[winner]} победили ${how}`,
+    title: outcome === "win" ? tr("gameEnd.12") : tr("gameEnd.13"),
+    subtitle: tr("gameEnd.14", { p: tx(SIDE_NAME[winner]), how }),
   };
 }
 
@@ -111,24 +112,26 @@ const TERMINATION = {
 // outcome is "neutral" and the title names the winner). reasons: more endings, key -> [reason, how]
 // (the chess variants have their own).
 export function describeFinished({ result, termination, you, reasons }) {
-  const [reason, how] = (reasons && reasons[termination]) || TERMINATION[termination] || [termination || "", ""];
+  const [reasonRu, howRu] = (reasons && reasons[termination]) || TERMINATION[termination] || [termination || "", ""];
+  const reason = tx(reasonRu);
+  const how = tx(howRu);
   const winner = result === "1-0" ? "white" : result === "0-1" ? "black" : null;
   if (!winner) {
     return {
       result: "1/2-1/2",
       outcome: you ? "draw" : "neutral",
       reason,
-      title: "Ничья",
-      subtitle: reason ? `Ничья: ${reason.toLowerCase()}` : "Ничья",
+      title: tr("onlineGames.2"),
+      subtitle: reason ? tr("gameEnd.11", { toLowerCase: reason.toLowerCase() }) : tr("onlineGames.2"),
     };
   }
   const outcome = !you ? "neutral" : winner === you ? "win" : "loss";
-  const title = !you ? `${SIDE_NAME[winner]} победили` : outcome === "win" ? "Вы победили!" : "Вы проиграли";
+  const title = !you ? tr("gameEnd.20", { p: tx(SIDE_NAME[winner]) }) : outcome === "win" ? tr("gameEnd.12") : tr("gameEnd.13");
   return {
     result: winner === "white" ? "1-0" : "0-1",
     outcome,
     reason,
     title,
-    subtitle: you ? `${SIDE_NAME[winner]} победили ${how}`.trim() : reason,
+    subtitle: you ? tr("gameEnd.14", { p: tx(SIDE_NAME[winner]), how }).trim() : reason,
   };
 }

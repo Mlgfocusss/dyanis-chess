@@ -80,6 +80,12 @@
   .room__main { width: min(100%, calc(100vh - 160px)); margin: 0 auto; }
   .pbar__clock { font-size: 1.2rem; min-width: 80px; }
 }
+/* on a phone the board stays at the top of the screen while the buttons and the moves scroll under it
+   (a short phone has no room for that, there the page just scrolls) */
+@media (max-width: 860px) and (min-height: 760px) {
+  .room__grid { display: flex; flex-direction: column; align-items: stretch; gap: 14px; }
+  .room__main { position: sticky; top: 0; z-index: 6; padding: 6px 0; background: var(--bg); }
+}
 
 .pbar__elo { color: var(--muted); font-weight: 500; }
 
@@ -131,3 +137,6 @@
 }
 .pbar__link { color: inherit; text-decoration: none; }
 .pbar__link:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+/* correspondence games: the time left for the move */
+.room__due--warn { color: var(--warn-text); font-weight: 600; }

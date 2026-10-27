@@ -1,23 +1,24 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Board from "../components/Board.jsx";
-import Avatar from "../auth/Avatar.jsx";
 import { useAuth } from "../auth/AuthContext.jsx";
 import { useSettings } from "../settings/SettingsContext.jsx";
 import { playSound, soundKindForSan } from "../sound/sound.js";
 import Icon from "../ui/Icon.jsx";
 import Segmented from "../ui/Segmented.jsx";
 import { START_FEN } from "../play/game.js";
-import PuzzleTabs from "./PuzzleTabs.jsx";
+import { BigButton, Placeholder, Say, Shell } from "./PuzzleShell.jsx";
 import { fetchRushBest, fetchRushPuzzle, sendRushResult } from "./api.js";
 import { judgeMove, legalFor, squaresOf } from "./puzzle.js";
+import { colourLetter, premoveToPlay } from "../components/boardrules.js";
 import { RUSH_MODES, clockText, runSummary, targetRating } from "./rush.js";
-import "./puzzles.css";
+import { tx, useT } from "../i18n/index.js";
 
 const MODE_KEY = "dyanis.rushMode";
 const INTRO_MS = 350; // pause before the opponent's first move
 const REPLY_MS = 300; // pause before the opponent answers
 const NEXT_MS = 250; // pause between a solved puzzle and the next
 const TICK_MS = 200;
+const MAX_PREMOVES = 30; // how many premoves may wait
 
 function savedMode() {
   try {
@@ -31,6 +32,7 @@ function savedMode() {
 // The tactics storm: puzzles from easy to hard, one after another, until the clock runs out or the
 // first mistake. Practice: the puzzle rating does not change; the best score of each length is kept.
 export default function RushPage() {
+  const t = useT();
   const { status, user, guest } = useAuth();
   const { settings } = useSettings();
 
@@ -46,6 +48,7 @@ export default function RushPage() {
   const [best, setBest] = useState({}); // { "3min": { best, runs } }
   const [over, setOver] = useState(null); // { reason, score, record, expected }
   const [error, setError] = useState("");
+  const [pre, setPre] = useState([]); // premoves (uci) chosen while the opponent answers, played one by one on the person's turns
 
   const phaseRef = useRef("idle");
   const scoreRef = useRef(0);
@@ -100,6 +103,7 @@ export default function RushPage() {
     run.current++; // whatever is still waiting belongs to a run that is over
     stopTimers();
     setPh("over");
+    setPre([]);
     const final = scoreRef.current;
     const sum = runSummary(reason, final, bestRef.current[mode]?.best || 0);
     setOver({ reason, score: final, record: sum.record, headline: sum.headline, expected });
@@ -117,6 +121,7 @@ export default function RushPage() {
     setIdx(0);
     setLast(null);
     setBadge(null);
+    setPre([]);
     setPh("intro");
     // the next puzzle is asked for while this one is solved
     prefetch.current = fetchRushPuzzle(targetRating(scoreRef.current + 1), seen.current).catch(() => null);
@@ -216,11 +221,25 @@ export default function RushPage() {
     return { ok: true };
   }
 
+  // The first premove is played the moment it is the person's turn, if it is legal then; one that is not drops
+  // the whole queue. A wrong move that is legal ends the run, as any wrong move does.
+  useEffect(() => {
+    if (!pre.length) return;
+    if (phase === "between" || phase === "over" || phase === "idle") {
+      setPre([]);
+      return;
+    }
+    if (phase !== "solving") return;
+    const play = premoveToPlay(legalFor(puzzle, idx), pre[0]);
+    if (play) setPre(onPlayerMove(play).ok ? pre.slice(1) : []);
+    else setPre([]);
+  }, [phase, idx]); // eslint-disable-line react-hooks/exhaustive-deps
+
   if (status === "unavailable") {
     return (
-      <div className="room puzzles">
-        <div className="banner banner--error">Задачи недоступны: сервер запущен без базы данных.</div>
-      </div>
+      <Placeholder>
+        <div className="banner banner--error">{t("puzzlesPage.4")}</div>
+      </Placeholder>
     );
   }
 
@@ -229,106 +248,89 @@ export default function RushPage() {
   const modeBest = best[mode]?.best || 0;
   const low = running && left < 10_000;
 
+  let say;
+  if (over) {
+    say = {
+      kind: over.headline,
+      tone: over.record ? "ok" : "warn",
+      text:
+        (over.record ? t("rushPage.2", { label: tx(RUSH_MODES[mode].label) }) : "") +
+        (over.reason === "mistake" && over.expected ? t("rushPage.3", { expected: over.expected }) : ""),
+    };
+  } else if (running) {
+    say =
+      phase === "starting"
+        ? { kind: t("rushPage.4"), tone: "", text: "" }
+        : { kind: phase === "between" ? t("puzzleJs.12") : t("gameRoom.41"), tone: phase === "between" ? "ok" : "", text: t("rushPage.7") };
+  } else {
+    say = {
+      kind: t("rushPage.8"),
+      tone: "",
+      text: t("rushPage.9"),
+    };
+  }
+
   return (
-    <div className="room puzzles rush">
-      <div className="room__grid">
-        <div className="room__main">
-          <div className="pbar puzzles__top">
-            <span className="puzzles__ico">
-              <Icon name="bolt" size={22} />
-            </span>
-            <div className="pbar__who">
-              <span className="pbar__name">Тактический штурм</span>
-              <span className="pbar__sub">{running || over ? `Решено: ${score}` : "Задачи от лёгких к сложным, до первой ошибки"}</span>
-            </div>
-            <span className={`rush__clock${low ? " rush__clock--low" : ""}`} aria-label="Осталось времени">
-              {clockText(left)}
-            </span>
+    <Shell
+      className="pz--rush"
+      mode="rush"
+      icon="bolt"
+      title={t("menu.rush")}
+      head={
+        <span className={`pz__clock pz__clock--big${low ? " pz__clock--low" : ""}`} aria-label={t("rushPage.11")}>
+          {clockText(left)}
+        </span>
+      }
+      board={
+        <Board
+          state={{ fen, legalMoves: phase === "solving" ? legalFor(puzzle, idx) : [] }}
+          orientation={mySide}
+          disabled={phase !== "solving"}
+          lastMove={last}
+          badge={badge}
+          onPlayerMove={onPlayerMove}
+          premove={{
+            enabled: settings.premoveOn && phase === "reply",
+            side: colourLetter(puzzle?.orientation || "white"),
+            queue: pre,
+            onSet: (uci) => setPre((q) => [...q, uci].slice(0, MAX_PREMOVES)),
+            onClear: () => setPre([]),
+          }}
+        />
+      }
+      bottom={
+        <>
+          <BigButton onClick={start} disabled={running || status !== "ready"}>
+            <Icon name="bolt" size={20} /> {running ? t("rushPage.12") : over ? t("rushPage.13") : t("rushPage.14")}
+          </BigButton>
+          <div className="pz__tools">
+            <button type="button" className="btn btn--ghost" onClick={() => finish("quit")} disabled={!running}>
+              {t("rushPage.15")}
+            </button>
           </div>
-          <div className="room__board">
-            <Board
-              state={{ fen, legalMoves: phase === "solving" ? legalFor(puzzle, idx) : [] }}
-              orientation={mySide}
-              disabled={phase !== "solving"}
-              lastMove={last}
-              badge={badge}
-              onPlayerMove={onPlayerMove}
-            />
-          </div>
-          <div className="pbar">
-            <Avatar user={user} size={36} />
-            <div className="pbar__who">
-              <span className="pbar__name">
-                {user?.name || "Вы"}
-                <span className="pbar__you">вы</span>
-              </span>
-              <span className="pbar__sub">{puzzle && running ? (mySide === "white" ? "Белые" : "Чёрные") : RUSH_MODES[mode].label}</span>
-            </div>
-            <span className="puzzles__rating" title="Решено в этой серии">
-              {score}
-            </span>
-          </div>
-        </div>
+        </>
+      }
+    >
+      {error && <div className="banner banner--error">{error}</div>}
 
-        <aside className="room__side">
-          <PuzzleTabs mode="rush" />
-
-          {error && <div className="banner banner--error">{error}</div>}
-
-          {!running && (
-            <section className={`card room__status puzzles__state${over ? (over.record ? " puzzles__state--ok" : " puzzles__state--warn") : ""}`} aria-live="polite">
-              {over ? (
-                <>
-                  <p className="room__state">{over.headline}</p>
-                  {over.record && <p className="room__meta">Новый рекорд за {RUSH_MODES[mode].label}!</p>}
-                  {over.reason === "mistake" && over.expected && <p className="room__meta">Верный ход был {over.expected}.</p>}
-                </>
-              ) : (
-                <>
-                  <p className="room__state">Решайте задачи как можно дольше</p>
-                  <p className="room__meta">
-                    Первые задачи лёгкие, каждая следующая труднее. Серия кончается первой ошибкой или когда выйдет время. Рейтинг задач не меняется.
-                  </p>
-                </>
-              )}
-            </section>
-          )}
-
-          {running && (
-            <section className="card room__status" aria-live="polite">
-              <p className="room__state">{phase === "starting" ? "Готовлю задачу…" : `Решено: ${score}`}</p>
-              <p className="room__meta">Одна ошибка заканчивает серию.</p>
-            </section>
-          )}
-
-          <section className="card room__actions">
-            <Segmented
-              label="Длина серии"
-              value={mode}
-              onChange={chooseMode}
-              options={Object.entries(RUSH_MODES).map(([id, m]) => [id, m.label])}
-            />
-            {!running ? (
-              <button type="button" className="btn btn--primary" onClick={start} disabled={status !== "ready"}>
-                <Icon name="bolt" size={16} /> {over ? "Играть снова" : "Начать"}
-              </button>
-            ) : (
-              <button type="button" className="btn btn--ghost" onClick={() => finish("quit")}>
-                Закончить серию
-              </button>
-            )}
-          </section>
-
-          <section className="card puzzles__you">
-            <h2>Ваш рекорд · {RUSH_MODES[mode].label}</h2>
-            <p className="puzzles__big">{modeBest}</p>
-            <p className="room__meta">
-              Серий сыграно: {best[mode]?.runs || 0}
-              {user?.kind === "guest" ? ". Войдите через Google, чтобы рекорды не потерялись." : ""}
-            </p>
-          </section>
-        </aside>
+      <div className="pz__score">
+        <span className="pz__label">{running || over ? t("rushPage.16") : t("rushPage.17", { label: tx(RUSH_MODES[mode].label) })}</span>
+        <span className="pz__num">{running || over ? score : modeBest}</span>
+        <span className="pz__sub">
+          {t("rushPage.18")} {tx(RUSH_MODES[mode].label)}: <b>{modeBest}</b>{t("rushPage.19")} {best[mode]?.runs || 0}.
+        </span>
       </div>
-    </div>
+
+      <Say kind={say.kind} tone={say.tone}>
+        {say.text}
+      </Say>
+
+      <div className="pz__field">
+        <span className="pz__label">{t("rushPage.20")}</span>
+        <Segmented label={t("rushPage.20")} value={mode} onChange={chooseMode} options={Object.entries(RUSH_MODES).map(([id, m]) => [id, tx(m.label)])} />
+      </div>
+
+      {user?.kind === "guest" && <p className="pz__meta">{t("rushPage.21")}</p>}
+    </Shell>
   );
 }

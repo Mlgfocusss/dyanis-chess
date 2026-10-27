@@ -1,0 +1,17 @@
+export default {
+  "duelPage.1": "The duel is unavailable: the server runs without a database.",
+  "duelPage.3": "You and a live opponent solve the same puzzles in a race.",
+  "duelPage.4": "Your rating in duels",
+  "duelPage.5": "Duels: {games}, wins {wins}, draws {draws}, losses {losses}.",
+  "duelPage.6": "You have not played duels yet.",
+  "duelPage.7": "The rating is counted by the Glicko-2 system, as in rated games.",
+  "duelPage.8": "Looking for an opponent…",
+  "duelPage.9": "s",
+  "duelPage.10": " · rating difference up to {p}",
+  "duelPage.11": " · in the queue: {count}",
+  "duelPage.13": "Find an opponent",
+  "duelPage.15": "A duel lasts 3 minutes. 5 seconds to prepare before it starts.",
+  "duelPage.16": "The puzzles are the same for both and go from easy to hard. Everyone solves at their own pace.",
+  "duelPage.17": "A solved puzzle gives a point. A mistake does not end the duel: the puzzle is skipped, and mistakes count when points are equal.",
+  "duelPage.18": "The one with more points wins. The opponent's points are visible during the duel.",
+};

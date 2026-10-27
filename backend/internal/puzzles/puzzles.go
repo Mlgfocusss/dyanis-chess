@@ -153,7 +153,7 @@ type nextResponse struct {
 	Puzzle PuzzleJSON `json:"puzzle"`
 	You    *Record    `json:"you,omitempty"`   // nil for nobody signed in
 	Daily  *DailyInfo `json:"daily,omitempty"` // set for the puzzle of the day
-	// Points is the person's points, asked for with ?mode=points.
+	// Points is the person's points (set for everybody signed in: the rated puzzles always count them).
 	Points *PointsJSON `json:"points,omitempty"`
 }
 
@@ -276,9 +276,10 @@ func (s *Service) byID(w http.ResponseWriter, r *http.Request) {
 	respond(w, p, userID, rec, nil, pts)
 }
 
-// pointsFor reads the person's points when the request asks for them (?mode=points); nil otherwise.
+// pointsFor reads the person's points; nil for nobody signed in. The rated puzzles count points
+// and the rating together, so every puzzle answer carries them (the page decides what to show).
 func (s *Service) pointsFor(r *http.Request, userID string) (*PointsJSON, error) {
-	if userID == "" || r.URL.Query().Get("mode") != "points" {
+	if userID == "" {
 		return nil, nil
 	}
 	p, err := s.cfg.Store.PuzzlePointsOf(r.Context(), userID, s.cfg.Now().UTC().Format("2006-01-02"))
@@ -418,8 +419,9 @@ func (s *Service) dailyResult(w http.ResponseWriter, r *http.Request) {
 
 type resultRequest struct {
 	Solved bool `json:"solved"`
-	// Mode is "" for the rating or "points" for the points mode; Hint says the hint was used (the
-	// browser knows, the server cannot). The server counts the points itself.
+	// Mode is only read for compatibility with older pages ("" or "points"): the rating and the
+	// points are always both counted now. Hint says the hint was used (the browser knows, the
+	// server cannot). The server counts the points itself.
 	Mode string `json:"mode"`
 	Hint bool   `json:"hint"`
 }
@@ -429,7 +431,7 @@ type resultResponse struct {
 	Before  int    `json:"before"`
 	After   int    `json:"after"`
 	You     Record `json:"you"`
-	// Points is set in the points mode (counted or not): the person's points after this try.
+	// Points is the person's points after this try (counted or not).
 	Points *PointsJSON `json:"points,omitempty"`
 }
 
@@ -446,8 +448,9 @@ func pointsJSON(p store.PuzzlePoints, gained int) *PointsJSON {
 	return &PointsJSON{Total: p.Total, Streak: p.Streak, Best: p.BestStreak, Today: p.Today, Gained: gained}
 }
 
-// result takes the outcome of a person's first try. The browser reports it:
-// the rating is personal, so there is nothing to gain by lying.
+// result takes the outcome of a person's first try. The browser reports it: the rating is
+// personal, so there is nothing to gain by lying. One transaction records the try, moves the
+// rating and awards the points (a repeat of the same puzzle changes nothing).
 func (s *Service) result(w http.ResponseWriter, r *http.Request) {
 	userID := s.cfg.UserID(r)
 	if userID == "" {
@@ -475,12 +478,7 @@ func (s *Service) result(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	update := func(rating, attempts int) int { return NewRating(rating, attempts, p.Rating, req.Solved) }
-	var award func(streak int) int
-	if req.Mode == "points" {
-		// the points mode keeps the rating as it is; the try is still recorded as the first one
-		update = func(rating, _ int) int { return rating }
-		award = func(streak int) int { return PuzzlePoints(p.Rating, streak, req.Hint) }
-	}
+	award := func(streak int) int { return PuzzlePoints(p.Rating, streak, req.Hint) }
 	at, err := s.cfg.Store.RecordPuzzleAttempt(ctx, userID, p.ID, req.Solved, update, award)
 	if err != nil {
 		log.Printf("puzzles: record: %v", err)
@@ -491,19 +489,17 @@ func (s *Service) result(w http.ResponseWriter, r *http.Request) {
 		Counted: at.Counted, Before: at.Before, After: at.After,
 		You: Record{Rating: at.Record.Rating, Attempts: at.Record.Attempts, Solved: at.Record.Solved},
 	}
-	if req.Mode == "points" {
-		pts := at.Points
-		if pts == nil { // a puzzle tried before: nothing earned, show where the person stands
-			cur, err := s.cfg.Store.PuzzlePointsOf(ctx, userID, s.cfg.Now().UTC().Format("2006-01-02"))
-			if err != nil {
-				log.Printf("puzzles: points: %v", err)
-				writeError(w, http.StatusInternalServerError, "не удалось прочитать очки")
-				return
-			}
-			pts = &cur
+	pts := at.Points
+	if pts == nil { // a puzzle tried before: nothing earned, show where the person stands
+		cur, err := s.cfg.Store.PuzzlePointsOf(ctx, userID, s.cfg.Now().UTC().Format("2006-01-02"))
+		if err != nil {
+			log.Printf("puzzles: points: %v", err)
+			writeError(w, http.StatusInternalServerError, "не удалось прочитать очки")
+			return
 		}
-		resp.Points = pointsJSON(*pts, at.Gained)
+		pts = &cur
 	}
+	resp.Points = pointsJSON(*pts, at.Gained)
 	writeJSON(w, http.StatusOK, resp)
 }
 

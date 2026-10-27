@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createAnalysis, getAnalysis } from "./api.js";
+import { serverMsg, tr } from "../i18n/index.js";
 
 const POLL_MS = 400;
 
@@ -30,7 +31,7 @@ export function useAnalysis() {
       setJob(j);
       if (j.status === "done") return setBusy(false);
       if (j.status === "error") {
-        setError(j.error || "Разбор не удался");
+        setError(serverMsg(j.error) || tr("review.failed"));
         return setBusy(false);
       }
       timer.current = setTimeout(() => poll(id), POLL_MS);

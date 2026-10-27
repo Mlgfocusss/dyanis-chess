@@ -1,0 +1,17 @@
+export default {
+  "profile.notPlayedYet": "ещё не играли",
+  "profile.tabGames": "Партии",
+  "profile.tabOverview": "Обзор",
+  "profile.tabStats": "Статистика",
+  "profile.4": "Рейтинги",
+  "profile.5": "Партии с людьми, Glicko-2. «?» значит, что рейтинг ещё примерный.",
+  "profile.6": "партий {games}: {wins} / {draws} / {losses}",
+  "profile.11": "очков · побеждено",
+  "profile.12": "из",
+  "profile.13": "Вы ещё не играли с ботами. За первую победу над каждым ботом начисляются очки.",
+  "profile.14": "Выбрать бота",
+  "profile.16": "Дней подряд с задачами",
+  "profile.19": " · с нами с {since}",
+  "profile.21": "Разделы профиля",
+  "profile.ratingsTitle": "Рейтинги",
+};

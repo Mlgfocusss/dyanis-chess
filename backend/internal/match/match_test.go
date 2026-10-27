@@ -250,3 +250,53 @@ func postStatus(t *testing.T, s *Service, body string) int {
 	s.Handler().ServeHTTP(rec, req)
 	return rec.Code
 }
+
+func TestPeopleWhoBlockedEachOtherAreNeverPaired(t *testing.T) {
+	s, c, games := newSvc(t)
+	blocks := map[string]map[string]bool{ // what store.BlockedWith returns: both directions
+		"anna":  {"boris": true},
+		"boris": {"anna": true},
+	}
+	s.cfg.Avoid = func(_ context.Context, id string) (map[string]bool, error) { return blocks[id], nil }
+	ctx := context.Background()
+
+	s.Join(ctx, Seeker{ID: "anna", Rating: 1500}, blitz)
+	s.Join(ctx, Seeker{ID: "boris", Rating: 1500}, blitz) // the same rating, but blocked
+	c.add(5 * time.Second)
+	s.Pair()
+	if len(*games) != 0 {
+		t.Fatalf("a blocked pair was matched: %+v", *games)
+	}
+	// A third person is paired with the one who waited longest and is not blocked.
+	s.Join(ctx, Seeker{ID: "vera", Rating: 1540}, blitz)
+	if len(*games) != 1 {
+		t.Fatalf("games made: %d", len(*games))
+	}
+	g := (*games)[0]
+	if (g.a == "boris" && g.b == "anna") || (g.a == "anna" && g.b == "boris") {
+		t.Errorf("paired the blocked: %+v", g)
+	}
+	if st := s.Check("boris"); st.State != "waiting" && st.State != "found" {
+		t.Errorf("boris: %+v", st)
+	}
+
+	// Duels are matched by the same loop.
+	d := Request{Kind: KindDuel}
+	s.Join(ctx, Seeker{ID: "anna", Rating: 1500}, d)
+	s.Join(ctx, Seeker{ID: "boris", Rating: 1500}, d)
+	c.add(10 * time.Second)
+	s.Pair()
+	for _, m := range *games {
+		if m.req.Kind == KindDuel {
+			t.Errorf("a blocked pair was matched in a duel: %+v", m)
+		}
+	}
+
+	// A failing lookup does not stop anybody from playing.
+	s.cfg.Avoid = func(context.Context, string) (map[string]bool, error) { return nil, context.DeadlineExceeded }
+	s.Join(ctx, Seeker{ID: "p", Rating: 1800}, blitz)
+	s.Join(ctx, Seeker{ID: "q", Rating: 1800}, blitz)
+	if st := s.Check("p"); st.State != "found" {
+		t.Errorf("p: %+v", st)
+	}
+}

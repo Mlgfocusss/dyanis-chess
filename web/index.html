@@ -5,15 +5,28 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Dyanis Chess</title>
     <link rel="icon" href="data:," />
-    <!-- The theme chosen before ("Настройки → Интерфейс → Тема", kept in the saved settings) is put on
+    <!-- The language ("Настройки → Интерфейс → Язык", i18n/) is put on <html lang> the same way. The theme chosen before ("Настройки → Интерфейс → Тема", kept in the saved settings) is put on
          <html> before the first paint, so a light page does not start dark. Dark is the page without the
          attribute. Keep the key and the values in step with src/settings/model.js: theme.test.js runs
          this very script. No CSP is set (see deploy/nginx.conf), so an inline script is allowed. -->
     <script>
       (function () {
+        var s = {};
         try {
-          var t = JSON.parse(localStorage.getItem("dyanis.settings.v1")).theme;
+          s = JSON.parse(localStorage.getItem("dyanis.settings.v1")) || {};
+        } catch (e) {}
+        try {
+          var t = s.theme;
           if (t === "light" || t === "system") document.documentElement.setAttribute("data-theme", t);
+        } catch (e) {}
+        // the language: the saved one, else the browser's (ru* is Russian, anything else English)
+        try {
+          var l = s.language;
+          if (l !== "ru" && l !== "en") {
+            var n = typeof navigator !== "undefined" ? String(navigator.language || "") : "ru";
+            l = n.toLowerCase().indexOf("ru") === 0 ? "ru" : "en";
+          }
+          document.documentElement.setAttribute("lang", l);
         } catch (e) {}
       })();
     </script>

@@ -2,19 +2,21 @@ import { useEffect, useState } from "react";
 import { createAnalysis } from "../review/api.js";
 import { describeTC } from "../online/clock.js";
 import { fetchPgn, listGames } from "../online/api.js";
+import { locale, useT, tr } from "../i18n/index.js";
 import "./games.css";
 
 const REVIEW_DEPTH = 14;
 
 function outcome(g) {
-  if (g.status === "playing") return { text: "идёт", cls: "live" };
-  if (g.result === "1/2-1/2") return { text: "Ничья", cls: "draw" };
+  if (g.status === "playing") return { text: tr("onlineGames.1"), cls: "live" };
+  if (g.result === "1/2-1/2") return { text: tr("onlineGames.2"), cls: "draw" };
   const won = (g.result === "1-0" && g.you === "white") || (g.result === "0-1" && g.you === "black");
-  return won ? { text: "Победа", cls: "win" } : { text: "Поражение", cls: "loss" };
+  return won ? { text: tr("onlineGames.3"), cls: "win" } : { text: tr("onlineGames.4"), cls: "loss" };
 }
 
 // The games played against other people, in the profile's "Партии" tab.
 export default function OnlineGames() {
+  const t = useT();
   const [items, setItems] = useState(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState("");
@@ -45,13 +47,13 @@ export default function OnlineGames() {
   if (!items && !error) return null;
   return (
     <section className="games__section">
-      <h2 className="games__h">Онлайн-партии</h2>
+      <h2 className="games__h">{t("onlineGames.5")}</h2>
       {error && <div className="banner banner--error">{error}</div>}
       {items && items.length === 0 && (
         <section className="card games__empty">
-          <p>Вы ещё не играли с людьми. Создайте партию и отправьте ссылку другу.</p>
+          <p>{t("onlineGames.6")}</p>
           <a className="btn btn--primary" href="#online">
-            Играть онлайн
+            {t("home.playOnline")}
           </a>
         </section>
       )}
@@ -66,17 +68,17 @@ export default function OnlineGames() {
                   <span className={`games__result games__result--${res.cls}`}>{res.text}</span>
                   <span className="games__main">
                     <span className="games__title">
-                      {g.you === "white" ? "Белыми" : "Чёрными"} против {opp?.name || "соперника"}
+                      {g.you === "white" ? t("onlineGames.8") : t("onlineGames.9")} {t("onlineGames.10")} {opp?.name || t("onlineGames.11")}
                     </span>
                     <span className="games__sub">
-                      {new Date(g.updated).toLocaleDateString("ru-RU", { day: "numeric", month: "short", year: "numeric" })}
-                      {` · ${describeTC(g.tc)} · ходов: ${Math.ceil(g.plies / 2)}`}
+                      {new Date(g.updated).toLocaleDateString(locale(), { day: "numeric", month: "short", year: "numeric" })}
+                      {t("onlineGames.12", { p: describeTC(g.tc), p2: Math.ceil(g.plies / 2) })}
                     </span>
                   </span>
                 </a>
                 {g.status === "ended" && (
                   <button type="button" className="btn btn--ghost games__review" disabled={busy === g.id || g.plies === 0} onClick={() => review(g)}>
-                    {busy === g.id ? "…" : "Разбор"}
+                    {busy === g.id ? "…" : t("onlineGames.review")}
                   </button>
                 )}
               </li>

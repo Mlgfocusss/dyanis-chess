@@ -79,3 +79,40 @@ func TestPuzzlePointsRecordMergeDelete(t *testing.T) {
 		}
 	}
 }
+
+// The rated puzzles move the rating and count the points in the one transaction.
+func TestPuzzleAttemptMovesRatingAndPoints(t *testing.T) {
+	s := openTest(t)
+	ctx := context.Background()
+	u := lessonUser(t, s)
+	up := func(r, _ int) int { return r + 18 }
+	down := func(r, _ int) int { return r - 26 }
+	award := func(streak int) int { return 7 + streak }
+
+	at, err := s.RecordPuzzleAttempt(ctx, u.ID, "rp-a", true, up, award)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !at.Counted || at.Before != StartPuzzleRating || at.After != StartPuzzleRating+18 || at.Gained != 7 || at.Points.Total != 7 || at.Points.Streak != 1 {
+		t.Fatalf("solved: %+v %+v", at, at.Points)
+	}
+	at, err = s.RecordPuzzleAttempt(ctx, u.ID, "rp-b", false, down, award)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if at.After != StartPuzzleRating+18-26 || at.Gained != 0 || at.Points.Total != 7 || at.Points.Streak != 0 || at.Points.BestStreak != 1 {
+		t.Fatalf("failed: %+v %+v", at, at.Points)
+	}
+	// a repeat changes neither
+	at, err = s.RecordPuzzleAttempt(ctx, u.ID, "rp-a", true, up, award)
+	if err != nil || at.Counted || at.Points != nil || at.After != at.Before {
+		t.Fatalf("repeat: %+v %v", at, err)
+	}
+	day := time.Now().UTC().Format("2006-01-02")
+	if p, err := s.PuzzlePointsOf(ctx, u.ID, day); err != nil || p.Total != 7 || p.Today != 7 {
+		t.Errorf("points: %+v %v", p, err)
+	}
+	if r, _ := s.PuzzleRatingOf(ctx, u.ID); r.Rating != StartPuzzleRating-8 || r.Attempts != 2 || r.Solved != 1 {
+		t.Errorf("rating: %+v", r)
+	}
+}

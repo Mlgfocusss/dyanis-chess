@@ -1,11 +1,13 @@
 // King of the Hill (as on Lichess; backend/internal/variants/kingofthehill.go): ordinary chess where a king on one of
 // the four central squares wins at once. The screen marks the hill and tells how far each king is from it.
 import { describeDistance, hillClasses, hillDistance } from "./hill.js";
+import { useT } from "../../i18n/index.js";
 import "./hill.css";
 
 const HILL_CLASSES = hillClasses(); // one object for ever: the board does not need a new one at every render
 
 function HillCard({ view, you }) {
+  const t = useT();
   const white = hillDistance(view?.board, "white");
   const black = hillDistance(view?.board, "black");
   const row = (side, label, n) => (
@@ -15,11 +17,11 @@ function HillCard({ view, you }) {
   );
   return (
     <section className="card vhill__card">
-      <h2>До центра</h2>
-      <p className="vhill__text">Королю нужно дойти до одной из подсвеченных клеток: d4, e4, d5 или e5.</p>
+      <h2>{t("vhill.1")}</h2>
+      <p className="vhill__text">{t("vhill.2")}</p>
       <ul className="vhill__list">
-        {row("white", "Белый король", white)}
-        {row("black", "Чёрный король", black)}
+        {row("white", t("vhill.3"), white)}
+        {row("black", t("vhill.4"), black)}
       </ul>
     </section>
   );

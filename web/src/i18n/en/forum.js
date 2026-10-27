@@ -1,0 +1,16 @@
+export default {
+  "forum.cat.general.name": "General talk",
+  "forum.cat.general.desc": "Everything about chess and the site that did not fit the other sections.",
+  "forum.cat.games.name": "Games and review",
+  "forum.cat.games.desc": "Let's go through your game, discuss interesting positions and mistakes.",
+  "forum.cat.openings.name": "Openings",
+  "forum.cat.openings.desc": "Repertoire, theory, traps and questions about the openings builder.",
+  "forum.cat.puzzles.name": "Puzzles and tactics",
+  "forum.cat.puzzles.desc": "Hard puzzles, Rush, duels and tricks.",
+  "forum.cat.endgames.name": "Endgames and strategy",
+  "forum.cat.endgames.desc": "Typical endings, the plan of the game, structures.",
+  "forum.cat.site.name": "The site: help and suggestions",
+  "forum.cat.site.desc": "Questions, bugs and ideas about the site itself.",
+  "forum.cat.offtopic.name": "Off topic",
+  "forum.cat.offtopic.desc": "Talk about everything else, within decency.",
+};

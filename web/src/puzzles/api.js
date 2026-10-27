@@ -1,3 +1,4 @@
+import { serverMsg, tr } from "../i18n/index.js";
 // Client of the puzzle API (backend/internal/puzzles).
 
 async function readJSON(res) {
@@ -8,21 +9,20 @@ async function readJSON(res) {
     // not JSON: handled below
   }
   if (!res.ok) {
-    const e = new Error(body?.error || `Сервер ответил ${res.status}`);
+    const e = new Error(serverMsg(body?.error) || tr("common.serverReplied", { status: res.status }));
     e.status = res.status;
     throw e;
   }
   return body;
 }
 
-// { puzzle: {id, rating, themes, fen, orientation, steps}, you?: {rating, attempts, solved} }
+// { puzzle: {id, rating, themes, fen, orientation, steps}, you?: {rating, attempts, solved}, points?: {total, streak, best, today} }
 // theme: "" for any; id: a particular puzzle instead of the next one; daily: the puzzle of the day
 // (the answer then also has daily: {date, status}, status "new" | "solved" | "failed").
-export async function fetchPuzzle({ theme = "", id = "", daily = false, level = "", points = false } = {}) {
+export async function fetchPuzzle({ theme = "", id = "", daily = false, level = "" } = {}) {
   if (daily) return readJSON(await fetch("/api/puzzles/daily"));
   const q = new URLSearchParams();
   if (theme) q.set("theme", theme);
-  if (points) q.set("mode", "points"); // the answer then has points: {total, streak, best, today, gained}
   if (level) q.set("level", level); // "random" | "easier" | "normal" | "harder": settings → Игровой процесс
   const tail = q.size ? `?${q}` : "";
   const url = id ? `/api/puzzles/${encodeURIComponent(id)}${tail}` : `/api/puzzles/next${tail}`;
@@ -44,14 +44,14 @@ export async function sendDailyResult(solved) {
   return readJSON(res);
 }
 
-// The outcome of the first try: { counted, before, after, you: {rating, attempts, solved}, points? }.
-// In the points mode ({ mode: "points", hint }) the rating stays and the server counts the points;
-// the browser only says whether the hint was used.
-export async function sendResult(id, solved, { mode = "", hint = false } = {}) {
+// The outcome of the first try: { counted, before, after, you: {rating, attempts, solved}, points: {total,
+// streak, best, today, gained} }. The server moves the rating and counts the points in one step; the
+// browser only says whether the hint was used (it halves the points). A puzzle tried before changes nothing.
+export async function sendResult(id, solved, { hint = false } = {}) {
   const res = await fetch(`/api/puzzles/${encodeURIComponent(id)}/result`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(mode ? { solved, mode, hint } : { solved }),
+    body: JSON.stringify({ solved, hint }),
   });
   return readJSON(res);
 }

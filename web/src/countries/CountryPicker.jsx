@@ -1,13 +1,15 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import Icon from "../ui/Icon.jsx";
 import { scrollWithin } from "../ui/scroll.js";
-import { countryName, searchCountries } from "./countryList.js";
+import { countryName, searchCountries, sortCountries } from "./countryList.js";
+import { useLang, useT } from "../i18n/index.js";
 import "./countries.css";
 
 // A field to choose a country: type to search the list by name (Russian or English) or code, or open it
 // and scroll. The first line clears the choice (emptyLabel). Keyboard: the arrows move, Enter chooses,
 // Esc closes. It is the ARIA combobox with a list: the focus stays in the text field.
-export default function CountryPicker({ id, value, onChange, countries, emptyLabel = "Не указана", disabled = false, ariaLabel }) {
+export default function CountryPicker({ id, value, onChange, countries, emptyLabel, disabled = false, ariaLabel }) {
+  const t = useT();
   const auto = useId();
   const inputId = id || `cpick-${auto}`;
   const listId = `${inputId}-list`;
@@ -17,17 +19,19 @@ export default function CountryPicker({ id, value, onChange, countries, emptyLab
   const listRef = useRef(null);
 
   // The lines shown: the "none" line first (only while nothing is typed), then the matches.
+  const lang = useLang();
+  const none = emptyLabel ?? t("countries.none");
   const options = useMemo(() => {
-    const found = searchCountries(countries, query);
-    return query.trim() ? found : [{ code: "", ru: emptyLabel, en: "" }, ...found];
-  }, [countries, query, emptyLabel]);
+    const found = searchCountries(sortCountries(countries, lang), query, lang);
+    return query.trim() ? found : [{ code: "", ru: none, en: none }, ...found];
+  }, [countries, query, none, lang]);
 
-  const selected = value ? countryName(countries, value) : emptyLabel;
+  const selected = value ? countryName(countries, value, lang) : none;
 
   function show() {
     if (open || disabled) return;
     setQuery("");
-    const i = value ? countries.findIndex((c) => c.code === value) + 1 : 0;
+    const i = value ? sortCountries(countries, lang).findIndex((c) => c.code === value) + 1 : 0;
     setActive(Math.max(i, 0));
     setOpen(true);
   }
@@ -108,7 +112,7 @@ export default function CountryPicker({ id, value, onChange, countries, emptyLab
         autoComplete="off"
         spellCheck={false}
         disabled={disabled}
-        placeholder={open ? "Начните вводить название" : undefined}
+        placeholder={open ? t("countries.type") : undefined}
         value={open ? query : selected}
         onFocus={show}
         onClick={show}
@@ -124,7 +128,7 @@ export default function CountryPicker({ id, value, onChange, countries, emptyLab
         <Icon name="chevron" size={18} />
       </span>
       {open && (
-        <ul className="cpick__list" id={listId} role="listbox" ref={listRef} aria-label={ariaLabel || "Страна"}>
+        <ul className="cpick__list" id={listId} role="listbox" ref={listRef} aria-label={ariaLabel || t("countries.country")}>
           {options.map((c, i) => (
             <li
               key={c.code || "none"}
@@ -141,13 +145,13 @@ export default function CountryPicker({ id, value, onChange, countries, emptyLab
               }}
               onMouseMove={() => i !== active && setActive(i)}
             >
-              <span className={c.code ? "" : "cpick__none"}>{c.ru}</span>
+              <span className={c.code ? "" : "cpick__none"}>{lang === "en" ? c.en || c.ru : c.ru}</span>
               {c.code && <span className="cpick__code">{c.code}</span>}
             </li>
           ))}
           {options.length === 0 && (
             <li className="cpick__empty" role="presentation">
-              Ничего не найдено
+              {t("countries.notFound")}
             </li>
           )}
         </ul>

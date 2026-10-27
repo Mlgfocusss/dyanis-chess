@@ -1,0 +1,17 @@
+export default {
+  "dionisCard.2": "Coach Dionis",
+  "dionisCard.3": "Dionis: the best move",
+  "dionisCard.4": "The best move",
+  "dionisCard.5": "More",
+  "dionisCard.6": "Hide the coach (to bring it back: Settings, Gameplay)",
+  "dionisCard.7": "Hide the coach",
+  "dionisCard.8": "Looking at the position in more detail…",
+  "dionisCard.9": "Dionis: what should have been played",
+  "dionisCard.10": "What should have been played",
+  "dionisCard.11": "Dionis: how it is punished",
+  "dionisCard.12": "How it is punished",
+  "dionisCard.13": "Dionis: what next",
+  "dionisCard.14": "Show the continuation",
+  "dionisCard.15": "The detailed text is written by a neural network from the engine's data; the moves in the lines were calculated by the engine itself.",
+  "dionisCard.16": "Once more",
+};

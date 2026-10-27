@@ -64,3 +64,17 @@ export const NAMES_RU = {
     woodland: "Лес",
   },
 };
+
+// The name of a board, piece set, background, sound theme or preset in the language of the site
+// (kind: "boards" | "pieces" | "backgrounds" | "sounds" | "presets"). The names are in the i18n
+// dictionary (themes.<kind>.<id>); a set that is not there keeps its own name (the Russian one
+// from NAMES_RU, or the folder name made readable).
+export function themeName(t, kind, item) {
+  let id = String(item.id);
+  const folder = id.replace(/^(img|tiles):/, "");
+  if (folder !== id) id = folder;
+  else if (kind === "boards") id = "color." + id;
+  const key = `themes.${kind}.${id}`;
+  const s = t(key);
+  return s === key ? item.name : s;
+}

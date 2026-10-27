@@ -1,3 +1,4 @@
+import { tr } from "../i18n/index.js";
 // The queue of a training session, with no imports so that `npm test` covers it.
 //
 // A session is a list of drills (see backend/internal/repertoire: Drill). Every
@@ -76,12 +77,12 @@ export function deviationText(verdict, playedSan, answerSan) {
   const loss = verdict.loss === null ? 0 : Math.round(verdict.loss);
   switch (verdict.kind) {
     case "fine":
-      return `Ход ${playedSan} хороший, но мы учим другую ветку. Нужный ход: ${answerSan}.`;
+      return tr("session.1", { playedSan, answerSan });
     case "inaccurate":
-      return `Ход ${playedSan} неточный: он теряет около ${loss}% шансов. Мы учим другой ход: ${answerSan}.`;
+      return tr("session.2", { playedSan, loss, answerSan });
     case "blunder":
-      return `Ход ${playedSan} грубая ошибка (около −${loss}% шансов), так играть не надо. Нужный ход: ${answerSan}.`;
+      return tr("session.3", { playedSan, loss, answerSan });
     default:
-      return `Неверно. Мы учим другой ход: ${answerSan}.`;
+      return tr("session.4", { answerSan });
   }
 }

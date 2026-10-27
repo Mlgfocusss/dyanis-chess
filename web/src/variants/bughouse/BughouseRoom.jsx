@@ -17,6 +17,7 @@ import { getVariant } from "../registry.js";
 import Pocket from "../pockets/Pocket.jsx";
 import { dropAction, dropClick, dropDots, droppableKinds, kindOfCode, pocketCounts, promotedClasses, sideOfCode } from "../pockets/pockets.js";
 import { TEAM_SEATS, boardOrder, bottomSides, bugClocks, chatForRoom, describeBugEnd, movesOfBoard, partnerSeat, rematchLabel, seatBoard, seatLabel, seatOf, seatSide, teamNames, teamOf } from "./bug.js";
+import { tx, useT } from "../../i18n/index.js";
 import "../../online/online.css";
 import "../variants.css";
 import "../pockets/pockets.css";
@@ -51,6 +52,7 @@ function useBugClocks(snap) {
 
 // One board with its two players, their clocks and pockets. The player's own pocket is the only interactive one.
 function BoardColumn({ game, board, yourSeat, bottom, active, mini, ui, setUi, act, rev, clocks, settings, onActivate }) {
+  const t = useT();
   const pos = game.boards[board].position;
   const turn = game.boards[board].turn;
   const playing = game.status === "playing";
@@ -109,20 +111,20 @@ function BoardColumn({ game, board, yourSeat, bottom, active, mini, ui, setUi, a
         selected={seat === yourSeat ? drop : null}
         onSelect={(k) => setUi({ drop: k })}
         boardId={boardId}
-        label="Резерв"
-        note={seat === yourSeat ? "ваш" : yourSeat >= 0 && seat === partnerSeat(yourSeat) ? "партнёр" : undefined}
+        label={t("vcrazy.1")}
+        note={seat === yourSeat ? t("vcrazy.2") : yourSeat >= 0 && seat === partnerSeat(yourSeat) ? t("vbugroom.3") : undefined}
       />
     );
   };
 
   return (
-    <section className={`bug__col${active ? " bug__col--active" : ""}${mini ? " bug__col--mini" : ""}${mine ? " bug__col--mine" : ""}`} data-board={board} aria-label={`Доска ${board + 1}`}>
+    <section className={`bug__col${active ? " bug__col--active" : ""}${mini ? " bug__col--mini" : ""}${mine ? " bug__col--mine" : ""}`} data-board={board} aria-label={t("vbugroom.4", { p: board + 1 })}>
       <header className="bug__title">
-        <span className="bug__name">Доска {board + 1}</span>
-        {mine && <span className="bug__tag">ваша доска</span>}
+        <span className="bug__name">{t("vbugroom.5")} {board + 1}</span>
+        {mine && <span className="bug__tag">{t("vbugroom.6")}</span>}
         {mini && (
           <button type="button" className="btn btn--ghost bug__switch" onClick={onActivate}>
-            Показать крупно
+            {t("vbugroom.7")}
           </button>
         )}
       </header>
@@ -151,17 +153,18 @@ function BoardColumn({ game, board, yourSeat, bottom, active, mini, ui, setUi, a
 }
 
 function MovesCard({ moves }) {
+  const t = useT();
   return (
     <section className="card room__moves bug__moves">
-      <h2>Ходы</h2>
+      <h2>{t("gameRoom.72")}</h2>
       <div className="bug__lists">
         {[0, 1].map((b) => {
           const rows = listRows(groupTurns(movesOfBoard(moves, b)));
           return (
             <div key={b} className="bug__list" data-board={b}>
-              <h3 className="bug__listh">Доска {b + 1}</h3>
-              <div className="moves" aria-label={`Ходы доски ${b + 1}`}>
-                {rows.length === 0 && <p className="moves__empty">Ходов пока нет</p>}
+              <h3 className="bug__listh">{t("vbugroom.5")} {b + 1}</h3>
+              <div className="moves" aria-label={t("vbugroom.9", { p: b + 1 })}>
+                {rows.length === 0 && <p className="moves__empty">{t("gameRoom.11")}</p>}
                 {rows.map(([w, k], i) => (
                   <div key={i} className="moves__row">
                     <span className="moves__no">{i + 1}.</span>
@@ -180,6 +183,7 @@ function MovesCard({ moves }) {
 
 // The four seats while the game waits: who sits where, a place to take, the link to send.
 function SeatsCard({ id, game, yourSeat, send, onTake, busy, error }) {
+  const t = useT();
   const [copied, setCopied] = useState(false);
   const input = useRef(null);
   const url = inviteUrl(id);
@@ -195,15 +199,15 @@ function SeatsCard({ id, game, yourSeat, send, onTake, busy, error }) {
     setTimeout(() => setCopied(false), 2000);
   }
   return (
-    <section className="card invite bug__seats" aria-label="Места в партии">
-      <h2>Соберите четверых</h2>
+    <section className="card invite bug__seats" aria-label={t("vbugroom.11")}>
+      <h2>{t("vbugroom.12")}</h2>
       <p className="invite__sub">
-        {game.variantName}, {describeTC(game.tc)}. Играют две команды по двое: у каждой белые на одной доске и чёрные на другой. Партия начнётся, когда сядут все четверо ({taken} из 4).
+        {tx(game.variantName)}, {describeTC(game.tc)}{t("vbugroom.13")}{taken} {t("vbugroom.14")}
       </p>
       {error && <div className="banner banner--error">{error}</div>}
       {TEAM_SEATS.map((seats, team) => (
         <div key={team} className="bug__team">
-          <h3 className="bug__teamh">Команда {team + 1}</h3>
+          <h3 className="bug__teamh">{t("vbugroom.15")} {team + 1}</h3>
           {seats.map((s) => {
             const p = game.players[s];
             return (
@@ -212,11 +216,11 @@ function SeatsCard({ id, game, yourSeat, send, onTake, busy, error }) {
                 {p ? (
                   <span className="bug__seatwho">
                     {p.name}
-                    {yourSeat === s && <span className="pbar__you">вы</span>}
+                    {yourSeat === s && <span className="pbar__you">{t("leadersPage.13")}</span>}
                   </span>
                 ) : (
                   <button type="button" className="btn bug__take" disabled={busy} onClick={() => onTake(s)}>
-                    {yourSeat >= 0 ? "Пересесть" : "Занять"}
+                    {yourSeat >= 0 ? t("vbugroom.17") : t("vbugroom.18")}
                   </button>
                 )}
               </div>
@@ -225,25 +229,25 @@ function SeatsCard({ id, game, yourSeat, send, onTake, busy, error }) {
         </div>
       ))}
       <div className="invite__row">
-        <input ref={input} className="field" readOnly value={url} onFocus={(e) => e.target.select()} aria-label="Ссылка-приглашение" />
+        <input ref={input} className="field" readOnly value={url} onFocus={(e) => e.target.select()} aria-label={t("gameRoom.15")} />
         <button type="button" className="btn btn--primary" onClick={copy}>
-          {copied ? "Скопировано" : "Копировать"}
+          {copied ? t("gameRoom.16") : t("gameRoom.17")}
         </button>
       </div>
       <div className="room__row">
         {yourSeat < 0 && (
           <button type="button" className="btn btn--primary" disabled={busy} onClick={() => onTake(-1)}>
-            Сесть на свободное место
+            {t("vbugroom.22")}
           </button>
         )}
         {yourSeat >= 0 && (
           <button type="button" className="btn btn--ghost" onClick={() => send("leave")}>
-            Встать
+            {t("vbugroom.23")}
           </button>
         )}
         {yourSeat >= 0 && (
           <button type="button" className="btn btn--ghost" onClick={() => send("abort")}>
-            Отменить партию
+            {t("gameRoom.18")}
           </button>
         )}
       </div>
@@ -254,6 +258,7 @@ function SeatsCard({ id, game, yourSeat, send, onTake, busy, error }) {
 // A game of Bughouse: two boards side by side (on a narrow screen one big and one small, switched by a button),
 // a pair of players with clocks and a pocket at each, one chat. The server chooses the board of a player by seat.
 export default function BughouseRoom({ id }) {
+  const t = useT();
   const { user, google, guest } = useAuth();
   const { settings } = useSettings();
   const { snap, status, notice, rev, send } = useGame(id, user?.id, GAME_API);
@@ -300,7 +305,7 @@ export default function BughouseRoom({ id }) {
     setError("");
     try {
       if (yourSeat >= 0) {
-        if (!send("seat", { seat })) throw new Error("Нет связи с сервером");
+        if (!send("seat", { seat })) throw new Error(t("vbugroom.25"));
       } else {
         if (!user) await guest();
         await joinGame(id, seat < 0 ? undefined : seat);
@@ -314,14 +319,14 @@ export default function BughouseRoom({ id }) {
   if (status === "notfound") {
     return (
       <div className="page room">
-        <div className="banner banner--error">Такой партии нет. Возможно, ссылка неверна или партия давно удалена.</div>
+        <div className="banner banner--error">{t("gameRoom.27")}</div>
         <a className="btn btn--primary" href="#variants">
-          К видам шахмат
+          {t("vroom.toVariants")}
         </a>
       </div>
     );
   }
-  if (!game) return <div className="page room room--loading">Открываю партию…</div>;
+  if (!game) return <div className="page room room--loading">{t("gameRoom.29")}</div>;
 
   const playing = game.status === "playing";
   const act = (action) => send("move", { action });
@@ -334,9 +339,9 @@ export default function BughouseRoom({ id }) {
   const info = ended ? describeBugEnd({ result: game.result, termination: game.termination, yourSeat, players: game.players, reasons: def?.reasons }) : null;
   const myTurnNow = playing && yourSeat >= 0 && game.boards[myBoard].turn === mySide;
   let statusLine = "";
-  if (game.status === "waiting") statusLine = `Ждём игроков: ${game.players.filter(Boolean).length} из 4`;
-  else if (playing) statusLine = yourSeat < 0 ? "Идёт партия" : myTurnNow ? `Ваш ход (доска ${myBoard + 1})` : `Ход соперника (доска ${myBoard + 1})`;
-  else if (game.status === "aborted") statusLine = "Партия отменена";
+  if (game.status === "waiting") statusLine = t("vbugroom.29", { length: game.players.filter(Boolean).length });
+  else if (playing) statusLine = yourSeat < 0 ? t("vbugroom.30") : myTurnNow ? t("vbugroom.31", { p: myBoard + 1 }) : t("vbugroom.32", { p: myBoard + 1 });
+  else if (game.status === "aborted") statusLine = t("gameRoom.44");
   else if (ended) statusLine = info.subtitle;
 
   const yourTeam = yourSeat >= 0 ? teamOf(yourSeat) : -1;
@@ -351,7 +356,7 @@ export default function BughouseRoom({ id }) {
 
   return (
     <div className={`room vroom bug${narrow ? " bug--narrow" : ""}${game.status === "waiting" ? " bug--waiting" : ""}`} data-variant="bughouse">
-      {status === "reconnecting" && <div className="banner banner--error room__net">Нет связи с сервером, подключаюсь заново…</div>}
+      {status === "reconnecting" && <div className="banner banner--error room__net">{t("gameRoom.46")}</div>}
       <Dnd>
         <div className="bug__boards">
           {order.map((b) => (
@@ -380,9 +385,9 @@ export default function BughouseRoom({ id }) {
               you={yourTeam < 0 ? "" : yourTeam === 0 ? "white" : "black"}
               moves={Math.ceil(moves.length / 2)}
               signedIn={!!user}
-              newLabel="Другие шахматы"
+              newLabel={t("menu.variants")}
               rematch={rematch}
-              hint="Команда белых: доска 1 белыми и доска 2 чёрными. Партии видов не разбираются движком."
+              hint={t("vbugroom.36")}
               onNew={() => (window.location.hash = "variants/bughouse")}
               onClose={() => setShowSummary(false)}
             />
@@ -394,18 +399,18 @@ export default function BughouseRoom({ id }) {
         <section className="card room__status">
           <p className="room__state">{statusLine}</p>
           <p className="room__meta">
-            {game.variantName}, {describeTC(game.tc)}
-            {game.presence.watching > 0 ? ` · смотрят: ${game.presence.watching}` : ""}
+            {tx(game.variantName)}, {describeTC(game.tc)}
+            {game.presence.watching > 0 ? t("gameRoom.50", { watching: game.presence.watching }) : ""}
           </p>
           {yourSeat >= 0 && (
             <p className="room__meta">
-              Ваша команда: {teamNames(game.players, yourTeam)}. {seatLabel(yourSeat)}.
+              {t("vbugroom.38")} {teamNames(game.players, yourTeam)}. {seatLabel(yourSeat)}.
             </p>
           )}
-          {playing && myTurnNow && ui.drop && <p className="room__meta vroom__hint">Фигура из резерва выбрана: нажмите на подсвеченное поле (Esc — отмена).</p>}
+          {playing && myTurnNow && ui.drop && <p className="room__meta vroom__hint">{t("vcrazy.9")}</p>}
           {notice && <p className="room__notice">{notice}</p>}
-          {playing && firstMoveLeft > 0 && moves.length < 4 && <p className="room__meta">Партия отменится, если на каждой доске не сделаны первые ходы в течение минуты.</p>}
-          {yourSeat < 0 && playing && <p className="room__meta">Вы наблюдаете за партией.</p>}
+          {playing && firstMoveLeft > 0 && moves.length < 4 && <p className="room__meta">{t("vbugroom.40")}</p>}
+          {yourSeat < 0 && playing && <p className="room__meta">{t("gameRoom.56")}</p>}
         </section>
 
         {game.status === "waiting" && (
@@ -413,15 +418,15 @@ export default function BughouseRoom({ id }) {
         )}
         {game.status === "waiting" && yourSeat < 0 && !user && google && (
           <a className="btn btn--google btn--block" href={`/api/auth/google/login?next=${encodeURIComponent(`#variants/game/${id}`)}`}>
-            <GoogleLogo size={16} /> Войти через Google
+            <GoogleLogo size={16} /> {t("auth.signInGoogle")}
           </a>
         )}
 
         {game.status === "aborted" && (
           <section className="card room__status">
-            <p className="room__meta">Партия не состоялась.</p>
+            <p className="room__meta">{t("gameRoom.57")}</p>
             <a className="btn btn--primary" href="#variants/bughouse">
-              Другие шахматы
+              {t("menu.variants")}
             </a>
           </section>
         )}
@@ -431,23 +436,23 @@ export default function BughouseRoom({ id }) {
             {confirmResign ? (
               <div className="room__row">
                 <button type="button" className="btn btn--danger" onClick={() => send("resign")}>
-                  Да, сдаться
+                  {t("gameRoom.68")}
                 </button>
                 <button type="button" className="btn btn--ghost" onClick={() => setConfirmResign(false)}>
-                  Нет
+                  {t("gameRoom.67")}
                 </button>
               </div>
             ) : (
               <div className="room__row">
                 <button type="button" className="btn btn--danger-ghost" onClick={() => (settings.confirmGiveUp ? setConfirmResign(true) : send("resign"))}>
-                  <Icon name="flag" size={16} /> Сдаться
+                  <Icon name="flag" size={16} /> {t("gameRoom.69")}
                 </button>
               </div>
             )}
-            <p className="room__meta">Сдача проигрывает для всей команды. Ничьей по согласию в этой игре нет.</p>
+            <p className="room__meta">{t("vbugroom.47")}</p>
             {moves.length === 0 && (
               <button type="button" className="btn btn--ghost" onClick={() => send("abort")}>
-                Отменить партию
+                {t("gameRoom.18")}
               </button>
             )}
           </section>
@@ -455,7 +460,7 @@ export default function BughouseRoom({ id }) {
 
         {ended && !showSummary && (
           <button type="button" className="btn btn--block" onClick={() => setShowSummary(true)}>
-            Итоги партии
+            {t("gameRoom.71")}
           </button>
         )}
 

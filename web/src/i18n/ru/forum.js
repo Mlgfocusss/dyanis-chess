@@ -1,0 +1,16 @@
+export default {
+  "forum.cat.general.name": "Общий разговор",
+  "forum.cat.general.desc": "Всё о шахматах и о сайте, что не подошло в другие разделы.",
+  "forum.cat.games.name": "Партии и разбор",
+  "forum.cat.games.desc": "Разберём вашу партию, обсудим интересные позиции и ошибки.",
+  "forum.cat.openings.name": "Дебюты",
+  "forum.cat.openings.desc": "Репертуар, теория, ловушки и вопросы по конструктору дебютов.",
+  "forum.cat.puzzles.name": "Задачи и тактика",
+  "forum.cat.puzzles.desc": "Трудные задачи, штурм, дуэли и приёмы.",
+  "forum.cat.endgames.name": "Эндшпиль и стратегия",
+  "forum.cat.endgames.desc": "Типовые окончания, план игры, структуры.",
+  "forum.cat.site.name": "Сайт: помощь и предложения",
+  "forum.cat.site.desc": "Вопросы, ошибки и идеи по самому сайту.",
+  "forum.cat.offtopic.name": "Не о шахматах",
+  "forum.cat.offtopic.desc": "Разговоры обо всём остальном, в рамках приличия.",
+};

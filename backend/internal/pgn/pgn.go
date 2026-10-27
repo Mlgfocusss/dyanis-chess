@@ -30,7 +30,10 @@ type Move struct {
 	Move engine.Move // the resolved move
 	// Clock is the time left on the mover's clock after the move, from
 	// a "[%clk ...]" annotation; negative if the file had none.
-	Clock   time.Duration
+	Clock time.Duration
+	// Spent is the time the move took to think over, from an "[%emt ...]"
+	// annotation (elapsed move time); negative if the file had none.
+	Spent   time.Duration
 	Comment string // the move's text comment with %-annotations removed
 }
 
@@ -61,6 +64,7 @@ func (g *Game) Position() (*engine.Position, error) {
 var (
 	tagRe = regexp.MustCompile(`^\[\s*([A-Za-z0-9_]+)\s+"((?:[^"\\]|\\.)*)"\s*\]\s*$`)
 	clkRe = regexp.MustCompile(`\[%clk\s+(\d+):(\d+):(\d+(?:\.\d+)?)\]`)
+	emtRe = regexp.MustCompile(`\[%emt\s+(\d+):(\d+):(\d+(?:\.\d+)?)\]`)
 	annRe = regexp.MustCompile(`\[%[^\]]*\]`)
 )
 
@@ -251,6 +255,13 @@ func buildGame(idx int, tagLines []string, movetext string) (*Game, error) {
 					mv.Clock = time.Duration(h)*time.Hour + time.Duration(m)*time.Minute +
 						time.Duration(s*float64(time.Second))
 				}
+				if c := emtRe.FindStringSubmatch(t.text); c != nil {
+					h, _ := strconv.Atoi(c[1])
+					m, _ := strconv.Atoi(c[2])
+					s, _ := strconv.ParseFloat(c[3], 64)
+					mv.Spent = time.Duration(h)*time.Hour + time.Duration(m)*time.Minute +
+						time.Duration(s*float64(time.Second))
+				}
 				if txt := strings.TrimSpace(annRe.ReplaceAllString(t.text, "")); txt != "" {
 					if mv.Comment != "" {
 						mv.Comment += " "
@@ -266,7 +277,7 @@ func buildGame(idx int, tagLines []string, movetext string) (*Game, error) {
 			}
 			san := b.SAN(m)
 			b.Play(m)
-			g.Moves = append(g.Moves, Move{SAN: san, Move: m, Clock: -1})
+			g.Moves = append(g.Moves, Move{SAN: san, Move: m, Clock: -1, Spent: -1})
 		}
 	}
 	if g.Result == "" {
@@ -441,11 +452,18 @@ func (g *Game) String() string {
 			words = append(words, fmt.Sprintf("%d...", num))
 		}
 		words = append(words, m.SAN)
-		if m.Clock >= 0 || m.Comment != "" {
+		if m.Clock >= 0 || m.Spent >= 0 || m.Comment != "" {
 			var c string
 			if m.Clock >= 0 {
 				secs := m.Clock.Seconds()
 				c = fmt.Sprintf("[%%clk %d:%02d:%s]", int(secs)/3600, int(secs)/60%60, trimSec(secs-float64(int(secs)/60*60)))
+			}
+			if m.Spent >= 0 {
+				secs := m.Spent.Seconds()
+				if c != "" {
+					c += " "
+				}
+				c += fmt.Sprintf("[%%emt %d:%02d:%s]", int(secs)/3600, int(secs)/60%60, trimSec(secs-float64(int(secs)/60*60)))
 			}
 			if m.Comment != "" {
 				if c != "" {

@@ -1,3 +1,4 @@
+import { serverMsg, tr } from "../i18n/index.js";
 // Client of the variants' game API (backend/internal/vplay).
 
 async function readJSON(res) {
@@ -8,7 +9,7 @@ async function readJSON(res) {
     // not JSON: handled below
   }
   if (!res.ok) {
-    const e = new Error(body?.error || `Сервер ответил ${res.status}`);
+    const e = new Error(serverMsg(body?.error) || tr("common.serverReplied", { status: res.status }));
     e.status = res.status;
     throw e;
   }
@@ -67,7 +68,7 @@ export async function ensureNoGameRunning(settings) {
     return; // not signed in yet, or the list is unavailable: nothing to check
   }
   if (items.some((g) => g.status === "playing")) {
-    throw new Error("У вас уже идёт партия: закончите её или разрешите несколько партий в настройках («Игровой процесс»).");
+    throw new Error(tr("onlineApi.2"));
   }
 }
 

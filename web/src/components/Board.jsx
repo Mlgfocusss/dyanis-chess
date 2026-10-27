@@ -4,6 +4,7 @@ import { useSettings } from "../settings/SettingsContext.jsx";
 import { boardFromPlacement, fenFromBoard, piecesOf, premoveList, previewPlacement, queuedPosition, resolveMove, targetSquares } from "./boardrules.js";
 import { pieceSide, promotionLetters } from "./promotion.js";
 import Icon from "../ui/Icon.jsx";
+import { useT } from "../i18n/index.js";
 
 // state: { fen, legalMoves } with the position as a FEN, or { board, legalMoves } with it as an object
 // {"e4": "wP", "c3": "xD"} (the chess variants, whose pieces and rules a FEN cannot hold); legalMoves is
@@ -46,6 +47,7 @@ export default function Board({
   onSpareDrop,
   boardId = "DyanisBoard",
 }) {
+  const t = useT();
   const { settings } = useSettings();
   // the position as a FEN (or its placement): what the rules below work on, whatever form it arrived in
   const fen = useMemo(() => state.fen ?? fenFromBoard(state.board), [state.fen, state.board]);
@@ -350,12 +352,12 @@ export default function Board({
         onPromotionCheck={() => false} // the library's own dialog stays shut: the board draws its own picker
       />
       {pending && (
-        <div className="board-confirm" role="group" aria-label="Подтверждение хода">
+        <div className="board-confirm" role="group" aria-label={t("board.confirmGroup")}>
           <button type="button" className="btn btn--primary" onClick={confirm} autoFocus>
-            <Icon name="check" size={16} /> Подтвердить ход
+            <Icon name="check" size={16} /> {t("board.confirm")}
           </button>
           <button type="button" className="btn" onClick={() => setPending(null)}>
-            <Icon name="close" size={16} /> Отмена
+            <Icon name="close" size={16} /> {t("common.cancel")}
           </button>
         </div>
       )}

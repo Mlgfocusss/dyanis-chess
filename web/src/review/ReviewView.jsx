@@ -12,13 +12,14 @@ import SummaryTab from "./SummaryTab.jsx";
 import { PanelNav, PanelTools } from "./PanelNav.jsx";
 import { brief as dionisBrief } from "./dionis.js";
 import Icon from "../ui/Icon.jsx";
-import { CLASSES, formatEval, uciSquares } from "./classes.js";
+import { CLASSES, classHint, classLabel, formatEval, uciSquares } from "./classes.js";
 import { fetchLine } from "./api.js";
 import { judgeBranchMove, lineText, numberedSans, sideOf } from "./branch.js";
 import { pickArrows } from "./arrows.js";
 import { chartMarks, encodeFen, errorCount, momentPlies, moveLabel, reviewUrl, stepMoment } from "./moments.js";
 import { copyText } from "./clipboard.js";
 import { openingName, openingTitle } from "../openings/names.js";
+import { tx, useT, tr } from "../i18n/index.js";
 import "./review.css";
 
 const WHITE_NAME = "Белые";
@@ -32,6 +33,7 @@ const AUTO_MS = 1100; // how long the game stays on a move while it is played
 // for another game (the review page). startPly: the move a link pointed at. loader: what the analysis
 // board shows in its "Загрузить" tab.
 export default function ReviewView({ job, inline = false, orientation: startSide = "white", onBack, onNew, startPly = 0, free = false, loader = null }) {
+  const t = useT();
   const { report, game } = job;
   const { evals, moves } = report;
   const last = moves.length;
@@ -353,10 +355,10 @@ export default function ReviewView({ job, inline = false, orientation: startSide
         sans: free ? (branch ? branch.steps.map((s) => s.san) : []) : moves.map((m) => m.san),
         startFen: free ? evals[0].fen : game.startFen,
         result: free ? "*" : game.result || "*",
-        white: game.white || WHITE_NAME,
-        black: game.black || BLACK_NAME,
+        white: game.white || tx(WHITE_NAME),
+        black: game.black || tx(BLACK_NAME),
         date: d ? new Date(Number(d[1]), Number(d[2]) - 1, Number(d[3])) : new Date(),
-        event: free ? "Доска анализа" : game.event || "Разбор партии",
+        event: free ? t("menu.analysis") : game.event || t("menu.review"),
       });
     }
     flash(kind, await copyText(text));
@@ -365,20 +367,20 @@ export default function ReviewView({ job, inline = false, orientation: startSide
   const variant = report.variant || game.variant || job.variant; // "chess960" has no book and cannot go to the classical analysis board
   const shareItems = [
     ...(free || job.id
-      ? [{ key: "link", label: free ? "Копировать ссылку на позицию" : mainPly > 0 ? "Копировать ссылку на этот ход" : "Копировать ссылку на разбор", icon: "link", keepOpen: true, onClick: () => copy("link") }]
+      ? [{ key: "link", label: free ? t("reviewView.5") : mainPly > 0 ? t("reviewView.6") : t("reviewView.7"), icon: "link", keepOpen: true, onClick: () => copy("link") }]
       : []),
-    { key: "pgn", label: "Копировать PGN", icon: "copy", keepOpen: true, onClick: () => copy("pgn") },
-    { key: "fen", label: "Копировать FEN позиции", icon: "copy", keepOpen: true, onClick: () => copy("fen") },
-    ...(onNew && !inline ? [{ key: "new", label: "Разобрать другую партию", icon: "upload", onClick: onNew }] : []),
-    ...(free || variant === "chess960" ? [] : [{ key: "analysis", label: "Открыть позицию на доске анализа", icon: "board", onClick: () => (window.location.hash = "analysis/" + encodeFen(curFen)) }]),
+    { key: "pgn", label: t("reviewView.8"), icon: "copy", keepOpen: true, onClick: () => copy("pgn") },
+    { key: "fen", label: t("reviewView.9"), icon: "copy", keepOpen: true, onClick: () => copy("fen") },
+    ...(onNew && !inline ? [{ key: "new", label: t("reviewView.10"), icon: "upload", onClick: onNew }] : []),
+    ...(free || variant === "chess960" ? [] : [{ key: "analysis", label: t("reviewView.11"), icon: "board", onClick: () => (window.location.hash = "analysis/" + encodeFen(curFen)) }]),
   ];
 
-  const nameOf = (c) => (c === 0 ? game.white || WHITE_NAME : game.black || BLACK_NAME);
+  const nameOf = (c) => (c === 0 ? tx(game.white) || tx(WHITE_NAME) : tx(game.black) || tx(BLACK_NAME));
   const topSide = orientation === "white" ? "black" : "white";
   const bottomSide = orientation === "white" ? "white" : "black";
   const bestBefore = parentFen ? evCache[parentFen]?.bestSan : "";
   const marks = useMemo(() => chartMarks(moves), [moves]);
-  const labelOf = (p) => (p === 0 ? "Начало партии" : `${moveLabel(moves[p - 1])} · ${CLASSES[moves[p - 1].class]?.label || ""}`);
+  const labelOf = (p) => (p === 0 ? t("reviewView.12") : `${moveLabel(moves[p - 1])} · ${classLabel(t, moves[p - 1].class)}`);
   const whiteName = nameOf(0);
   const blackName = nameOf(1);
   const errs = [errorCount(report.counts?.[0]), errorCount(report.counts?.[1])];
@@ -386,14 +388,14 @@ export default function ReviewView({ job, inline = false, orientation: startSide
 
   const tabs = free
     ? [
-        { id: "review", label: "Анализ" },
-        { id: "load", label: "Загрузить" },
+        { id: "review", label: t("reviewView.13") },
+        { id: "load", label: t("analysisPage.6") },
       ]
     : [
-        { id: "review", label: "Разбор" },
-        { id: "summary", label: "Итог" },
+        { id: "review", label: t("reviewView.15") },
+        { id: "summary", label: t("reviewView.16") },
       ];
-  const shownTab = tabs.some((t) => t.id === tab) ? tab : "review";
+  const shownTab = tabs.some((x) => x.id === tab) ? tab : "review";
 
   return (
     <div className={`review${inline ? " review--inline" : ""}${free ? " review--free" : ""}`}>
@@ -430,10 +432,10 @@ export default function ReviewView({ job, inline = false, orientation: startSide
         <header className="rv__head">
           <div className="rv__titlerow">
             {free ? (
-              <h2 className="rv__title">Доска анализа</h2>
+              <h2 className="rv__title">{t("menu.analysis")}</h2>
             ) : (
               <p className="rv__meta">
-                {[game.result, game.date, game.event, variant === "chess960" ? "Chess960" : ""].filter(Boolean).join(" · ")}
+                {[game.result, game.date, tx(game.event), variant === "chess960" ? "Chess960" : ""].filter(Boolean).join(" · ")}
               </p>
             )}
             {!free && opening && (
@@ -443,24 +445,24 @@ export default function ReviewView({ job, inline = false, orientation: startSide
             )}
             {inline && onBack && (
               <button type="button" className="btn btn--small btn--ghost" onClick={onBack}>
-                <Icon name="back" size={14} /> К партии
+                <Icon name="back" size={14} /> {t("reviewInline.6")}
               </button>
             )}
           </div>
-          {free && <p className="rv__meta">Свободная доска: ходите любыми фигурами, движок оценивает позицию и каждый ход.</p>}
+          {free && <p className="rv__meta">{t("reviewView.18")}</p>}
           {!free && variant === "chess960" && (
             // Chess960: no opening names or theory moves; the engine searches positions without castling rights
             <p className="rv__meta" style={{ WebkitLineClamp: "unset" }}>
-              Chess960: дебютной теории нет. Пока рокировка возможна, движок её не видит и лучшим ходом не назовёт.
+              {t("reviewView.19")}
             </p>
           )}
           {!free && (
-            <div className="rv__acc" aria-label="Точность игроков">
-              <span className="rv__pill" title={`Точность ${whiteName}`}>
+            <div className="rv__acc" aria-label={t("reviewView.20")}>
+              <span className="rv__pill" title={t("reviewView.21", { whiteName })}>
                 <span className="rv__pillname">{whiteName}</span>
                 <b>{report.accuracy[0].toFixed(1)}</b>
               </span>
-              <span className="rv__pill rv__pill--black" title={`Точность ${blackName}`}>
+              <span className="rv__pill rv__pill--black" title={t("reviewView.22", { blackName })}>
                 <span className="rv__pillname">{blackName}</span>
                 <b>{report.accuracy[1].toFixed(1)}</b>
               </span>
@@ -469,19 +471,19 @@ export default function ReviewView({ job, inline = false, orientation: startSide
         </header>
 
         <div className="rv__tabs" role="tablist">
-          {tabs.map((t) => (
-            <button key={t.id} type="button" role="tab" aria-selected={shownTab === t.id} className={`rv__tab${shownTab === t.id ? " rv__tab--on" : ""}`} onClick={() => setTab(t.id)}>
-              {t.label}
-              {t.id === "summary" && errs[0] + errs[1] > 0 && (
-                <small className="rv__tabnote" title={`Неточностей, ошибок и зевков: ${whiteName} ${errs[0]}, ${blackName} ${errs[1]}`}>
+          {tabs.map((tb) => (
+            <button key={tb.id} type="button" role="tab" aria-selected={shownTab === tb.id} className={`rv__tab${shownTab === tb.id ? " rv__tab--on" : ""}`} onClick={() => setTab(tb.id)}>
+              {tb.label}
+              {tb.id === "summary" && errs[0] + errs[1] > 0 && (
+                <small className="rv__tabnote" title={t("reviewView.23", { whiteName, p: errs[0], blackName, p2: errs[1] })}>
                   {errs[0]} / {errs[1]}
                 </small>
               )}
             </button>
           ))}
-          <label className="rv__arrow" title="Стрелки движка: три лучшие линии на доске (Настройки, Игровой процесс, Анализ)">
+          <label className="rv__arrow" title={t("reviewView.24")}>
             <input type="checkbox" checked={arrowsOn} onChange={(e) => save({ ...settings, engineArrows: e.target.checked })} />
-            стрелки
+            {t("reviewView.25")}
           </label>
         </div>
 
@@ -516,15 +518,15 @@ export default function ReviewView({ job, inline = false, orientation: startSide
                   <span className="review__hint">
                     {branch
                       ? free
-                        ? "Сходите фигурой на доске или нажмите ход линии движка."
-                        : "Позиция из партии, с которой начинается ваша ветка"
-                      : "Начальная позиция"}
+                        ? t("reviewView.26")
+                        : t("reviewView.27")
+                      : t("reviewView.28")}
                   </span>
                 )}
                 {(ev.terminal || thinking) && (
                   <span className="rv__evalnote">
                     {settings.showEval && <b>{formatEval(ev)}</b>}
-                    {thinking && <span className="review__thinking"> оцениваю…</span>}
+                    {thinking && <span className="review__thinking"> {t("reviewView.29")}</span>}
                     {ev.terminal && <span> {terminalText(ev.terminal)}</span>}
                   </span>
                 )}
@@ -556,9 +558,9 @@ export default function ReviewView({ job, inline = false, orientation: startSide
               {branch && (
                 <div className="review__branch">
                   <div className="review__branchhead">
-                    <h3>{branch.title || "Своя ветка"}</h3>
+                    <h3>{branch.title || t("reviewView.branch")}</h3>
                     <button type="button" className="btn btn--small btn--ghost" onClick={() => go(branch.base)} title="Esc">
-                      <Icon name="back" size={14} /> {free ? "С начала" : "К партии"}
+                      <Icon name="back" size={14} /> {free ? t("reviewView.31") : t("reviewInline.6")}
                     </button>
                   </div>
                   <div className="review__branchmoves">
@@ -566,9 +568,9 @@ export default function ReviewView({ job, inline = false, orientation: startSide
                       type="button"
                       className={`branch-move${branch.at === 0 ? " branch-move--on" : ""}`}
                       onClick={() => setBranch({ ...branch, at: 0 })}
-                      title="Позиция, с которой начата ветка"
+                      title={t("reviewView.32")}
                     >
-                      старт
+                      {t("reviewView.33")}
                     </button>
                     {branch.steps.map((st, i) => {
                       const j =
@@ -591,24 +593,24 @@ export default function ReviewView({ job, inline = false, orientation: startSide
                   </div>
                   <div className="review__row">
                     <button type="button" className="btn btn--small" onClick={() => playLine(0)} disabled={thinking || !curEv?.pv?.length}>
-                      Сыграть ход движка{curEv?.bestSan && !thinking ? `: ${curEv.bestSan}` : ""}
+                      {t("reviewView.34")}{curEv?.bestSan && !thinking ? `: ${curEv.bestSan}` : ""}
                     </button>
                     <button type="button" className="btn btn--small btn--ghost" onClick={() => copyBranch(branchNumbered, flash)}>
-                      <Icon name="copy" size={14} /> {copied === "line" ? "Скопировано" : "Ходы"}
+                      <Icon name="copy" size={14} /> {copied === "line" ? t("gameRoom.16") : t("gameRoom.72")}
                     </button>
                   </div>
                   {notice && <div className="banner banner--error">{notice}</div>}
-                  {branch.steps.length === 0 && <p className="review__hint">Ходите на доске или нажимайте ходы линий движка.</p>}
+                  {branch.steps.length === 0 && <p className="review__hint">{t("reviewView.37")}</p>}
                 </div>
               )}
               {!branch && notice && <div className="banner banner--error">{notice}</div>}
-              {!branch && free && <p className="review__hint rv__freehint">Сходите любой фигурой: откроется ветка, движок оценит каждый ход.</p>}
+              {!branch && free && <p className="review__hint rv__freehint">{t("reviewView.38")}</p>}
 
               {!free && settings.showEval && evals.length > 1 && (
                 <EvalChart evals={evals} ply={mainPly} marks={marks} onSelect={go} labelOf={labelOf} />
               )}
               {!free && <MoveList moves={moves} ply={mainPly} onSelect={go} />}
-              {copied === "error" && <p className="review__hint">Не удалось скопировать: браузер не дал доступ к буферу обмена.</p>}
+              {copied === "error" && <p className="review__hint">{t("reviewView.39")}</p>}
             </>
           )}
         </div>
@@ -641,6 +643,7 @@ async function copyBranch(numbered, flash) {
 
 // How the move just played in the branch was judged.
 function BranchNow({ label, judge, bestSan }) {
+  const t = useT();
   const c = judge ? CLASSES[judge.cls] : null;
   return (
     <div className="review__playedmove">
@@ -651,12 +654,12 @@ function BranchNow({ label, judge, bestSan }) {
         </b>{" "}
         {c ? (
           <>
-            — {c.label}
+            — {classLabel(t, judge.cls)}
             {judge.cls !== "best" && <span className="review__loss"> (−{judge.loss.toFixed(0)}%)</span>}
-            {bestSan && judge.cls !== "best" && <span className="review__better"> · лучше было {bestSan}</span>}
+            {bestSan && judge.cls !== "best" && <span className="review__better"> {t("reviewView.40")} {bestSan}</span>}
           </>
         ) : (
-          <span className="review__why">Движок оценивает ход…</span>
+          <span className="review__why">{t("reviewView.41")}</span>
         )}
       </span>
     </div>
@@ -664,29 +667,31 @@ function BranchNow({ label, judge, bestSan }) {
 }
 
 function terminalText(t) {
-  if (t === "checkmate") return "мат";
-  if (t === "stalemate") return "пат";
+  if (t === "checkmate") return tr("reviewView.42");
+  if (t === "stalemate") return tr("reviewView.43");
   return t;
 }
 
 function NowMove({ move, hint }) {
+  const t = useT();
   const c = CLASSES[move.class];
   return (
     <div className="review__playedmove">
       <ClassBadge cls={move.class} size={34} />
       <span className="rv__movetext">
-        <b>{moveLabel(move)}</b> — {c.label}
-        {move.bestSan && move.class !== "book" && <span className="review__better"> · лучше было {move.bestSan}</span>}
-        {hint && <span className="review__why">{c.hint}</span>}
+        <b>{moveLabel(move)}</b> — {classLabel(t, move.class)}
+        {move.bestSan && move.class !== "book" && <span className="review__better"> {t("reviewView.40")} {move.bestSan}</span>}
+        {hint && <span className="review__why">{classHint(t, move.class)}</span>}
       </span>
     </div>
   );
 }
 
 function EvalBar({ winPct, label, flipped, dim }) {
+  const t = useT();
   const white = Math.max(0, Math.min(100, winPct));
   return (
-    <div className={`evalbar${flipped ? " evalbar--flipped" : ""}${dim ? " evalbar--dim" : ""}`} title={`Вероятность победы белых: ${white.toFixed(0)}%`}>
+    <div className={`evalbar${flipped ? " evalbar--flipped" : ""}${dim ? " evalbar--dim" : ""}`} title={t("reviewView.44", { p: white.toFixed(0) })}>
       <div className="evalbar__white" style={{ height: `${white}%` }} />
       <span className="evalbar__label">{label}</span>
     </div>

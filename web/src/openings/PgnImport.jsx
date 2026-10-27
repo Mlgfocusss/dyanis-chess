@@ -3,11 +3,12 @@ import Icon from "../ui/Icon.jsx";
 import Segmented from "../ui/Segmented.jsx";
 import { importInto, importRepertoire } from "./api.js";
 import { importSummary, nameFromFile } from "./pgnImport.js";
+import { tOpts, useT, tr } from "../i18n/index.js";
 
 const COLORS = [
-  ["", "Как в файле"],
-  ["white", "За белых"],
-  ["black", "За чёрных"],
+  ["", "openings.asInFile"],
+  ["white", "openings.forWhite"],
+  ["black", "openings.forBlack"],
 ];
 
 const MAX_BYTES = 4 << 20; // the server's limit
@@ -15,6 +16,7 @@ const MAX_BYTES = 4 << 20; // the server's limit
 // Imports a PGN file (or pasted text) as a new repository, or, with repertoireId, into that one.
 // Variations of the file become the branches of the tree. onDone gets what the server answered.
 export default function PgnImport({ repertoireId, ensureAccount, onDone, onCancel }) {
+  const t = useT();
   const [text, setText] = useState("");
   const [fileName, setFileName] = useState("");
   const [name, setName] = useState("");
@@ -28,7 +30,7 @@ export default function PgnImport({ repertoireId, ensureAccount, onDone, onCance
     e.target.value = ""; // the same file can be chosen again
     if (!file) return;
     if (file.size > MAX_BYTES) {
-      setError("Файл больше 4 МБ.");
+      setError(t("pgnImportUi.4"));
       return;
     }
     setError("");
@@ -57,17 +59,16 @@ export default function PgnImport({ repertoireId, ensureAccount, onDone, onCance
 
   return (
     <form className="card pgnimport" onSubmit={submit}>
-      <h2>{repertoireId ? "Импорт PGN в этот репозиторий" : "Импорт из PGN"}</h2>
+      <h2>{repertoireId ? t("pgnImportUi.5") : t("pgnImportUi.6")}</h2>
       <p className="openings__note">
-        Файл PGN с вариантами: основная линия и ответвления станут деревом ходов. Подойдёт экспорт из Lichess (изучения), ChessBase, Chessable или из этого сайта. Партии с
-        собственной начальной позицией пропускаются.
+        {t("pgnImportUi.7")}
       </p>
       <div className="pgnimport__file">
         <input ref={input} type="file" accept=".pgn,.txt,text/plain,application/x-chess-pgn" onChange={pick} hidden />
         <button type="button" className="btn" onClick={() => input.current?.click()}>
-          <Icon name="upload" size={16} /> Выбрать файл
+          <Icon name="upload" size={16} /> {t("pgnImportUi.8")}
         </button>
-        <span className="pgnimport__name">{fileName || "или вставьте текст ниже"}</span>
+        <span className="pgnimport__name">{fileName || t("pgnImportUi.9")}</span>
       </div>
       <textarea
         className="field pgnimport__text"
@@ -76,10 +77,10 @@ export default function PgnImport({ repertoireId, ensureAccount, onDone, onCance
           setText(e.target.value);
           setFileName("");
         }}
-        placeholder={"[Event \"Итальянская партия\"]\n[Orientation \"white\"]\n\n1. e4 e5 2. Nf3 Nc6 3. Bc4 (3. Bb5 a6) 3... Bc5 *"}
+        placeholder={t("pgnImportUi.10")}
         spellCheck={false}
         rows={6}
-        aria-label="Текст PGN"
+        aria-label={t("pgnImportUi.11")}
       />
       {!repertoireId && (
         <>
@@ -87,21 +88,21 @@ export default function PgnImport({ repertoireId, ensureAccount, onDone, onCance
             className="field"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="Название (по умолчанию из файла)"
+            placeholder={t("pgnImportUi.12")}
             maxLength={80}
-            aria-label="Название репозитория"
+            aria-label={t("openingsPage.11")}
           />
-          <Segmented label="Цвет" value={color} onChange={setColor} options={COLORS} />
+          <Segmented label={t("online.colour")} value={color} onChange={setColor} options={tOpts(t, COLORS)} />
         </>
       )}
       {error && <div className="banner banner--error">{error}</div>}
       <div className="pgnimport__actions">
         <button type="submit" className="btn btn--primary" disabled={busy || !text.trim()}>
-          {busy ? "Загружаю…" : "Импортировать"}
+          {busy ? t("pgnImportUi.15") : t("pgnImportUi.16")}
         </button>
         {onCancel && (
           <button type="button" className="btn btn--ghost" onClick={onCancel} disabled={busy}>
-            Отмена
+            {t("common.cancel")}
           </button>
         )}
       </div>

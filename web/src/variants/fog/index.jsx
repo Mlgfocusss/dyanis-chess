@@ -5,25 +5,26 @@
 // aria-label, data-*) to a fogged square: the DOM must not say what the fog hides.
 import Icon from "../../ui/Icon.jsx";
 import { fogClasses } from "./fogview.js";
+import { useT } from "../../i18n/index.js";
 import "./fog.css";
 
 function FogNote({ game, you }) {
+  const t = useT();
   const ended = game.status === "ended";
   return (
     <section className="card fog-note">
       <h2>
-        <Icon name="fog" size={18} /> Туман войны
+        <Icon name="fog" size={18} /> {t("vfog.1")}
       </h2>
       {ended ? (
-        <p className="fog-note__over">Туман рассеялся: видна вся доска и все ходы.</p>
+        <p className="fog-note__over">{t("vfog.2")}</p>
       ) : (
         <>
-          <p>Видны только ваши фигуры и клетки, на которые они могут сходить.</p>
+          <p>{t("vfog.3")}</p>
           <p>
-            Шаха нет: король может встать под бой, партия кончается, когда его берут. Ходы соперника, которых вы не видели, записаны как
-            «…».
+            {t("vfog.4")}
           </p>
-          {!you && <p>Зрители видят доску после конца партии.</p>}
+          {!you && <p>{t("vfog.5")}</p>}
         </>
       )}
     </section>

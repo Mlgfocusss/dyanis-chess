@@ -1,3 +1,4 @@
+import { tr, serverMsg } from "../i18n/index.js";
 // Client of the account API (backend/internal/auth). The session lives in an
 // HttpOnly cookie the browser sends by itself, so nothing here handles tokens.
 
@@ -9,7 +10,7 @@ async function readJSON(res) {
     // not JSON: handled below
   }
   if (!res.ok) {
-    const e = new Error(body?.error || `Сервер ответил ${res.status}`);
+    const e = new Error(serverMsg(body?.error) || tr("common.serverReplied", { status: res.status }));
     e.status = res.status;
     throw e;
   }
@@ -37,7 +38,7 @@ export async function saveSettings(settings) {
     body: JSON.stringify(settings),
     keepalive: true, // lets a request started while the tab closes still go out
   });
-  if (!res.ok) throw new Error(`Сервер ответил ${res.status}`);
+  if (!res.ok) throw new Error(tr("common.serverReplied", { status: res.status }));
 }
 
 const JSON_HEADERS = { "Content-Type": "application/json" };
@@ -66,11 +67,11 @@ export async function deleteMe() {
 
 export const GOOGLE_LOGIN_URL = "/api/auth/google/login";
 
-// Texts for the ?auth_error=<code> the server redirects back with.
+// Dictionary keys (i18n) of the texts for the ?auth_error=<code> the server redirects back with.
 export const AUTH_ERRORS = {
-  denied: "Вход отменён.",
-  state: "Не удалось подтвердить вход (устарела ссылка). Попробуйте ещё раз.",
-  google: "Google не принял вход. Попробуйте ещё раз.",
-  server: "Сервер не смог завершить вход. Попробуйте позже.",
-  not_configured: "Вход через Google не настроен на этом сервере.",
+  denied: "auth.err.denied",
+  state: "auth.err.state",
+  google: "auth.err.google",
+  server: "auth.err.server",
+  not_configured: "auth.err.not_configured",
 };

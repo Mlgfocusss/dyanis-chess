@@ -3,6 +3,7 @@
 // again. Plain JavaScript, tested.
 import { avatarChoice } from "../auth/avatarPresets.js";
 import { checkName } from "./nameRules.js";
+import { tr } from "../i18n/index.js";
 
 export const PERSON_MAX = 40; // first and last name
 export const LOCATION_MAX = 60;
@@ -26,18 +27,18 @@ function foldLine(raw) {
 // { value, error } of a first or last name; label is the field's name in the message.
 export function checkPersonName(raw, label) {
   const { text, ok } = foldLine(raw);
-  const chars = `В поле «${label}» можно использовать буквы, пробел, дефис, апостроф и точку.`;
+  const chars = tr("profileFields.1", { label });
   if (!ok || !/^[\p{L}\p{M} .'’-]*$/u.test(text)) return { value: text, error: chars };
-  if (text && !/\p{L}/u.test(text)) return { value: text, error: `В поле «${label}» должна быть хотя бы одна буква.` };
-  if (textLength(text) > PERSON_MAX) return { value: text, error: `Поле «${label}» слишком длинное: не больше ${PERSON_MAX} символов.` };
+  if (text && !/\p{L}/u.test(text)) return { value: text, error: tr("profileFields.2", { label }) };
+  if (textLength(text) > PERSON_MAX) return { value: text, error: tr("profileFields.3", { label, PERSON_MAX }) };
   return { value: text, error: "" };
 }
 
 export function checkLocation(raw) {
   const { text, ok } = foldLine(raw);
-  if (!ok) return { value: text, error: "В поле «Местоположение» есть недопустимые символы: оно должно быть в одну строку." };
+  if (!ok) return { value: text, error: tr("profileFields.4") };
   if (textLength(text) > LOCATION_MAX) {
-    return { value: text, error: `Поле «Местоположение» слишком длинное: не больше ${LOCATION_MAX} символов.` };
+    return { value: text, error: tr("profileFields.5", { LOCATION_MAX }) };
   }
   return { value: text, error: "" };
 }
@@ -62,8 +63,8 @@ export function normalizeAbout(raw) {
 
 export function checkAbout(raw) {
   const value = normalizeAbout(raw);
-  if (/[^\P{C}\n]/u.test(value)) return { value, error: "В тексте «Обо мне» есть недопустимые символы." };
-  if (textLength(value) > ABOUT_MAX) return { value, error: `Текст «Обо мне» слишком длинный: не больше ${ABOUT_MAX} символов.` };
+  if (/[^\P{C}\n]/u.test(value)) return { value, error: tr("profileFields.6") };
+  if (textLength(value) > ABOUT_MAX) return { value, error: tr("profileFields.7", { ABOUT_MAX }) };
   return { value, error: "" };
 }
 
@@ -92,8 +93,8 @@ export function savedValues(user) {
 // whether the whole form may be sent. (The country and the avatar are chosen from lists: never invalid.)
 export function checkProfile(values) {
   const name = checkName(values.name);
-  const first = checkPersonName(values.firstName, "Имя");
-  const last = checkPersonName(values.lastName, "Фамилия");
+  const first = checkPersonName(values.firstName, tr("profileFields.8"));
+  const last = checkPersonName(values.lastName, tr("profileFields.9"));
   const location = checkLocation(values.location);
   const about = checkAbout(values.about);
   const tidy = {

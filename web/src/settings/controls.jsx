@@ -1,3 +1,4 @@
+import { useT } from "../i18n/index.js";
 // Small controls shared by the settings panels.
 
 export function Row({ title, hint, control, children }) {
@@ -31,17 +32,18 @@ export function Switch({ checked, onChange, label }) {
 }
 
 export function SaveBar({ dirty, justSaved, onSave, onCancel }) {
+  const t = useT();
   return (
     <div className="savebar">
       <button type="button" className="btn" onClick={onCancel} disabled={!dirty}>
-        Отмена
+        {t("common.cancel")}
       </button>
       <button type="button" className="btn btn--primary" onClick={onSave} disabled={!dirty}>
-        Сохранить
+        {t("common.save")}
       </button>
       {justSaved && !dirty && (
         <span className="savebar__ok" role="status">
-          Сохранено
+          {t("common.saved")}
         </span>
       )}
     </div>
@@ -51,12 +53,13 @@ export function SaveBar({ dirty, justSaved, onSave, onCancel }) {
 // A row for a setting that waits for a feature of the site that is not built yet (correspondence
 // games, friends and challenges, the trainer): shown, disabled, marked "скоро".
 export function SoonRow({ title, hint }) {
+  const t = useT();
   return (
     <div className="srow srow--soon">
       <div className="srow__head">
         <div>
           <h3 className="srow__title">
-            {title} <span className="nav__soon">скоро</span>
+            {title} <span className="nav__soon">{t("common.soon")}</span>
           </h3>
           {hint && <p className="srow__hint">{hint}</p>}
         </div>

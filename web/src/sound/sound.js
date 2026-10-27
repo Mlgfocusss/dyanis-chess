@@ -78,7 +78,19 @@ const SYNTH = {
   },
   start: (ac, t) => tone(ac, t, 660, 0.16, 0.5),
   lowtime: (ac, t) => tone(ac, t, 1046, 0.09, 0.5),
+  // "your move" in a correspondence game: a soft rising three-note chime, unlike any move sound
+  notify: (ac, t) => [659, 880, 1175].forEach((f, i) => tone(ac, t + i * 0.13, f, 0.28, 0.55)),
 };
+
+// Creates (and wakes) the audio context. Called from a click or a key press, it lets a later sound that
+// no gesture started (the chime for a correspondence move that arrives on its own) be heard.
+export function unlockAudio() {
+  try {
+    audio();
+  } catch {
+    // no audio device
+  }
+}
 
 const cache = new Map();
 

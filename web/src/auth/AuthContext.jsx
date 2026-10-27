@@ -6,7 +6,7 @@ import { AUTH_ERRORS, deleteMe, getMe, logout as apiLogout, renameMe, saveProfil
 const Ctx = createContext(null);
 
 // The server sends the person back to /?auth_error=<code> when Google
-// sign-in fails; read it once and clean the address.
+// sign-in fails; read it once and clean the address. Returns a dictionary key (translated where it is shown). Returns a dictionary key (translated where it is shown).
 function takeAuthError() {
   const params = new URLSearchParams(window.location.search);
   const code = params.get("auth_error");
@@ -14,7 +14,7 @@ function takeAuthError() {
   params.delete("auth_error");
   const q = params.toString();
   window.history.replaceState(null, "", window.location.pathname + (q ? `?${q}` : "") + window.location.hash);
-  return AUTH_ERRORS[code] || "Не удалось войти.";
+  return AUTH_ERRORS[code] || "auth.err.default";
 }
 
 export function AuthProvider({ children }) {

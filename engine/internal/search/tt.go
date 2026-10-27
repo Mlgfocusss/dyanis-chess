@@ -108,16 +108,6 @@ func ttSlotsForMB(mb int) int {
 	return slots
 }
 
-// historySize covers every possible (From, To) square pair the
-// history heuristic indexes by — 64*64, dense enough that a flat
-// array beats a map outright: no hashing, no bucket probing, and the
-// whole table is a trivial 64*64*8 = 32KB.
-const historySize = 64 * 64
-
-func historyIndex(from, to board.Square) int {
-	return int(from)*64 + int(to)
-}
-
 // TranspositionTable caches negamax results by position hash, so a
 // position reached by a different move order (a "transposition")
 // doesn't get re-searched from scratch, and so the best move found for
@@ -222,6 +212,26 @@ func (s *sharedTT) store(hash uint64, e ttEntry) {
 		int(uint8(oldData>>ttDepthShift)) > e.depth {
 		return
 	}
+	if swTTKeep && oldKey == hash {
+		oldDepth := int(uint8(oldData >> ttDepthShift))
+		if e.bound != exactBound && e.depth+4 < oldDepth {
+			// Same position, much shallower and not exact: keep the deep
+			// entry, only mark it as seen in this generation.
+			data := oldData&^(0xFF<<ttGenShift) | uint64(gen)<<ttGenShift
+			slot.data.Store(data)
+			slot.check.Store(hash ^ data)
+			return
+		}
+		if e.move == (board.Move{}) {
+			// No move to offer (fail-low / quiescence): keep the old one.
+			const moveMask = 63<<ttFromShift | 63<<ttToShift | 7<<ttFlagShift | 7<<ttPromoShift
+			e.gen = gen
+			data := packTT(e)&^moveMask | oldData&moveMask
+			slot.data.Store(data)
+			slot.check.Store(hash ^ data)
+			return
+		}
+	}
 	e.gen = gen
 	data := packTT(e)
 	slot.data.Store(data)
@@ -297,7 +307,12 @@ type TranspositionTable struct {
 	shared *sharedTT
 
 	killers [][killerSlots]board.Move
-	history []int
+	hist *histTables
+
+	// moveKeys[ply] is the (piece, destination) key of the move made at
+	// ply on the current line, -1 for a null move: what the continuation
+	// history tables index by.
+	moveKeys [256]int16
 
 	// evalCache backs evaluate (see there); allocated lazily.
 	evalCache []evalEntry
@@ -334,6 +349,14 @@ type TranspositionTable struct {
 	// SetRootSkip.
 	rootSkip []board.Move
 
+	// excl[ply] is the move a singular-extension verification search at that
+	// ply leaves out (zero value: none); see negamax.
+	excl [256]board.Move
+
+	// cut[ply] tells the node about to be searched at that ply whether its
+	// parent expects it to fail high (LMR reduces cut nodes more).
+	cut [256]bool
+
 	// pawnCache is eval.Evaluate's per-search pawn-structure cache —
 	// see eval.PawnCache's own doc comment for what it caches and why
 	// it lives here (one per top-level search call) rather than as a
@@ -363,6 +386,12 @@ type TranspositionTable struct {
 	deadline time.Time
 	timed    bool
 	stopped  bool
+
+	// rootPartial is the latest root move of the running iteration that
+	// completed and raised alpha (rootPartialOK says one exists); the
+	// iterative-deepening loop reads it when the iteration is cut off.
+	rootPartial   board.Move
+	rootPartialOK bool
 }
 
 // shouldStop reports whether the search must unwind now. It reads the
@@ -396,7 +425,7 @@ func NewTranspositionTable() *TranspositionTable {
 func NewTranspositionTableMB(mb int) *TranspositionTable {
 	return &TranspositionTable{
 		shared:    newSharedTT(ttSlotsForMB(mb)),
-		history:   make([]int, historySize),
+		hist:      newHistTables(),
 		pawnCache: eval.NewPawnCache(),
 	}
 }
@@ -438,9 +467,13 @@ func (tt *TranspositionTable) skipsRoot(m board.Move) bool {
 // linger from a different position several moves back.
 func (tt *TranspositionTable) NewSearch() *TranspositionTable {
 	tt.shared.nextGeneration()
+	hist := tt.hist
+	if !swHistKeep || hist == nil {
+		hist = newHistTables()
+	}
 	return &TranspositionTable{
 		shared:      tt.shared,
-		history:     make([]int, historySize),
+		hist:        hist,
 		pawnCache:   eval.NewPawnCache(),
 		gameHistory: tt.gameHistory,
 	}
@@ -507,27 +540,7 @@ func (tt *TranspositionTable) recordKiller(ply int, m board.Move) {
 	slots[0] = m
 }
 
-// recordHistory rewards a quiet move that caused a cutoff, weighted
-// by depth*depth so cutoffs found deeper in the tree (typically
-// harder-won, and more broadly applicable) count for more than
-// shallow ones. This accumulates across the WHOLE search (unlike
-// killers, which are depth-scoped), on the theory that a quiet move
-// which has been strong in many different positions during this
-// search is a reasonable one to try early in a new position too.
-func (tt *TranspositionTable) recordHistory(m board.Move, depth int) {
-	tt.updateHistory(m, historyBonus(depth))
-}
-
-// penalizeHistory is recordHistory's counterpart for quiet moves that
-// were tried at a node BEFORE the cutoff move and so failed to cause
-// one: they get the same bonus, negated.
-func (tt *TranspositionTable) penalizeHistory(m board.Move, depth int) {
-	tt.updateHistory(m, -historyBonus(depth))
-}
-
-// maxHistory bounds every history score to [-maxHistory, maxHistory],
-// kept below ordering.go's killerBand so a hot history move can never
-// outrank a killer.
+// maxHistory bounds every history score to [-maxHistory, maxHistory].
 const maxHistory = 8000
 
 func historyBonus(depth int) int {
@@ -538,21 +551,22 @@ func historyBonus(depth int) int {
 	return b
 }
 
-// updateHistory applies the "history gravity" update: the closer a
-// score already is to the ±maxHistory limit, the less a further bonus in
-// the same direction adds, and an opposite-signed one pulls it back
-// faster — so scores stay bounded and recent evidence outweighs old.
-func (tt *TranspositionTable) updateHistory(m board.Move, bonus int) {
-	h := &tt.history[historyIndex(m.From, m.To)]
-	abs := bonus
-	if abs < 0 {
-		abs = -abs
-	}
-	*h += bonus - *h*abs/maxHistory
+// recordHistory rewards a quiet move by mover p that caused a cutoff,
+// penalizeHistory is its counterpart for quiet moves tried before the cutoff.
+// ply gives the continuation context (the moves made earlier on this line).
+func (tt *TranspositionTable) recordHistory(p board.Piece, m board.Move, ply, depth int) {
+	b1, b2 := tt.contBases(ply)
+	tt.updateQuietHist(p, m, b1, b2, historyBonus(depth))
 }
 
-func (tt *TranspositionTable) historyScore(m board.Move) int {
-	return tt.history[historyIndex(m.From, m.To)]
+func (tt *TranspositionTable) penalizeHistory(p board.Piece, m board.Move, ply, depth int) {
+	b1, b2 := tt.contBases(ply)
+	tt.updateQuietHist(p, m, b1, b2, -historyBonus(depth))
+}
+
+func (tt *TranspositionTable) historyScore(p board.Piece, m board.Move, ply int) int {
+	b1, b2 := tt.contBases(ply)
+	return tt.quietHist(p, m, b1, b2)
 }
 
 // recordPathHash notes that hash is this node's position, at this
@@ -640,6 +654,28 @@ func (tt *TranspositionTable) evaluate(b *board.Board, ply int) int {
 	if tt == nil {
 		return eval.Evaluate(b, nil)
 	}
+	s := tt.evaluateRaw(b, ply)
+	if swEvalScale && tt.net != nil && b.HalfmoveClock > 0 {
+		s = s * (evalR50Base - min(b.HalfmoveClock, evalR50Base)) / evalR50Base
+	}
+	return s
+}
+
+// scaleMaterial damps the net's score where it is least reliable: with little
+// material left (draws get likelier). The eval cache keeps the damped score;
+// evaluate adds the fifty-move damping, which the position hash does not
+// cover, on every read.
+func scaleMaterial(s int, b *board.Board) int {
+	m := 0 // non-pawn material of both sides: N, B = 1, R = 2, Q = 4 (24 at the start)
+	for c := board.White; c <= board.Black; c++ {
+		m += b.Pieces(board.Knight, c).Count() + b.Pieces(board.Bishop, c).Count() +
+			2*b.Pieces(board.Rook, c).Count() + 4*b.Pieces(board.Queen, c).Count()
+	}
+	m = min(m, 24)
+	return s * (evalMatBase + m) / (evalMatBase + 24)
+}
+
+func (tt *TranspositionTable) evaluateRaw(b *board.Board, ply int) int {
 	if tt.evalCache == nil {
 		tt.evalCache = make([]evalEntry, 1<<evalCacheBits)
 	}
@@ -651,9 +687,20 @@ func (tt *TranspositionTable) evaluate(b *board.Board, ply int) int {
 	var s int
 	if tt.net != nil {
 		s = tt.nnueEvaluate(b, ply)
+		if swEvalScale {
+			s = scaleMaterial(s, b)
+		}
 	} else {
 		s = eval.Evaluate(b, tt.pawnCache)
 	}
 	e.key, e.score = h, int32(s)
 	return s
+}
+
+// setCut records, before a recursive call, whether the child at ply is a cut
+// node. A nil table (plain negamax) ignores it.
+func (tt *TranspositionTable) setCut(ply int, v bool) {
+	if tt != nil && ply < len(tt.cut) {
+		tt.cut[ply] = v
+	}
 }

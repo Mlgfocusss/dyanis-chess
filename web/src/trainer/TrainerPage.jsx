@@ -22,6 +22,7 @@ import {
   skippedNote,
   trendTone,
 } from "./trainer.js";
+import { locale, useT } from "../i18n/index.js";
 import "./trainer.css";
 
 const DIONIS = { id: "dionis", name: "Дионис Самусенко" };
@@ -30,6 +31,7 @@ const DIONIS = { id: "dionis", name: "Дионис Самусенко" };
 // day, shows how they play (from their reviews) and says what to work on. It is rules over the
 // person's own data, made on the server (backend/internal/trainer); no model is asked.
 export default function TrainerPage() {
+  const t = useT();
   const { status, user, guest } = useAuth();
   const [state, setState] = useState({ data: null, error: "", loading: true });
   const [guestError, setGuestError] = useState("");
@@ -65,7 +67,7 @@ export default function TrainerPage() {
   if (status === "unavailable") {
     return (
       <Shell>
-        <section className="card coach__status">Тренер работает только при подключённой базе данных: на этом сервере её нет.</section>
+        <section className="card coach__status">{t("trainerPage.2")}</section>
       </Shell>
     );
   }
@@ -75,14 +77,14 @@ export default function TrainerPage() {
         <section className="card coach__status coach__welcome">
           <BotAvatar bot={DIONIS} size={64} />
           <div>
-            <h1 className="coach__hello">Я Дионис, ваш тренер</h1>
-            <p>Я смотрю, как вы играете, составляю план на день и подсказываю, что подтянуть. Чтобы я мог запоминать ваши партии и задачи, нужен аккаунт: хватит гостевого.</p>
+            <h1 className="coach__hello">{t("trainerPage.3")}</h1>
+            <p>{t("trainerPage.4")}</p>
             <div className="coach__actions">
               <button type="button" className="btn btn--primary" onClick={startAsGuest}>
-                Продолжить гостем
+                {t("trainerPage.5")}
               </button>
               <a className="btn" href="#account">
-                Войти
+                {t("menu.signIn")}
               </a>
             </div>
             {guestError && <div className="banner banner--error">{guestError}</div>}
@@ -91,16 +93,16 @@ export default function TrainerPage() {
       </Shell>
     );
   }
-  if (state.loading && !state.data) return <Shell>{<section className="card coach__status">Дионис смотрит ваши партии и задачи…</section>}</Shell>;
+  if (state.loading && !state.data) return <Shell>{<section className="card coach__status">{t("trainerPage.7")}</section>}</Shell>;
   if (state.error || !state.data) {
     return (
       <Shell>
         <section className="card coach__status">
           <div className="banner banner--error" role="alert">
-            {state.error || "Не удалось загрузить тренера."}
+            {state.error || t("trainerPage.8")}
           </div>
           <button type="button" className="btn" onClick={load}>
-            Повторить
+            {t("trainerPage.9")}
           </button>
         </section>
       </Shell>
@@ -119,19 +121,21 @@ export default function TrainerPage() {
 }
 
 function Shell({ children }) {
+  const t = useT();
   return <div className="page coach">{children}</div>;
 }
 
 // ---------------------------------------------------------------- hero
 
 function Hero({ data }) {
+  const t = useT();
   const { greeting, streak, day } = data;
   const ds = dayText(day);
   return (
     <header className="coach__hero card">
       <BotAvatar bot={DIONIS} size={72} />
       <div className="coach__say">
-        <span className="coach__who">Тренер Дионис</span>
+        <span className="coach__who">{t("dionisCard.2")}</span>
         <h1 className="coach__hello">{greeting.hello}</h1>
         {greeting.lines.map((line, i) => (
           <p key={i}>{line}</p>
@@ -142,7 +146,7 @@ function Hero({ data }) {
           <Icon name="flame" size={18} />
           <span>
             <b>{streak.current}</b>
-            <i>{streak.current > 0 ? "дней подряд" : "серии нет"}</i>
+            <i>{streak.current > 0 ? t("trainerPage.11") : t("trainerPage.12")}</i>
           </span>
         </li>
         {ds && (
@@ -152,7 +156,7 @@ function Hero({ data }) {
               <b>
                 {day.done}/{day.total}
               </b>
-              <i>на сегодня</i>
+              <i>{t("trainerPage.13")}</i>
             </span>
           </li>
         )}
@@ -164,12 +168,13 @@ function Hero({ data }) {
 // ---------------------------------------------------------------- plan
 
 function PlanSection({ plan, day }) {
+  const t = useT();
   const firstOpen = plan.findIndex((it) => !it.done);
   const text = dayText(day);
   return (
     <section className="coach__sec" aria-labelledby="coach-plan">
       <div className="coach__sechead">
-        <h2 id="coach-plan">План на сегодня</h2>
+        <h2 id="coach-plan">{t("trainerPage.14")}</h2>
         {text && <span className="coach__hint">{text}</span>}
       </div>
       {day.total > 0 && (
@@ -182,12 +187,13 @@ function PlanSection({ plan, day }) {
           <PlanCard key={it.id} item={it} primary={i === firstOpen} />
         ))}
       </ul>
-      <p className="coach__note">День считается по календарю UTC (полночь по Гринвичу), как серия дней в профиле.</p>
+      <p className="coach__note">{t("trainerPage.15")}</p>
     </section>
   );
 }
 
 function PlanCard({ item, primary }) {
+  const t = useT();
   const pct = itemPercent(item);
   return (
     <li className={`plan__item card${item.done ? " plan__item--done" : ""}`}>
@@ -199,7 +205,7 @@ function PlanCard({ item, primary }) {
           <h3>{item.title}</h3>
           {item.done && (
             <span className="plan__tag">
-              <Icon name="check" size={13} /> Выполнено
+              <Icon name="check" size={13} /> {t("trainerPage.16")}
             </span>
           )}
         </div>
@@ -223,11 +229,12 @@ function PlanCard({ item, primary }) {
 // ---------------------------------------------------------------- how you play
 
 function PlaySection({ insights, newcomer }) {
+  const t = useT();
   return (
     <section className="coach__sec" aria-labelledby="coach-play">
       <div className="coach__sechead">
-        <h2 id="coach-play">Как вы играете</h2>
-        {insights.enough && <span className="coach__hint">по {insights.used} последним разборам</span>}
+        <h2 id="coach-play">{t("trainerPage.17")}</h2>
+        {insights.enough && <span className="coach__hint">{t("trainerPage.18")} {insights.used} {t("trainerPage.19")}</span>}
       </div>
       {insights.enough ? <Picture insights={insights} /> : <Invitation insights={insights} newcomer={newcomer} />}
     </section>
@@ -235,18 +242,19 @@ function PlaySection({ insights, newcomer }) {
 }
 
 function Invitation({ insights, newcomer }) {
+  const t = useT();
   const note = skippedNote(insights);
   return (
     <div className="coach__empty card">
-      <p className="coach__lead">Сыграйте и разберите {insights.need} партии, тогда я покажу ваши сильные и слабые стороны.</p>
+      <p className="coach__lead">{t("trainerPage.20")} {insights.need} {t("trainerPage.21")}</p>
       {!newcomer && <p className="coach__sub">{needText(insights)}</p>}
       {note && <p className="coach__note">{note}</p>}
       <div className="coach__actions">
         <a className="btn btn--primary" href="#bots">
-          Играть с ботом
+          {t("home.playBot")}
         </a>
         <a className="btn" href="#review">
-          Разобрать партию
+          {t("home.reviewGame")}
         </a>
       </div>
     </div>
@@ -254,6 +262,7 @@ function Invitation({ insights, newcomer }) {
 }
 
 function Picture({ insights }) {
+  const t = useT();
   const { trend, rate, average } = insights;
   const tone = trendTone(trend);
   const note = skippedNote(insights);
@@ -261,53 +270,53 @@ function Picture({ insights }) {
     <>
       <div className="coach__tiles">
         <div className="coach__tile card">
-          <span className="coach__tlabel">Средняя точность</span>
+          <span className="coach__tlabel">{t("trainerPage.24")}</span>
           <b className="coach__tvalue">{average != null ? `${num(average)}%` : "—"}</b>
-          <span className="coach__tsub">за вашу сторону</span>
+          <span className="coach__tsub">{t("trainerPage.25")}</span>
         </div>
         <div className={`coach__tile card coach__tile--${tone}`}>
           <span className="coach__tlabel">
-            <Icon name="trend" size={15} /> Динамика
+            <Icon name="trend" size={15} /> {t("trainerPage.26")}
           </span>
           <b className="coach__tvalue">{trend ? trend.text : "—"}</b>
           <span className="coach__tsub">
-            {trend ? `последние ${trend.recentCount} против предыдущих ${trend.previousCount}` : "нужно побольше партий для сравнения"}
+            {trend ? t("trainerPage.27", { recentCount: trend.recentCount, previousCount: trend.previousCount }) : t("trainerPage.28")}
           </span>
         </div>
-        {rateTiles(rate).map((t) => (
-          <div key={t.id} className={`coach__tile card coach__tile--${t.tone}`}>
-            <span className="coach__tlabel">{t.label}</span>
-            <b className="coach__tvalue">{t.value}</b>
-            <span className="coach__tsub">на 100 ходов</span>
+        {rateTiles(rate).map((tile) => (
+          <div key={tile.id} className={`coach__tile card coach__tile--${tile.tone}`}>
+            <span className="coach__tlabel">{tile.label}</span>
+            <b className="coach__tvalue">{tile.value}</b>
+            <span className="coach__tsub">{t("trainerPage.29")}</span>
           </div>
         ))}
       </div>
 
       <div className="coach__cols">
         <div className="coach__panel card">
-          <h3>Точность по фазам партии</h3>
+          <h3>{t("trainerPage.30")}</h3>
           <Phases phases={insights.phases} />
           <p className="coach__note">{insights.rule}</p>
         </div>
         <div className="coach__panel card">
-          <h3>Точность по разборам</h3>
+          <h3>{t("trainerPage.31")}</h3>
           <DynamicsChart series={insights.series} average={average} />
         </div>
       </div>
 
       <div className="coach__panel card">
-        <h3>Самые дорогие ошибки</h3>
+        <h3>{t("trainerPage.32")}</h3>
         {insights.costly.length === 0 ? (
-          <p className="coach__sub">Серьёзных ошибок в этих разборах нет. Так держать!</p>
+          <p className="coach__sub">{t("trainerPage.33")}</p>
         ) : (
           <ol className="costly">
             {insights.costly.map((c, i) => (
               <li key={`${c.review}-${c.ply}-${i}`}>
-                <a className="costly__row" href={c.href} title="Открыть разбор партии">
+                <a className="costly__row" href={c.href} title={t("trainerPage.34")}>
                   <span className="costly__move">{moveLabel(c)}</span>
                   <span className="costly__main">
                     <span className={`costly__class costly__class--${c.class}`}>{classWord(c.class)}</span>
-                    {c.best ? <span>лучше было {c.best}</span> : null}
+                    {c.best ? <span>{t("trainerPage.35")} {c.best}</span> : null}
                     <span className="costly__cap">{costlyCaption(c)}</span>
                   </span>
                   <b className="costly__loss">−{num(c.loss)}</b>
@@ -316,7 +325,7 @@ function Picture({ insights }) {
             ))}
           </ol>
         )}
-        <p className="coach__note">Число справа показывает, сколько процентных пунктов вероятности выигрыша стоил ход. Ссылка открывает разбор той партии.</p>
+        <p className="coach__note">{t("trainerPage.36")}</p>
       </div>
       {note && <p className="coach__note">{note}</p>}
     </>
@@ -324,9 +333,10 @@ function Picture({ insights }) {
 }
 
 function Phases({ phases }) {
+  const t = useT();
   const bars = phaseBars(phases);
   return (
-    <ul className="phases" aria-label="Точность по фазам партии">
+    <ul className="phases" aria-label={t("trainerPage.30")}>
       {bars.map((b) => (
         <li key={b.id} className={`phases__col phases__col--${b.kind}`}>
           <span className="phases__val">{accuracyLabel(b.accuracy)}</span>
@@ -334,7 +344,7 @@ function Phases({ phases }) {
             <i style={{ height: `${b.height}%` }} />
           </span>
           <span className="phases__name">{b.name}</span>
-          <span className="phases__moves">{b.moves} ход.</span>
+          <span className="phases__moves">{b.moves} {t("trainerPage.37")}</span>
         </li>
       ))}
     </ul>
@@ -344,6 +354,7 @@ function Phases({ phases }) {
 const CHART_HEIGHT = 200;
 
 function DynamicsChart({ series, average }) {
+  const t = useT();
   const box = useRef(null);
   const [width, setWidth] = useState(0);
   const [hover, setHover] = useState(-1);
@@ -367,7 +378,7 @@ function DynamicsChart({ series, average }) {
   return (
     <div className="dyn" ref={box} onPointerLeave={() => setHover(-1)}>
       {width > 0 && chart.points.length > 0 && (
-        <svg width={width} height={CHART_HEIGHT} role="img" aria-label="Точность в последних разборах, от старых к новым">
+        <svg width={width} height={CHART_HEIGHT} role="img" aria-label={t("statsTab.6")}>
           {chart.ticks.map((t) => (
             <g key={t.value}>
               <line className="dyn__grid" x1={left} x2={width - right} y1={t.y} y2={t.y} />
@@ -382,7 +393,7 @@ function DynamicsChart({ series, average }) {
             <a
               key={p.id}
               href={`#review/${p.id}`}
-              aria-label={`Разбор ${i + 1}: точность ${num(p.accuracy)}`}
+              aria-label={t("trainerPage.39", { p: i + 1, p2: num(p.accuracy) })}
               onPointerEnter={() => setHover(i)}
               onFocus={() => setHover(i)}
               onBlur={() => setHover(-1)}
@@ -392,17 +403,17 @@ function DynamicsChart({ series, average }) {
             </a>
           ))}
           <text className="dyn__axis" x={left} y={CHART_HEIGHT - 5} textAnchor="start">
-            давно
+            {t("statsTab.8")}
           </text>
           <text className="dyn__axis" x={width - right} y={CHART_HEIGHT - 5} textAnchor="end">
-            недавно
+            {t("statsTab.9")}
           </text>
         </svg>
       )}
       {active && (
         <div className="dyn__tip" style={{ left: tipLeft, top: Math.max(0, active.y - 56) }}>
           <b>{num(active.accuracy)}%</b>
-          <span>{new Date(active.at).toLocaleDateString("ru-RU", { day: "numeric", month: "short" })}</span>
+          <span>{new Date(active.at).toLocaleDateString(locale(), { day: "numeric", month: "short" })}</span>
         </div>
       )}
     </div>
@@ -412,15 +423,16 @@ function DynamicsChart({ series, average }) {
 // ---------------------------------------------------------------- advice
 
 function AdviceSection({ advice, newcomer }) {
+  const t = useT();
   return (
     <section className="coach__sec" aria-labelledby="coach-advice">
       <div className="coach__sechead">
-        <h2 id="coach-advice">Что подтянуть</h2>
+        <h2 id="coach-advice">{t("trainerPage.42")}</h2>
       </div>
       {advice.length === 0 ? (
         <div className="coach__empty card">
-          <p className="coach__lead">{newcomer ? "Пока мне не на что смотреть." : "Пока советов нет."}</p>
-          <p className="coach__sub">Сыграйте несколько партий, решите задачи и разберите игру: тогда здесь появятся советы по вашим цифрам.</p>
+          <p className="coach__lead">{newcomer ? t("trainerPage.43") : t("trainerPage.44")}</p>
+          <p className="coach__sub">{t("trainerPage.45")}</p>
         </div>
       ) : (
         <ul className="advice">

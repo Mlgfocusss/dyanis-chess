@@ -1,0 +1,12 @@
+/* the time a move took, beside the move (online/MoveTime.jsx) */
+.mtime { margin-left: 8px; color: var(--muted); font-family: var(--mono); font-size: 0.74rem; font-weight: 400; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.move-cell .mtime { margin-left: auto; }
+
+/* the "time per move" block of the review summary (review/TimeSection.jsx) */
+.timesec__row { display: flex; justify-content: space-between; gap: 14px; align-items: baseline; font-size: 0.9rem; }
+.timesec__row + .timesec__row { margin-top: 4px; }
+.timesec__who { color: var(--text-2); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.timesec__num, .timesec__time { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.timesec__time { margin-left: auto; color: var(--text-2); font-size: 0.8rem; }
+.timesec__sub { margin: 0 0 6px; color: var(--muted); font-size: 0.8rem; }
+.timesec__sub:not(:first-of-type) { margin-top: 10px; }

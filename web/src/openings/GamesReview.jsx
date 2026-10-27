@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Icon from "../ui/Icon.jsx";
 import { compareGames, fetchGames, getRepertoire, sendReview } from "./api.js";
 import { deviationLine, outcomeOf } from "./games.js";
+import { locale, useT } from "../i18n/index.js";
 
 const MAX_BYTES = 4 << 20; // the server's limit
 const NAME_KEY = "dyanis.openings.myName";
@@ -15,16 +16,17 @@ function savedName() {
 }
 
 const COUNT_TEXT = {
-  "you-deviated": "вы отклонились",
-  "opponent-deviated": "соперник вышел из подготовки",
-  "book-ended": "линия закончилась",
-  "in-book": "вся партия по репозиторию",
+  "you-deviated": "gamesReview.deviated",
+  "opponent-deviated": "gamesReview.oppLeft",
+  "book-ended": "gamesReview.ended",
+  "in-book": "gamesReview.inBook",
 };
 
 // The person's recent games put against one repository: where each game left it,
 // and what to do about that: take the move back into training, or add what the
 // opponent played to the repository.
 export default function GamesReview({ id }) {
+  const t = useT();
   const [rep, setRep] = useState(null);
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
@@ -72,7 +74,7 @@ export default function GamesReview({ id }) {
     e.target.value = ""; // the same file can be chosen again
     if (!file) return;
     if (file.size > MAX_BYTES) {
-      setError("Файл больше 4 МБ.");
+      setError(t("pgnImportUi.4"));
       return;
     }
     setError("");
@@ -108,28 +110,28 @@ export default function GamesReview({ id }) {
   if (notFound) {
     return (
       <div className="page">
-        <div className="banner banner--error">Такого репозитория нет или он принадлежит другому аккаунту.</div>
+        <div className="banner banner--error">{t("builder.8")}</div>
         <a className="btn btn--primary" href="#openings">
-          К списку репозиториев
+          {t("builder.9")}
         </a>
       </div>
     );
   }
-  if (!data || !rep) return <div className="page openings openings--loading">{error ? <div className="banner banner--error">{error}</div> : "Сравниваю ваши партии с репозиторием…"}</div>;
+  if (!data || !rep) return <div className="page openings openings--loading">{error ? <div className="banner banner--error">{error}</div> : t("gamesReview.8")}</div>;
 
   return (
     <div className="page openings gamesrev">
       <a className="openings__back" href={`#openings/${id}`}>
-        <Icon name="back" size={16} /> К репозиторию «{rep.name}»
+        <Icon name="back" size={16} /> {t("trainer.19")}{rep.name}»
       </a>
       <header className="page__head">
-        <h1 className="page__title">Мои партии против репозитория</h1>
+        <h1 className="page__title">{t("gamesReview.10")}</h1>
         <p className="page__sub">
           {pasted
-            ? "Партии из вашего PGN"
-            : "Сайт берёт ваши последние партии"}{" "}
-          {rep.color === "white" ? "белыми" : "чёрными"}
-          {pasted ? "" : " (онлайн и с ботами)"} и показывает, где каждая вышла из «{rep.name}»: забытый ход, неожиданный ответ соперника или конец линии.
+            ? t("gamesReview.11")
+            : t("gamesReview.12")}{" "}
+          {rep.color === "white" ? t("gamesReview.13") : t("gamesReview.14")}
+          {pasted ? "" : t("gamesReview.15")} {t("gamesReview.16")}{rep.name}{t("gamesReview.17")}
         </p>
       </header>
 
@@ -138,29 +140,28 @@ export default function GamesReview({ id }) {
       <div className="room__row">
         {!pasting && (
           <button type="button" className="btn" onClick={() => setPasting(true)}>
-            <Icon name="upload" size={16} /> Проверить свои партии из PGN
+            <Icon name="upload" size={16} /> {t("gamesReview.18")}
           </button>
         )}
         {pasted && (
           <button type="button" className="btn btn--ghost" onClick={() => setPasted(null)}>
-            Вернуться к партиям с сайта
+            {t("gamesReview.19")}
           </button>
         )}
       </div>
 
       {pasting && (
         <form className="card pgnimport" onSubmit={compare}>
-          <h2>Партии из PGN</h2>
+          <h2>{t("gamesReview.20")}</h2>
           <p className="openings__note">
-            Вставьте партии, сыгранные где угодно (экспорт из chess.com, Lichess, ChessBase): сайт покажет, где каждая вышла из репозитория. Они нигде не сохраняются. Если в файле есть партии
-            обоими цветами, впишите своё имя, как оно в тегах White и Black: остальные партии будут пропущены.
+            {t("gamesReview.21")}
           </p>
           <div className="pgnimport__file">
             <input ref={input} type="file" accept=".pgn,.txt,text/plain,application/x-chess-pgn" onChange={pick} hidden />
             <button type="button" className="btn" onClick={() => input.current?.click()}>
-              <Icon name="upload" size={16} /> Выбрать файл
+              <Icon name="upload" size={16} /> {t("pgnImportUi.8")}
             </button>
-            <span className="pgnimport__name">{fileName || "или вставьте текст ниже"}</span>
+            <span className="pgnimport__name">{fileName || t("pgnImportUi.9")}</span>
           </div>
           <textarea
             className="field pgnimport__text"
@@ -169,18 +170,18 @@ export default function GamesReview({ id }) {
               setText(e.target.value);
               setFileName("");
             }}
-            placeholder={"[White \"Вы\"]\n[Black \"Соперник\"]\n\n1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 1-0"}
+            placeholder={t("gamesReview.24")}
             spellCheck={false}
             rows={6}
-            aria-label="Текст PGN"
+            aria-label={t("pgnImportUi.11")}
           />
-          <input className="field" value={myName} onChange={(e) => setMyName(e.target.value)} placeholder="Ваше имя в партиях (необязательно)" maxLength={80} aria-label="Ваше имя в партиях" />
+          <input className="field" value={myName} onChange={(e) => setMyName(e.target.value)} placeholder={t("gamesReview.26")} maxLength={80} aria-label={t("gamesReview.27")} />
           <div className="pgnimport__actions">
             <button type="submit" className="btn btn--primary" disabled={busy || !text.trim()}>
-              {busy ? "Сравниваю…" : "Сравнить с репозиторием"}
+              {busy ? t("gamesReview.28") : t("gamesReview.29")}
             </button>
             <button type="button" className="btn btn--ghost" onClick={() => setPasting(false)} disabled={busy}>
-              Закрыть
+              {t("gamesReview.close")}
             </button>
           </div>
         </form>
@@ -188,8 +189,8 @@ export default function GamesReview({ id }) {
 
       {pasted && (
         <p className="openings__note">
-          В тексте партий: {pasted.read}
-          {pasted.skipped > 0 ? `, пропущено: ${pasted.skipped} (чужой цвет, своя начальная позиция или меньше двух ходов)` : ""}.{pasted.warning ? ` ${pasted.warning[0].toUpperCase()}${pasted.warning.slice(1)}.` : ""}
+          {t("gamesReview.31")} {pasted.read}
+          {pasted.skipped > 0 ? t("gamesReview.32", { skipped: pasted.skipped }) : ""}.{pasted.warning ? ` ${pasted.warning[0].toUpperCase()}${pasted.warning.slice(1)}.` : ""}
         </p>
       )}
 
@@ -199,16 +200,16 @@ export default function GamesReview({ id }) {
             .filter(([k]) => counts[k])
             .map(([k, text]) => (
               <span key={k} className={`gamesrev__count gamesrev__count--${k}`}>
-                {text}: {counts[k]}
+                {t(text)}: {counts[k]}
               </span>
             ))}
         </p>
       )}
 
-      {shown.length === 0 && pasted && <p className="openings__empty">Ни одной партии для сравнения: проверьте имя и цвет репозитория.</p>}
+      {shown.length === 0 && pasted && <p className="openings__empty">{t("gamesReview.33")}</p>}
       {shown.length === 0 && !pasted && (
         <p className="openings__empty">
-          Партий {rep.color === "white" ? "белыми" : "чёрными"} пока нет. Сыграйте онлайн или с ботом, и здесь появится разбор: где вы вышли из своих линий.
+          {t("gamesReview.34")} {rep.color === "white" ? t("gamesReview.13") : t("gamesReview.14")} {t("gamesReview.35")}
         </p>
       )}
 
@@ -222,11 +223,11 @@ export default function GamesReview({ id }) {
               <div className="gamesrev__head">
                 <span className={`gamesrev__result gamesrev__result--${out.kind}`}>{out.text}</span>
                 <span className="gamesrev__who">
-                  против {g.opponent || "соперника"}
-                  {g.bot ? " (бот)" : ""}
+                  {t("onlineGames.10")} {g.opponent || t("onlineGames.11")}
+                  {g.bot ? t("gamesReview.38") : ""}
                 </span>
                 <span className="gamesrev__when">
-                  {g.endedMs ? new Date(g.endedMs).toLocaleDateString("ru-RU") : g.date || (pasted ? "дата неизвестна" : "идёт")} · ходов {Math.ceil(d.moves / 2)}
+                  {g.endedMs ? new Date(g.endedMs).toLocaleDateString(locale()) : g.date || (pasted ? t("gamesReview.39") : t("onlineGames.1"))} {t("gamesReview.41")} {Math.ceil(d.moves / 2)}
                 </span>
               </div>
               <p className="gamesrev__text">{text.headline}</p>
@@ -234,17 +235,17 @@ export default function GamesReview({ id }) {
               <div className="room__row">
                 {d.status === "you-deviated" && d.expected.some((m) => m.mine) && (
                   <button type="button" className="btn btn--primary" onClick={() => backToTraining(g)} disabled={sent[g.id]}>
-                    {sent[g.id] ? "Вернули в тренировку" : "Вернуть этот ход в тренировку"}
+                    {sent[g.id] ? t("gamesReview.42") : t("gamesReview.43")}
                   </button>
                 )}
                 {(d.status === "opponent-deviated" || d.status === "book-ended") && d.played && (
                   <a className="btn btn--primary" href={`#openings/${id}/move/${d.node}/${d.played.uci}`}>
-                    <Icon name="list" size={16} /> {d.status === "opponent-deviated" ? "Добавить этот ответ и свой ход" : "Продолжить линию"}
+                    <Icon name="list" size={16} /> {d.status === "opponent-deviated" ? t("gamesReview.44") : t("builder.39")}
                   </a>
                 )}
                 {d.status !== "in-book" && d.status !== "empty" && d.status !== "broken" && (
                   <a className="btn" href={`#openings/${id}/move/${d.node}`}>
-                    Открыть позицию в конструкторе
+                    {t("gamesReview.46")}
                   </a>
                 )}
               </div>
