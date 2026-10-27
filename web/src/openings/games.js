@@ -51,3 +51,16 @@ export function deviationLine(d) {
       return { headline: tr("openingsGames.11"), line: "" };
   }
 }
+
+// The note for a game that came to a position of the repository by another order of moves
+// (it did not leave the repository); "" when it did not. d.line are the SAN moves played before the
+// game left (or all of them), d.transposedPly the half-move at which it joined the repository again.
+export function transposeNote(d) {
+  if (!d || !d.transposed || !(d.transposedPly > 0)) return "";
+  const ply = d.transposedPly;
+  const san = (d.line || [])[ply - 1];
+  if (!san) return "";
+  const no = Math.ceil(ply / 2);
+  const mv = `${no}${ply % 2 === 0 ? "..." : "."} ${san}`;
+  return tr("openings2.trans.gameNote", { mv });
+}

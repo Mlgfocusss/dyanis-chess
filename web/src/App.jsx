@@ -25,6 +25,10 @@ const SLOW_DEPTH = 12;
 const clampDepth = (n) => Math.min(MAX_DEPTH, Math.max(MIN_DEPTH, Math.round(n)));
 const SIDE_NAME = { white: "gameRoom.sideWhite", black: "gameRoom.sideBlack" };
 const BOT_NAME = "Dyanis Bot";
+// Opening books served from /assets, in priority order (same as the server's -books).
+const BOOKS = ["gm2001.bin", "komodo.bin", "performance.bin"];
+// True while the books are being fetched, so that opening the page twice quickly does not load them twice.
+let booksLoading = false;
 
 export default function App() {
   const t = useT();
@@ -81,6 +85,39 @@ export default function App() {
       });
   }, []);
 
+  // The NNUE network, the same file the server engine plays with. Without it the browser engine falls back
+  // to the hand-written evaluation (weaker); a failed download is not an error worth showing.
+  const loadNetwork = useCallback(async () => {
+    try {
+      if ((await engine.networkInfoInWorker()).loaded) return;
+      const res = await fetch(`${import.meta.env.BASE_URL}assets/net.bin`);
+      if (!res.ok) throw new Error(`net.bin: HTTP ${res.status}`);
+      await engine.loadNetworkInWorker(new Uint8Array(await res.arrayBuffer()));
+    } catch {
+      // the engine keeps the hand-written evaluation
+    }
+  }, []);
+
+  // All three books, in the order the engine itself uses them (a position is answered by the first book
+  // that knows it).
+  const loadBooks = useCallback(async () => {
+    if (booksLoading) return;
+    booksLoading = true;
+    try {
+      for (const name of BOOKS) {
+        const res = await fetch(`${import.meta.env.BASE_URL}assets/${name}`);
+        if (!res.ok) throw new Error(`${name}: HTTP ${res.status}`);
+        await engine.loadBookInWorker(new Uint8Array(await res.arrayBuffer()));
+      }
+    } catch (e) {
+      await engine.clearBookInWorker(); // all three or none: a half-loaded chain would not match the server's
+      setError(tr("enginePage.6", { e }));
+    } finally {
+      booksLoading = false;
+      refreshBook();
+    }
+  }, [refreshBook]);
+
   useEffect(() => {
     let cancelled = false;
     engine
@@ -89,6 +126,11 @@ export default function App() {
         if (cancelled) return;
         setState(engine.getState());
         refreshBook();
+        // The books are always on and cannot be turned off. A restarted worker gets them back by itself.
+        engine.bookInfoInWorker().then((info) => {
+          if (!cancelled && !info.loaded) loadBooks();
+        });
+        loadNetwork();
       })
       .catch((e) => setError(String(e)));
     return () => {
@@ -96,7 +138,7 @@ export default function App() {
       searchId.current++;
       engine.cancelSearch(); // do not keep a CPU core busy for a page nobody sees
     };
-  }, [refreshBook]);
+  }, [refreshBook, loadBooks, loadNetwork]);
 
   // Abandons the search in progress, if any.
   const stopSearch = useCallback(() => {
@@ -256,23 +298,6 @@ export default function App() {
     setDepthText(text);
     const n = Number(text);
     if (text.trim() !== "" && Number.isFinite(n) && n >= MIN_DEPTH && n <= MAX_DEPTH) setDepth(Math.round(n));
-  }
-
-  async function handleLoadBook() {
-    try {
-      const res = await fetch(`${import.meta.env.BASE_URL}assets/gm2001.bin`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const buf = await res.arrayBuffer();
-      await engine.loadBookInWorker(new Uint8Array(buf));
-      refreshBook();
-    } catch (e) {
-      setError(tr("enginePage.6", { e }));
-    }
-  }
-
-  async function handleClearBook() {
-    await engine.clearBookInWorker();
-    refreshBook();
   }
 
   // The opening is named live, by the server's ECO reference, after every move
@@ -516,12 +541,6 @@ export default function App() {
       </div>
 
       <div className="book-controls">
-        <button className="btn" onClick={handleLoadBook} disabled={bookStatus.loaded}>
-          {t("enginePage.37")}
-        </button>
-        <button className="btn" onClick={handleClearBook} disabled={!bookStatus.loaded}>
-          {t("enginePage.38")}
-        </button>
         <span className="book-controls__status">
           {bookStatus.loaded ? t("enginePage.39", { entries: bookStatus.entries }) : t("enginePage.40")}
         </span>

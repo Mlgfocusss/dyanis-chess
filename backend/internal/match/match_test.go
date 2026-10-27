@@ -300,3 +300,57 @@ func TestPeopleWhoBlockedEachOtherAreNeverPaired(t *testing.T) {
 		t.Errorf("p: %+v", st)
 	}
 }
+
+func TestAccountsOfOnePersonAreNotPairedForRating(t *testing.T) {
+	c := &clock{t: time.Date(2026, 10, 27, 12, 0, 0, 0, time.UTC)}
+	var games []made
+	maker := func(_ context.Context, a, b Seeker, req Request) (string, error) {
+		games = append(games, made{a.ID, b.ID, req})
+		return "g1", nil
+	}
+	s := New(Config{
+		User:   func(r *http.Request) *store.User { return &store.User{ID: r.Header.Get("U")} },
+		Rating: func(context.Context, string, string) (ratings.Entry, error) { return ratings.Entry{Rating: 1500}, nil },
+		Chess:  maker, Duel: maker, Now: c.now,
+		Related: func(_ context.Context, id string) (map[string]bool, error) {
+			switch id {
+			case "anna":
+				return map[string]bool{"anna2": true}, nil
+			case "anna2":
+				return map[string]bool{"anna": true}, nil
+			}
+			return nil, nil
+		},
+	})
+	t.Cleanup(s.Close)
+	ctx := context.Background()
+
+	s.Join(ctx, Seeker{ID: "anna", Rating: 1500}, blitz)
+	s.Join(ctx, Seeker{ID: "anna2", Rating: 1500}, blitz)
+	if len(games) != 0 {
+		t.Fatalf("a rated game between the accounts of one person was made")
+	}
+	c.add(15 * time.Second) // they have waited a while (but are not given up on); they still must not meet
+	s.Pair()
+	if len(games) != 0 {
+		t.Fatalf("paired after waiting")
+	}
+	s.Join(ctx, Seeker{ID: "boris", Rating: 1500}, blitz) // a stranger takes the longest waiting one
+	if len(games) != 1 || (games[0].a != "anna" && games[0].b != "anna") {
+		t.Fatalf("games: %+v", games)
+	}
+
+	// duels count for rating too; a casual game does not
+	games = nil
+	s.Join(ctx, Seeker{ID: "anna", Rating: 1500}, Request{Kind: KindDuel})
+	s.Join(ctx, Seeker{ID: "anna2", Rating: 1500}, Request{Kind: KindDuel})
+	if len(games) != 0 {
+		t.Errorf("duel between one person's accounts")
+	}
+	casual := Request{Kind: KindChess, BaseMs: 300000}
+	s.Join(ctx, Seeker{ID: "anna", Rating: 1500}, casual)
+	s.Join(ctx, Seeker{ID: "anna2", Rating: 1500}, casual)
+	if len(games) != 1 {
+		t.Errorf("a casual game may be played: %+v", games)
+	}
+}

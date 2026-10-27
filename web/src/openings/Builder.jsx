@@ -13,7 +13,7 @@ import Suggestions from "./Suggestions.jsx";
 import { keyOf, markedNodes, nextGap, treeSignature, visibleGaps } from "./gaps.js";
 import { loadPreset, ratingsOf, storePreset } from "./suggest.js";
 import { openingName, openingTitle } from "./names.js";
-import { buildTree, childWith, countsOf, fenAt, learnedPercent, lineText, pathTo, statusOf, subtreeIds, whoMoves } from "./tree.js";
+import { buildTree, countsOf, fenAt, learnedPercent, lineText, pathTo, repliesAt, replyWith, samePosition, statusOf, subtreeIds, transposedFrom, whoMoves } from "./tree.js";
 import { useT } from "../i18n/index.js";
 
 const STATUS_TEXT = { opponent: "openings.status.opponent", new: "openings.status.new", due: "openings.status.due", learning: "openings.status.learning", learned: "openings.status.learned" };
@@ -42,6 +42,7 @@ export default function Builder({ id, start, fillStart = false }) {
   const [legalCache, setLegalCache] = useState({});
   const [opening, setOpening] = useState(null);
   const [hover, setHover] = useState(null); // the suggested move the mouse is over: shown as an arrow
+  const [moved, setMoved] = useState(null); // the move the repository already had in this position on another branch: { id, san }
   const [added, setAdded] = useState(null); // the move just added to the repertoire: { id, san }
   const [orientation, setOrientation] = useState(null);
   const [importing, setImporting] = useState(false); // the PGN import form is open
@@ -108,15 +109,16 @@ export default function Builder({ id, start, fillStart = false }) {
   const tree = useMemo(() => buildTree(moves || []), [moves]);
   const counts = useMemo(() => countsOf(moves || []), [moves]);
   const items = useMemo(() => visibleGaps(scan, tree), [scan, tree]);
-  const marked = useMemo(() => markedNodes(items), [items]);
+  const marked = useMemo(() => markedNodes(items, tree), [items, tree]);
   const color = data?.repertoire.color || "white";
   const side = orientation || color;
   const fen = fenAt(tree, cur);
   const path = useMemo(() => pathTo(tree, cur), [tree, cur]);
-  const children = tree.children.get(cur) || [];
+  const children = useMemo(() => repliesAt(tree, cur), [tree, cur]); // with the replies of the other branches to this position
+  const twin = useMemo(() => transposedFrom(tree, cur), [tree, cur]); // the branch that has the continuation of this position
   const turn = whoMoves(color, cur, tree);
   const sig = treeSignature(moves || []);
-  const gapsHere = useMemo(() => new Map(items.filter((g) => g.kind === "missing" && g.at === cur).map((g) => [g.uci, g])), [items, cur]);
+  const gapsHere = useMemo(() => new Map(items.filter((g) => g.kind === "missing" && samePosition(tree, g.at, cur)).map((g) => [g.uci, g])), [items, cur, tree]);
   live.current = { tree, cur, fill, items, focus, sig };
 
   function goToGap(g) {
@@ -263,9 +265,10 @@ export default function Builder({ id, start, fillStart = false }) {
   const boardState = useMemo(() => ({ fen, legalMoves: (legalCache[fen] || []).map((uci) => ({ uci })) }), [fen, legalCache]);
 
   function play(uci) {
-    const known = childWith(tree, cur, uci);
+    const known = replyWith(tree, cur, uci);
     if (known) {
       playMoveSound(known.san);
+      setMoved(known.parent !== cur ? { id: known.id, san: known.san } : null);
       setCur(known.id);
       return { ok: true };
     }
@@ -275,6 +278,7 @@ export default function Builder({ id, start, fillStart = false }) {
         setData((d) => (d.moves.some((m) => m.id === r.move.id) ? d : { ...d, moves: [...d.moves, r.move] }));
         playMoveSound(r.move.san);
         setCur(r.move.id);
+        setMoved(r.transposed ? { id: r.move.id, san: r.move.san } : null);
         if (r.created) {
           setAdded({ id: r.move.id, san: r.move.san, mine: r.move.mine });
           // filling hole after hole: the person's answer is in, the next hole is wanted
@@ -370,7 +374,7 @@ export default function Builder({ id, start, fillStart = false }) {
   const lastMove = tree.byId.get(cur);
   const hovered = uciSquares(hover);
   const focusedGap = items.find((g) => keyOf(g) === focus) || null;
-  const gapMove = focusedGap && focusedGap.kind === "missing" && focusedGap.at === cur ? uciSquares(focusedGap.uci) : null;
+  const gapMove = focusedGap && focusedGap.kind === "missing" && samePosition(tree, focusedGap.at, cur) ? uciSquares(focusedGap.uci) : null;
   const arrows = [];
   if (hovered) arrows.push([hovered.from, hovered.to, "rgba(96, 165, 250, 0.9)"]);
   else if (gapMove) arrows.push([gapMove.from, gapMove.to, tokenArrow("--warn-rgb", 0.9)]);
@@ -509,6 +513,19 @@ export default function Builder({ id, start, fillStart = false }) {
             </section>
           )}
 
+          {moved && moved.id === cur && (
+            <section className="card openings__added openings__moved" role="status">
+              <p>
+                <Icon name="branch" size={16} /> {t("openings2.trans.moved", { san: moved.san })}
+              </p>
+              <div className="room__row">
+                <button type="button" className="btn btn--ghost" onClick={() => setMoved(null)}>
+                  {t("builder.39")}
+                </button>
+              </div>
+            </section>
+          )}
+
           <GapsPanel
             tree={tree}
             cur={cur}
@@ -536,8 +553,16 @@ export default function Builder({ id, start, fillStart = false }) {
               </p>
             )}
             {path.length > 0 && <p className="openings__line">{lineText(path)}</p>}
+            {twin !== null && (
+              <p className="openings__twin">
+                <Icon name="branch" size={14} /> {t("openings2.trans.here")} <b>{twinLine(tree, twin)}</b>. {t("openings2.trans.hereTail")}{" "}
+                <button type="button" className="openings__twinbtn" onClick={() => setCur(twin)}>
+                  {t("openings2.trans.go")}
+                </button>
+              </p>
+            )}
 
-            <Suggestions fen={fen} side={mover} turn={turn} children={children} onPick={play} onHover={setHover} gaps={gapsHere} preset={preset} onPreset={choosePreset} />
+            <Suggestions fen={fen} side={mover} turn={turn} children={children} here={cur} onPick={play} onHover={setHover} gaps={gapsHere} preset={preset} onPreset={choosePreset} />
 
             <div className="room__row">
               <button type="button" className="btn btn--danger-ghost" onClick={removeCurrent} disabled={cur === 0}>
@@ -564,7 +589,7 @@ function TreeList({ tree, parent, cur, onSelect, marked, depth = 0 }) {
     <ul className={`reptree${depth ? " reptree--nested" : ""}`}>
       {kids.map((m) => (
         <li key={m.id}>
-          <TreeItem move={m} active={m.id === cur} hole={marked.has(m.id)} onSelect={onSelect} />
+          <TreeItem tree={tree} move={m} active={m.id === cur} hole={marked.has(m.id)} onSelect={onSelect} />
           <TreeList tree={tree} parent={m.id} cur={cur} onSelect={onSelect} marked={marked} depth={depth + 1} />
         </li>
       ))}
@@ -572,7 +597,14 @@ function TreeList({ tree, parent, cur, onSelect, marked, depth = 0 }) {
   );
 }
 
-function TreeItem({ move, active, hole, onSelect }) {
+// The line to a node as a short text, for the note that a position is on another branch.
+function twinLine(tree, id) {
+  const path = pathTo(tree, id);
+  const tail = path.slice(-8);
+  return (path.length > tail.length ? "… " : "") + lineText(tail);
+}
+
+function TreeItem({ tree, move, active, hole, onSelect }) {
   const t = useT();
   const ref = useRef(null);
   useEffect(() => {
@@ -580,11 +612,19 @@ function TreeItem({ move, active, hole, onSelect }) {
   }, [active]);
   const no = Math.ceil(move.ply / 2);
   const status = statusOf(move);
+  const twin = transposedFrom(tree, move.id);
   return (
-    <button ref={ref} type="button" className={`reptree__move repchip repchip--${status}${active ? " repchip--on" : ""}`} onClick={() => onSelect(move.id)} title={hole ? `${t(STATUS_TEXT[status])} · ${t("openings2.gaps.treeMark")}` : t(STATUS_TEXT[status])}>
-      <span className="reptree__no">{move.ply % 2 === 1 ? `${no}.` : `${no}...`}</span>
-      {move.san}
-      {hole && <span className="reptree__hole" aria-label={t("openings2.gaps.treeMark")} />}
-    </button>
+    <>
+      <button ref={ref} type="button" className={`reptree__move repchip repchip--${status}${active ? " repchip--on" : ""}`} onClick={() => onSelect(move.id)} title={hole ? `${t(STATUS_TEXT[status])} · ${t("openings2.gaps.treeMark")}` : t(STATUS_TEXT[status])}>
+        <span className="reptree__no">{move.ply % 2 === 1 ? `${no}.` : `${no}...`}</span>
+        {move.san}
+        {hole && <span className="reptree__hole" aria-label={t("openings2.gaps.treeMark")} />}
+      </button>
+      {twin !== null && (
+        <button type="button" className="reptree__twin" onClick={() => onSelect(twin)} title={t("openings2.trans.treeTitle", { line: twinLine(tree, twin) })}>
+          <Icon name="branch" size={12} /> {t("openings2.trans.tree")}
+        </button>
+      )}
+    </>
   );
 }

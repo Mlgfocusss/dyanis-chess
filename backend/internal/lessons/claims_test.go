@@ -23,12 +23,13 @@ import (
 //	no-stalemate   no solution stalemates, although some legal move does
 //	defend-mate1   the opponent threatens mate in one: a move is a solution exactly when it leaves the opponent no mate in one
 //	wins           the solutions are exactly the moves after which the opponent, searched to depth 11, stands lost (800 points or worse)
+//	wins-some      every solution wins in that sense, but other moves may win too (the text asks for one particular idea)
 //	holds          the solutions are exactly the moves after which the opponent does not stand better than 450 points
 //	promotes       every solution promotes a pawn
 //	capture        every solution takes a piece
 //	none           nothing to verify (a drill of the rules; the solutions are legal by construction)
 var knownClaims = map[string]bool{"mate1": true, "mate2": true, "best": true, "wins-material": true, "check1": true,
-	"stalemate": true, "no-stalemate": true, "defend-mate1": true, "wins": true, "holds": true, "promotes": true, "capture": true, "none": true}
+	"stalemate": true, "no-stalemate": true, "defend-mate1": true, "wins": true, "wins-some": true, "holds": true, "promotes": true, "capture": true, "none": true}
 
 const claimDepth = 8
 
@@ -194,18 +195,20 @@ func checkClaim(t *testing.T, where string, sj StepJSON, st Step) {
 	}
 	fail := func(format string, a ...any) { t.Errorf("%s (%s): %s", where, st.Claim, fmt.Sprintf(format, a...)) }
 	switch claimBase(st.Claim) {
-	case "wins", "holds":
+	case "wins", "wins-some", "holds":
 		depth := 12
-		if strings.Contains(st.Claim, "-") {
+		if claimBase(st.Claim) != st.Claim {
 			depth = claimDepthOf(st.Claim)
 		}
+		some := claimBase(st.Claim) == "wins-some"
+		wins := claimBase(st.Claim) != "holds"
 		for _, m := range pos.LegalMoves() {
 			c := pos.Copy()
 			c.Play(m)
 			good := false
 			if o := c.Outcome(nil); o.Over {
-				good = o.Checkmate == (claimBase(st.Claim) == "wins")
-				if claimBase(st.Claim) == "holds" {
+				good = o.Checkmate == wins
+				if !wins {
 					good = !o.Checkmate
 				}
 			} else {
@@ -214,11 +217,14 @@ func checkClaim(t *testing.T, where string, sj StepJSON, st Step) {
 					fail("%v", err)
 					return
 				}
-				if claimBase(st.Claim) == "wins" {
+				if wins {
 					good = r.Score <= -800
 				} else {
 					good = r.Score < 450
 				}
+			}
+			if some && !slices.Contains(firsts, m) {
+				continue
 			}
 			if good != slices.Contains(firsts, m) {
 				fail("%s: engine says good=%v, solution=%v", pos.SAN(m), good, slices.Contains(firsts, m))

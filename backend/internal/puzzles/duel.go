@@ -146,7 +146,9 @@ func (s *Service) finishDuel(id string) {
 	}
 	ca, cb, err := s.cfg.Ratings.Apply(ctx, ratings.Duel, a.ID, b.ID, score)
 	if err != nil {
-		log.Printf("puzzles: rate duel %s: %v", id, err)
+		if !errors.Is(err, ratings.ErrSamePerson) { // the accounts of one person: the duel does not count
+			log.Printf("puzzles: rate duel %s: %v", id, err)
+		}
 		return
 	}
 	s.duelMu.Lock()

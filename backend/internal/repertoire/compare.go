@@ -44,25 +44,36 @@ type Deviation struct {
 	Expected []Expected `json:"expected"`
 	// Moves is how many half-moves the game had in all.
 	Moves int `json:"moves"`
+	// Transposed says that the game came to a position of the repository by another order of
+	// moves than the tree has (that is not leaving it); TransposedPly is the half-move at which
+	// it first stood in a position of the repository that the tree reaches differently (0: never).
+	Transposed    bool `json:"transposed"`
+	TransposedPly int  `json:"transposedPly"`
 }
 
-// Compare follows a game's moves (UCI) through a repository's tree for a colour and
-// reports where the game first stepped off it. A move is "mine" when its ply has the
-// parity of the colour, as in the tree itself.
+// Compare follows a game's moves (UCI) through a repository for a colour and reports where the
+// game stepped off it. A move is "mine" when its ply has the parity of the colour, as in the tree
+// itself.
+//
+// The repository is looked at by positions, not by paths: a game that comes to a position of the
+// repository by another order of moves (1.c4 e6 2.d4 Nf6 for 1.d4 Nf6 2.c4 e6) has not left it.
+// The game left the repository after the last of its positions that the repository has; when it
+// went away from the repository and came back through such a position, that is not a deviation.
 func Compare(moves []store.RepMove, color string, game []string) Deviation {
 	dev := Deviation{Status: StatusInBook, Line: []string{}, Expected: []Expected{}, Moves: len(game)}
 	if len(moves) == 0 {
 		dev.Status = StatusEmpty
 		return dev
 	}
-	children := map[int64][]store.RepMove{}
-	for _, m := range moves {
-		children[m.ParentID] = append(children[m.ParentID], m)
-	}
+	g := NewGraph(moves)
+
+	// replay the game: the legal moves up to the first one that is not
 	pos := engine.NewPosition()
-	var node int64
-	for i, u := range game {
-		ply := i + 1
+	fens := []string{pos.FEN()} // fens[i]: the position after i plies
+	keys := []string{startKey}
+	var sans []string
+	broken := false
+	for _, u := range game {
 		var mv engine.Move
 		found := false
 		for _, m := range pos.LegalMoves() {
@@ -72,43 +83,76 @@ func Compare(moves []store.RepMove, color string, game []string) Deviation {
 			}
 		}
 		if !found {
-			dev.Status = StatusBroken
-			return dev
+			broken = true
+			break
 		}
-		san := pos.SAN(mv)
-		var next *store.RepMove
-		for _, c := range children[node] {
-			if c.UCI == u {
-				c := c
-				next = &c
-				break
+		sans = append(sans, pos.SAN(mv))
+		pos.Play(mv)
+		fens = append(fens, pos.FEN())
+		keys = append(keys, PosKey(pos.FEN()))
+	}
+	n := len(sans)
+
+	// in[i]: the position after i plies is the repository's; node[i]: a node of the tree standing in it
+	in := make([]bool, n+1)
+	node := make([]int64, n+1)
+	in[0] = true
+	for i := 1; i <= n; i++ {
+		var next int64
+		ok, jump := false, false
+		if in[i-1] {
+			if c, found := g.Reply(node[i-1], game[i-1]); found {
+				next, ok, jump = c.ID, true, c.ParentID != node[i-1]
 			}
 		}
-		if next != nil {
-			dev.Line = append(dev.Line, san)
-			node = next.ID
-			pos.Play(mv)
+		if !ok && g.Has(keys[i]) {
+			next, ok, jump = g.Rep(keys[i]), true, true
+		}
+		if !ok {
 			continue
 		}
-		// the game leaves the repository here
-		dev.Ply, dev.Node = ply, node
-		after := pos.Copy()
-		after.Play(mv)
-		dev.Played = &Step{UCI: u, SAN: san, FEN: after.FEN()}
-		kids := children[node]
-		for _, c := range kids {
-			dev.Expected = append(dev.Expected, Expected{ID: c.ID, UCI: c.UCI, SAN: c.SAN, Mine: c.Mine})
+		in[i], node[i] = true, next
+		if !in[i-1] {
+			jump = true // back from outside the repository
 		}
-		mineTurn := (ply%2 == 1) == (color == "white")
-		switch {
-		case len(kids) == 0:
-			dev.Status = StatusBookEnded
-		case mineTurn:
-			dev.Status = StatusYouDeviated
-		default:
-			dev.Status = StatusOpponentDeviated
+		if jump && dev.TransposedPly == 0 {
+			dev.TransposedPly = i
+		}
+	}
+	dev.Transposed = dev.TransposedPly > 0
+
+	last := 0
+	for i := n; i > 0; i-- {
+		if in[i] {
+			last = i
+			break
+		}
+	}
+	dev.Line = append(dev.Line, sans[:last]...)
+	if last == n {
+		if broken {
+			dev.Status = StatusBroken
 		}
 		return dev
+	}
+
+	// the game leaves the repository after `last` plies, with the move number last+1
+	ply := last + 1
+	at := node[last]
+	dev.Ply, dev.Node = ply, at
+	dev.Played = &Step{UCI: game[last], SAN: sans[last], FEN: fens[ply]}
+	kids := g.Replies(at)
+	for _, c := range kids {
+		dev.Expected = append(dev.Expected, Expected{ID: c.ID, UCI: c.UCI, SAN: c.SAN, Mine: c.Mine})
+	}
+	mineTurn := (ply%2 == 1) == (color == "white")
+	switch {
+	case len(kids) == 0:
+		dev.Status = StatusBookEnded
+	case mineTurn:
+		dev.Status = StatusYouDeviated
+	default:
+		dev.Status = StatusOpponentDeviated
 	}
 	return dev
 }

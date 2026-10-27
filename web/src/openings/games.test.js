@@ -40,3 +40,14 @@ test("the end of a line, a whole game in the book, and the rest", () => {
   assert.match(deviationLine({ status: "empty", ply: 0, line: [], expected: [] }).headline, /пока нет ходов/);
   assert.match(deviationLine({ status: "broken", ply: 0, line: [], expected: [] }).headline, /не удалось/);
 });
+
+test("a game that joined the repository by another order of moves says so", async () => {
+  const { transposeNote } = await import("./games.js");
+  const d = { status: "in-book", transposed: true, transposedPly: 4, line: ["c4", "e6", "d4", "Nf6", "Nc3"] };
+  assert.match(transposeNote(d), /после 2\.\.\. Nf6/);
+  assert.match(transposeNote(d), /другим порядком ходов/);
+  assert.equal(transposeNote({ ...d, transposed: false }), "");
+  assert.equal(transposeNote({ ...d, transposedPly: 0 }), "");
+  assert.equal(transposeNote({ ...d, line: [] }), "");
+  assert.equal(transposeNote(null), "");
+});

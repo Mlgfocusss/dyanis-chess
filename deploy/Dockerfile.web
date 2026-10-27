@@ -21,6 +21,8 @@ RUN npm ci
 COPY web/ ./
 COPY --from=wasm /out/ ./public/wasm/
 COPY engine/assets/*.bin ./public/assets/
+# The NNUE network of the engine for the in-browser bot (the same file the server loads).
+COPY engine/net-kingf-m4.bin ./public/assets/net.bin
 RUN npm run build
 
 # 3. nginx.

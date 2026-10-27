@@ -5,6 +5,7 @@
 // of its answer is { kind: "missing"|"answer", at, ply, fen, path, uci, san, pct, games, lines,
 // weight, source }, where `at` is the node of the position the hole is shown in.
 import { getLanguage } from "../i18n/index.js";
+import { gapsOf, repliesAt, twinsOf } from "./tree.js";
 
 // What the server counts as a popular reply (the defaults of its search).
 export const MIN_PCT = 5;
@@ -21,13 +22,14 @@ export function moveLabel(ply, san) {
 // The holes of the first kind that the browser can see by itself (lines that end with the
 // opponent's move), in the shape of a server hole. Nothing is known of their weight.
 export function localAnswerGaps(tree) {
-  const out = [];
-  for (const m of tree.byId.values()) {
-    if (!m.mine && !(tree.children.get(m.id) || []).length) {
-      out.push({ kind: "answer", at: m.id, ply: m.ply, fen: m.fen, uci: m.uci, san: m.san, pct: 0, games: 0, weight: null, source: "" });
-    }
-  }
-  return out;
+  return gapsOf(tree).map((m) => ({ kind: "answer", at: m.id, ply: m.ply, fen: m.fen, uci: m.uci, san: m.san, pct: 0, games: 0, weight: null, source: "" }));
+}
+
+// What makes two holes the same: the position they are in, not the node (a position reached by
+// two orders of moves is one hole).
+function identity(g, tree) {
+  const pos = tree.keyOf.get(g.at) ?? `#${g.at}`;
+  return g.kind === "answer" ? `answer:${pos}` : `missing:${pos}:${g.uci}`;
 }
 
 // A hole of the last search as the tree stands now, or null when the tree has closed it. The tree may have
@@ -35,11 +37,11 @@ export function localAnswerGaps(tree) {
 // becomes the same line without an answer (it keeps its weight), one that has an answer is closed.
 function current(g, tree) {
   if (g.at !== 0 && !tree.byId.has(g.at)) return null;
-  const kids = tree.children.get(g.at) || [];
+  const kids = repliesAt(tree, g.at); // a reply on another branch to the same position counts
   if (g.kind === "answer") return kids.length === 0 ? g : null;
   const added = kids.find((m) => m.uci === g.uci);
   if (!added) return g;
-  if ((tree.children.get(added.id) || []).length) return null;
+  if (repliesAt(tree, added.id).length) return null;
   return { ...g, kind: "answer", at: added.id, ply: added.ply, fen: added.fen };
 }
 
@@ -53,12 +55,12 @@ export function visibleGaps(scan, tree) {
   for (const g of scan?.gaps || []) {
     if (g.kind === "answer" && g.at === 0) continue;
     const now = current(g, tree);
-    if (!now || seen.has(keyOf(now))) continue;
-    seen.add(keyOf(now));
+    if (!now || seen.has(identity(now, tree))) continue;
+    seen.add(identity(now, tree));
     out.push(now);
   }
   for (const g of localAnswerGaps(tree)) {
-    if (!seen.has(keyOf(g))) out.push(g);
+    if (!seen.has(identity(g, tree))) out.push(g);
   }
   const w = (g) => (g.weight == null ? -1 : g.weight);
   out.sort((a, b) => w(b) - w(a) || a.ply - b.ply || (a.uci < b.uci ? -1 : a.uci > b.uci ? 1 : 0));
@@ -66,9 +68,13 @@ export function visibleGaps(scan, tree) {
 }
 
 // The nodes of the tree to mark with a dot: where a hole is shown.
-export function markedNodes(gaps) {
+export function markedNodes(gaps, tree) {
   const out = new Set();
-  for (const g of gaps) if (g.at) out.add(g.at);
+  for (const g of gaps) {
+    if (!g.at) continue;
+    out.add(g.at);
+    if (tree) for (const t of twinsOf(tree, g.at)) out.add(t); // the same position on the other branches
+  }
   return out;
 }
 

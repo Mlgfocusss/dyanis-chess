@@ -156,6 +156,16 @@ func (s *Service) UserFromRequest(r *http.Request) *store.User {
 	return u
 }
 
+// SessionKey names the session of a request ("" for none) without giving the token away: it is
+// what other packages key their caches by.
+func (s *Service) SessionKey(r *http.Request) string {
+	c, err := r.Cookie(sessionCookie)
+	if err != nil || c.Value == "" {
+		return ""
+	}
+	return hashToken(c.Value)
+}
+
 // UserID is UserFromRequest reduced to the id ("" = nobody); it is what the
 // API package needs to attach a review to its owner.
 func (s *Service) UserID(r *http.Request) string {

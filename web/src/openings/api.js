@@ -56,7 +56,8 @@ export async function importInto(id, pgn) {
   return readJSON(await fetch(`${base(id)}/import`, { method: "POST", headers: JSON_HEADERS, body: JSON.stringify({ pgn }) }));
 }
 
-// { move, created }
+// { move, created, transposed }: when the repository already has this move in this position on another
+// branch (another order of moves) nothing is added, move is that one and transposed is true.
 export async function addMove(id, parent, uci) {
   return readJSON(await fetch(`${base(id)}/moves`, { method: "POST", headers: JSON_HEADERS, body: JSON.stringify({ parent, uci }) }));
 }
@@ -92,7 +93,7 @@ export async function fetchExplorer(fen, ratings) {
 }
 
 // The person's recent games put against a repository: { games: [{id, opponent, bot, result,
-// gameStatus, endedMs, deviation: {status, ply, node, line, played, expected, moves}}], counts }.
+// gameStatus, endedMs, deviation: {status, ply, node, line, played, expected, moves, transposed, transposedPly}}], counts }.
 export async function fetchGames(id) {
   return readJSON(await fetch(`${base(id)}/games`));
 }

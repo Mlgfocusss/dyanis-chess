@@ -90,9 +90,11 @@ let worker = null;
 let workerReadyPromise = null;
 let nextRequestId = 1;
 const pending = new Map();
-// The book last loaded into the worker, so a worker restarted by
-// cancelSearch() gets it back.
-let workerBook = null;
+// The books loaded into the worker, in order, so a worker restarted by
+// cancelSearch() gets them back.
+let workerBooks = [];
+// The network loaded into the worker (bytes), for the same reason.
+let workerNet = null;
 
 function ensureWorker() {
   if (worker) return workerReadyPromise;
@@ -104,7 +106,8 @@ function ensureWorker() {
 
       if (type === "ready") {
         // Messages are handled in order, so the book is in place before any search.
-        if (workerBook) worker.postMessage({ id: nextRequestId++, method: "loadBook", args: [workerBook] });
+        for (const bytes of workerBooks) worker.postMessage({ id: nextRequestId++, method: "loadBook", args: [bytes] });
+        if (workerNet) worker.postMessage({ id: nextRequestId++, method: "loadNetwork", args: [workerNet] });
         resolve();
         return;
       }
@@ -175,13 +178,23 @@ export function cancelSearch() {
 /** Loads a book into the WORKER's instance — separate from loadBook() above, which loads into the main thread's instance. engineMoveAsync only ever consults the worker's own book. */
 export function loadBookInWorker(bytes) {
   return callWorker("loadBook", [bytes]).then((r) => {
-    workerBook = bytes;
+    workerBooks.push(bytes);
     return r;
   });
 }
 
+/** Loads the NNUE network into the WORKER's instance: its searches then evaluate with it, as the server engine does. */
+export function loadNetworkInWorker(bytes) {
+  return callWorker("loadNetwork", [bytes]).then((r) => {
+    if (r.ok) workerNet = bytes;
+    return r;
+  });
+}
+
+export const networkInfoInWorker = () => callWorker("networkInfo", []);
+
 export function clearBookInWorker() {
-  workerBook = null;
+  workerBooks = [];
   return callWorker("clearBook", []);
 }
 

@@ -135,3 +135,33 @@ test("a missing reply the person has just added is the same hole as an unanswere
   const both = visibleGaps({ gaps: [missing(1, 1, "c7c5", "c5", 0.17), answer(4, 2, "c7c5", "c5", 0.17)] }, tree);
   assert.deepEqual(both.map(keyOf), ["answer:4:c7c5"]);
 });
+
+test("a hole is one for a position reached by two orders of moves", () => {
+  // 1.d4 Nf6 2.c4 e6 (ids 1-4) and 1.c4 e6 2.d4 Nf6 (ids 5-8) end in one position, with no answer to it
+  const pos = "same-position";
+  const ms = [
+    mv(1, 0, "d2d4", "d4", 1, true),
+    mv(2, 1, "g8f6", "Nf6", 2, false),
+    mv(3, 2, "c2c4", "c4", 3, true),
+    { ...mv(4, 3, "e7e6", "e6", 4, false), fen: pos },
+    mv(5, 0, "c2c4", "c4", 1, true),
+    mv(6, 5, "e7e6", "e6", 2, false),
+    mv(7, 6, "d2d4", "d4", 3, true),
+    { ...mv(8, 7, "g8f6", "Nf6", 4, false), fen: pos },
+  ];
+  const t = buildTree(ms);
+  const gaps = visibleGaps(null, t);
+  assert.deepEqual(gaps.map(keyOf), ["answer:4:e7e6"]);
+  // both nodes are marked with the dot
+  assert.deepEqual([...markedNodes(gaps, t)].sort(), [4, 8]);
+  // the server lists the second node, the page the first: still one hole
+  const scan = { gaps: [{ ...answer(8, 4, "g8f6", "Nf6", 0.4) }] };
+  assert.equal(visibleGaps(scan, t).length, 1);
+  // an answer on either branch closes it
+  const answered = buildTree([...ms, mv(9, 8, "b1c3", "Nc3", 5, true)]);
+  assert.deepEqual(visibleGaps(scan, answered), []);
+  // a popular reply added on the other branch is no longer missing, only an unanswered one
+  const m = { kind: "missing", at: 4, ply: 4, fen: "f", path: [], uci: "f1b5", san: "Bb5", pct: 20, games: 99, weight: 0.2, source: "lichess" };
+  const withReply = buildTree([...ms, mv(9, 8, "f1b5", "Bb5", 5, false)]);
+  assert.deepEqual(visibleGaps({ gaps: [m] }, withReply).map((g) => g.kind), ["answer"]);
+});

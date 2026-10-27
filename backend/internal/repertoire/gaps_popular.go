@@ -228,12 +228,34 @@ func infoFromTheory(book *eco.Book, fen string, o GapOptions) *posInfo {
 	return info
 }
 
+// posClass is a position of the repository with what the search needs of it. The search works
+// on positions, not on paths: a position reached by two orders of moves is one class, searched
+// once, with the chances of reaching it by either order added.
+type posClass struct {
+	key  string
+	rep  int64 // the node that stands for the position in lists (Graph.Rep)
+	fen  string
+	ply  int
+	kids []store.RepMove // the repository's replies in the position, one per move
+	kidC []int           // the class of the position after each reply
+	// order is the place in the order parents-first; an edge to a class with a lower or equal
+	// order goes back to an earlier position (shuffling the pieces) and is not followed.
+	order int
+
+	// per pass
+	w      float64 // the chance of getting here by the repository
+	h, p   float64 // per unit of w: the chance of ending in a hole / in a position not checked
+	answer int     // index in scanner.gaps of the hole "no answer here", -1 if none
+	viaW   float64 // the weight of the edge whose statistics the answer hole shows
+}
+
 // scanner holds one search.
 type scanner struct {
-	color    string
-	byID     map[int64]store.RepMove
-	children map[int64][]store.RepMove
-	o        GapOptions
+	color   string
+	g       *Graph
+	o       GapOptions
+	classes []posClass // classes[0] is the initial position
+	topo    []int      // class indexes, parents first
 
 	known map[string]*posInfo // fen -> statistics
 	// per pass
@@ -243,102 +265,179 @@ type scanner struct {
 	pending int
 }
 
-func (sc *scanner) fenOf(id int64) string {
-	if id == 0 {
-		return engine.StartFEN
+func newScanner(moves []store.RepMove, color string, o GapOptions) *scanner {
+	g := NewGraph(moves)
+	sc := &scanner{color: color, g: g, o: o, known: map[string]*posInfo{}}
+	index := map[string]int{}
+	var add func(key string) int
+	add = func(key string) int {
+		if i, ok := index[key]; ok {
+			return i
+		}
+		rep := g.Rep(key)
+		m := g.byID[rep]
+		c := posClass{key: key, rep: rep, fen: m.FEN, ply: m.Ply, answer: -1}
+		if rep == 0 {
+			c.fen = engine.StartFEN
+		}
+		index[key] = len(sc.classes)
+		sc.classes = append(sc.classes, c)
+		return len(sc.classes) - 1
 	}
-	return sc.byID[id].FEN
+	add(startKey)
+	for i := 0; i < len(sc.classes); i++ { // grows while it goes: breadth first from the start
+		kids := g.Replies(sc.classes[i].rep)
+		kidC := make([]int, len(kids))
+		for j, k := range kids {
+			kidC[j] = add(g.Key(k.ID))
+		}
+		sc.classes[i].kids, sc.classes[i].kidC = kids, kidC
+	}
+	// parents before children, the edges back to a position already on the way left out
+	state := make([]int8, len(sc.classes))
+	var post []int
+	var dfs func(i int)
+	dfs = func(i int) {
+		state[i] = 1
+		for _, k := range sc.classes[i].kidC {
+			if state[k] == 0 {
+				dfs(k)
+			}
+		}
+		state[i] = 2
+		post = append(post, i)
+	}
+	dfs(0)
+	for r := len(post) - 1; r >= 0; r-- {
+		sc.classes[post[r]].order = len(post) - 1 - r
+		sc.topo = append(sc.topo, post[r])
+	}
+	return sc
 }
 
 // opponentMoves says whether the opponent is to move after `ply` plies.
 func (sc *scanner) opponentMoves(ply int) bool { return (ply%2 == 0) != (sc.color == "white") }
 
-// visit walks the node `id` (plies played, weight w, the moves that lead here) and
-// returns the chance of ending up in a hole below it, and of ending up in a
-// position that was not checked yet.
-func (sc *scanner) visit(id int64, ply int, w float64, trail []string) (holes, pend float64) {
-	kids := sc.children[id]
-	fen := sc.fenOf(id)
-	if !sc.opponentMoves(ply) { // the person's move: any answer of theirs will do
-		if len(kids) == 0 {
-			g := Gap{Kind: GapAnswer, At: id, Ply: ply, FEN: fen, Path: append([]string{}, trail...), Weight: w}
-			if id != 0 {
-				m := sc.byID[id]
-				g.UCI, g.SAN = m.UCI, m.SAN
-			}
-			sc.gaps = append(sc.gaps, g)
-			return w, 0
+// pathOf is the moves (SAN) from the start to the node.
+func (sc *scanner) pathOf(id int64) []string {
+	var rev []string
+	for ; id != 0; id = sc.g.byID[id].ParentID {
+		m, ok := sc.g.byID[id]
+		if !ok {
+			break
 		}
-		best, bestP := -1.0, 0.0
-		for _, c := range kids {
-			h, p := sc.visit(c.ID, ply+1, w, append(trail, c.SAN))
-			if best < 0 || h+p < best+bestP {
-				best, bestP = h, p
-			}
-		}
-		return best, bestP
+		rev = append(rev, m.SAN)
 	}
-
-	info := sc.known[fen]
-	if info == nil && w >= sc.o.MinWeight {
-		if w > sc.need[fen] {
-			sc.need[fen], sc.needAt[fen] = w, id
-		}
-		pend = w
-		sc.pending++
+	out := make([]string, 0, len(rev))
+	for i := len(rev) - 1; i >= 0; i-- {
+		out = append(out, rev[i])
 	}
-	// the statistics may also leave out moves of the tree: their weight is the share
-	// when it is known, 0 when it is not (the line is still searched for holes)
-	seen := map[string]bool{}
-	byUCI := map[string]store.RepMove{}
-	for _, c := range kids {
-		byUCI[c.UCI] = c
-	}
-	if info != nil {
-		for _, m := range info.moves {
-			if !m.popular {
-				continue
-			}
-			seen[m.uci] = true
-			if c, ok := byUCI[m.uci]; ok {
-				h, p := sc.visitReply(c, ply, w*m.share, trail, &m, info)
-				holes, pend = holes+h, pend+p
-			} else if w*m.share >= sc.o.MinWeight {
-				sc.gaps = append(sc.gaps, Gap{Kind: GapMissing, At: id, Ply: ply, FEN: fen, Path: append([]string{}, trail...),
-					UCI: m.uci, SAN: m.san, Pct: 100 * m.share, Games: m.games, Lines: m.lines, Weight: w * m.share, Source: info.source})
-				holes += w * m.share
-			}
-		}
-	}
-	for _, c := range kids {
-		if seen[c.UCI] {
-			continue
-		}
-		var m *statMove
-		share := 0.0
-		if info != nil {
-			if sm, ok := info.find(c.UCI); ok {
-				m, share = &sm, sm.share
-			}
-		}
-		h, p := sc.visitReply(c, ply, w*share, trail, m, info)
-		holes, pend = holes+h, pend+p
-	}
-	return holes, pend
+	return out
 }
 
-func (sc *scanner) visitReply(c store.RepMove, ply int, w float64, trail []string, m *statMove, info *posInfo) (float64, float64) {
-	before := len(sc.gaps)
-	h, p := sc.visit(c.ID, ply+1, w, append(trail, c.SAN))
-	// the unanswered reply itself is a hole that can say how popular the move is
-	if m != nil && info != nil {
-		for i := before; i < len(sc.gaps); i++ {
-			if g := &sc.gaps[i]; g.Kind == GapAnswer && g.At == c.ID {
-				g.Pct, g.Games, g.Lines, g.Source = 100*m.share, m.games, m.lines, info.source
+// share is how often the move is played in the class's position, as far as it is known: always 1
+// for the person's own moves (any answer will do), 0 for a move the statistics do not have.
+func (sc *scanner) share(c *posClass, info *posInfo, uci string) (float64, *statMove) {
+	if !sc.opponentMoves(c.ply) {
+		return 1, nil
+	}
+	if info != nil {
+		if sm, ok := info.find(uci); ok {
+			return sm.share, &sm
+		}
+	}
+	return 0, nil
+}
+
+// pass walks the repository once with what is known and returns the chance of ending up in a
+// hole, and of ending up in a position that was not checked yet. Each class is looked at once:
+// first the chance of reaching it is added up over its parents, then, children first, the holes
+// below it.
+func (sc *scanner) pass() (holes, pend float64) {
+	sc.gaps, sc.need, sc.needAt, sc.pending = nil, map[string]float64{}, map[string]int64{}, 0
+	for i := range sc.classes {
+		c := &sc.classes[i]
+		c.w, c.h, c.p, c.answer, c.viaW = 0, 0, 0, -1, -1
+	}
+	sc.classes[0].w = 1
+	for _, ci := range sc.topo {
+		c := &sc.classes[ci]
+		info := sc.known[c.fen]
+		for k, kc := range c.kidC {
+			if child := &sc.classes[kc]; child.order > c.order {
+				s, _ := sc.share(c, info, c.kids[k].UCI)
+				child.w += c.w * s
 			}
 		}
 	}
-	return h, p
+	for r := len(sc.topo) - 1; r >= 0; r-- {
+		c := &sc.classes[sc.topo[r]]
+		if !sc.opponentMoves(c.ply) { // the person's move: any answer of theirs will do
+			if len(c.kids) == 0 {
+				g := Gap{Kind: GapAnswer, At: c.rep, Ply: c.ply, FEN: c.fen, Path: sc.pathOf(c.rep), Weight: c.w}
+				if c.rep != 0 {
+					m := sc.g.byID[c.rep]
+					g.UCI, g.SAN = m.UCI, m.SAN
+				}
+				c.answer = len(sc.gaps)
+				sc.gaps = append(sc.gaps, g)
+				c.h = 1
+				continue
+			}
+			best, bestP := -1.0, 0.0
+			for _, kc := range c.kidC {
+				ch := &sc.classes[kc]
+				if ch.order <= c.order {
+					continue
+				}
+				if best < 0 || ch.h+ch.p < best+bestP {
+					best, bestP = ch.h, ch.p
+				}
+			}
+			c.h, c.p = max(best, 0), bestP
+			continue
+		}
+
+		info := sc.known[c.fen]
+		if info == nil && c.w >= sc.o.MinWeight {
+			if c.w > sc.need[c.fen] {
+				sc.need[c.fen], sc.needAt[c.fen] = c.w, c.rep
+			}
+			c.p = 1
+			sc.pending++
+		}
+		// the statistics may leave out moves of the tree: their weight is the share when it is
+		// known, 0 when it is not (the line is still searched for holes)
+		byUCI := make(map[string]bool, len(c.kids))
+		for k, kc := range c.kidC {
+			uci := c.kids[k].UCI
+			byUCI[uci] = true
+			ch := &sc.classes[kc]
+			if ch.order <= c.order {
+				continue
+			}
+			s, sm := sc.share(c, info, uci)
+			c.h += s * ch.h
+			c.p += s * ch.p
+			// the unanswered reply itself is a hole that can say how popular the move is
+			if sm != nil && info != nil && ch.answer >= 0 && c.w*s > ch.viaW {
+				ch.viaW = c.w * s
+				g := &sc.gaps[ch.answer]
+				g.Pct, g.Games, g.Lines, g.Source = 100*sm.share, sm.games, sm.lines, info.source
+			}
+		}
+		if info != nil {
+			for _, m := range info.moves {
+				if !m.popular || byUCI[m.uci] || c.w*m.share < sc.o.MinWeight {
+					continue
+				}
+				sc.gaps = append(sc.gaps, Gap{Kind: GapMissing, At: c.rep, Ply: c.ply, FEN: c.fen, Path: sc.pathOf(c.rep),
+					UCI: m.uci, SAN: m.san, Pct: 100 * m.share, Games: m.games, Lines: m.lines, Weight: c.w * m.share, Source: info.source})
+				c.h += m.share
+			}
+		}
+	}
+	return sc.classes[0].h, sc.classes[0].p
 }
 
 // ScanGaps searches the repertoire (the moves of a repertoire of `color`) for holes.
@@ -348,11 +447,9 @@ func ScanGaps(ctx context.Context, moves []store.RepMove, color string, src Stat
 	if book == nil {
 		book = eco.Default()
 	}
-	sc := &scanner{color: color, byID: map[int64]store.RepMove{}, children: map[int64][]store.RepMove{}, o: o, known: map[string]*posInfo{}}
+	sc := newScanner(moves, color, o)
 	var maxMove int64
 	for _, m := range moves {
-		sc.byID[m.ID] = m
-		sc.children[m.ParentID] = append(sc.children[m.ParentID], m)
 		maxMove = max(maxMove, m.ID)
 	}
 	useStats := src != nil && src.Enabled()
@@ -364,8 +461,7 @@ func ScanGaps(ctx context.Context, moves []store.RepMove, color string, src Stat
 	var lastNeedAt map[string]int64
 
 	for round := 0; ; round++ {
-		sc.gaps, sc.need, sc.needAt, sc.pending = nil, map[string]float64{}, map[string]int64{}, 0
-		holes, pend = sc.visit(0, 0, 1, nil)
+		holes, pend = sc.pass()
 		lastNeed, lastNeedAt = sc.need, sc.needAt
 		if len(sc.need) == 0 || ctx.Err() != nil || round > 2000 {
 			break

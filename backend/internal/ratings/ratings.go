@@ -56,12 +56,20 @@ type Store interface {
 	SaveRating(ctx context.Context, x *store.RatingRow) error
 }
 
+// ErrSamePerson is what Apply says when the two accounts look like one person (see internal/sameperson):
+// nothing is changed.
+var ErrSamePerson = errors.New("ratings: the accounts look like one person")
+
 // Service holds the ratings.
 type Service struct {
 	store Store
 	now   func() time.Time
 	mu    sync.Mutex // one update at a time: two games of a person may end together
+	same  func(ctx context.Context, a, b string) bool
 }
+
+// SetSamePerson makes Apply refuse games between accounts for which same says true.
+func (s *Service) SetSamePerson(same func(ctx context.Context, a, b string) bool) { s.same = same }
 
 // New returns a Service; now is time.Now when nil.
 func New(st Store, now func() time.Time) *Service {
@@ -146,6 +154,9 @@ func (s *Service) All(ctx context.Context, userID string) ([]Entry, error) {
 func (s *Service) Apply(ctx context.Context, category, aID, bID string, scoreA float64) (a, b Change, err error) {
 	if aID == "" || bID == "" || aID == bID {
 		return a, b, errors.New("ratings: two different people are needed")
+	}
+	if s.same != nil && s.same(ctx, aID, bID) {
+		return a, b, ErrSamePerson
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()

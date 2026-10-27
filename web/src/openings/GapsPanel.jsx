@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useT } from "../i18n/index.js";
 import { formatGames } from "./suggest.js";
 import { MIN_PCT, coveragePercent, formatWeight, gapCounts, keyOf, moveLabel, sourceOf } from "./gaps.js";
-import { lineText, pathTo } from "./tree.js";
+import { lineText, pathTo, samePosition } from "./tree.js";
 
 const SHOWN = 4; // holes listed before "show all"
 const TAIL = 8; // plies of the line shown in a row
@@ -111,12 +111,12 @@ export default function GapsPanel({ tree, cur, items, scan, state, refreshing, e
                 ? t("openings2.gaps.focusTheory", { move: holeMove(focused) })
                 : t("openings2.gaps.focusMissing", { move: holeMove(focused), pct: Math.round(focused.pct) })}
           </p>
-          {focused.kind === "missing" && cur === focused.at && (
+          {focused.kind === "missing" && samePosition(tree, cur, focused.at) && (
             <button type="button" className="btn btn--primary" onClick={() => onAdd(focused)}>
               {t("openings2.gaps.addOpp", { san: focused.san })}
             </button>
           )}
-          {cur !== focused.at && (
+          {!samePosition(tree, cur, focused.at) && (
             <button type="button" className="btn" onClick={() => onGo(focused)}>
               {t("openings2.gaps.goHere")}
             </button>

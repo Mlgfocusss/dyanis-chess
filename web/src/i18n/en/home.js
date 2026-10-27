@@ -14,7 +14,7 @@ export default {
   "home.mode2": "Play the bots",
   "home.mode2t": "Ten characters, each with its own level and style.",
   "home.mode3": "Against the engine",
-  "home.mode3t": "The strongest opponent right in your browser, no server needed.",
+  "home.mode3t": "The engine at full strength, about 3000: the network and the search run on the server.",
   "home.feat1t": "An evaluation of every move, a graph, accuracy, badges from blunder to brilliant, and the name of the opening.",
   "home.feat2t": "Rated puzzles, themes, the puzzle of the day, Puzzle Rush and a duel with a live opponent.",
   "home.feat3t": "Build your own move repository and learn it with spaced repetition.",

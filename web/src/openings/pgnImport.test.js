@@ -25,3 +25,9 @@ test("nameFromFile drops the extension", () => {
   assert.equal(nameFromFile(""), "");
   assert.equal(nameFromFile("x".repeat(200) + ".pgn").length, 80);
 });
+
+test("importSummary mentions the moves that were already there by another order of moves", () => {
+  assert.match(importSummary({ games: 2, skipped: 0, added: 4, moves: 9, transposed: 1 }), /1 ход из файла уже был в репозитории при другом порядке ходов/);
+  assert.match(importSummary({ games: 2, skipped: 0, added: 4, moves: 9, transposed: 3 }), /3 хода из файла уже были/);
+  assert.equal(importSummary({ games: 3, skipped: 0, added: 120, moves: 120, transposed: 0 }), "Добавлено 120 ходов из файла (3 партии).");
+});

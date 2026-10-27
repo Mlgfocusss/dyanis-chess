@@ -18,6 +18,9 @@ export function importSummary(st) {
     st.added === 0
       ? tr("openings.imp.none", { games })
       : tr("openings.imp.added", { moves: tr("openings.imp.moves", { n: st.added }), games });
+  if (st.transposed > 0) {
+    text += ` ${tr("openings2.trans.importN", { n: st.transposed })}.`;
+  }
   if (st.skipped > 0) {
     text += tr("openings.imp.skipTail", { skipped: tr("openings.imp.skippedN", { n: st.skipped }) });
   }

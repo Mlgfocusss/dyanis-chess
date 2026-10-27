@@ -25,6 +25,9 @@ type ImportStats struct {
 	Skipped int `json:"skipped"` // games left out because they do not start from the initial position
 	Added   int `json:"added"`   // moves new to the tree
 	Moves   int `json:"moves"`   // moves in the tree afterwards
+	// Transposed counts moves of the file that the repository already had in that position, reached by
+	// another order of moves (they were not added again).
+	Transposed int `json:"transposed"`
 }
 
 type importRequest struct {
@@ -73,8 +76,10 @@ func readPGN(text string) ([]*pgn.Tree, error) {
 	return trees, nil
 }
 
-// mergePGN adds the moves of the games to the repertoire's tree. A move the tree already has
-// (same parent, same move) is not added again.
+// mergePGN adds the moves of the games to the repertoire's tree. A move the repository already
+// has in that position is not added again, even when the position was reached by another order
+// of moves: the line then goes on from the move the repository has (lines that meet in one
+// position share the rest of the tree).
 func (s *Service) mergePGN(r *http.Request, rep *store.Repertoire, trees []*pgn.Tree) (ImportStats, error) {
 	ctx := r.Context()
 	current, err := s.cfg.Store.RepMoves(ctx, rep.ID)
@@ -82,32 +87,47 @@ func (s *Service) mergePGN(r *http.Request, rep *store.Repertoire, trees []*pgn.
 		return ImportStats{}, err
 	}
 	// ref names a move: a positive id is one in the tree, 0 the start, -(n+1) the n-th move of the batch.
-	type key struct {
-		parent int64
-		uci    string
-	}
-	known := make(map[key]int64, len(current))
-	for _, m := range current {
-		known[key{m.ParentID, m.UCI}] = m.ID
+	g := NewGraph(current)
+	replies := map[string]map[string]int64{} // position -> move (UCI) -> ref of the repository's move there
+	parentOf := map[int64]int64{}            // ref -> the ref of the move it follows
+	plyOf := map[int64]int{0: 0}
+	for _, m := range current { // in the order added: the first of equal moves stands for them
+		k := g.Key(m.ParentID)
+		if replies[k] == nil {
+			replies[k] = map[string]int64{}
+		}
+		if _, dup := replies[k][m.UCI]; !dup {
+			replies[k][m.UCI] = m.ID
+		}
+		parentOf[m.ID], plyOf[m.ID] = m.ParentID, m.Ply
 	}
 	var batch []store.NewRepMove
-	var walk func(n *pgn.Node, parent int64, ply int)
-	walk = func(n *pgn.Node, parent int64, ply int) {
+	transposed := 0
+	var walk func(n *pgn.Node, parent int64, key string)
+	walk = func(n *pgn.Node, parent int64, key string) {
 		for _, c := range n.Children {
 			uci := c.Move.String()
-			k := key{parent, uci}
-			ref, ok := known[k]
-			if !ok {
-				nm := store.NewRepMove{ParentID: parent, ParentIndex: -1, UCI: uci, SAN: c.SAN, FEN: c.FEN, Ply: ply + 1,
-					Mine: ((ply+1)%2 == 1) == (rep.Color == "white")}
+			ref, ok := replies[key][uci]
+			if ok {
+				if parentOf[ref] != parent {
+					transposed++
+				}
+			} else {
+				ply := plyOf[parent] + 1
+				nm := store.NewRepMove{ParentID: parent, ParentIndex: -1, UCI: uci, SAN: c.SAN, FEN: c.FEN, Ply: ply,
+					Mine: (ply%2 == 1) == (rep.Color == "white")}
 				if parent < 0 {
 					nm.ParentID, nm.ParentIndex = 0, int(-parent-1)
 				}
 				batch = append(batch, nm)
 				ref = -int64(len(batch))
-				known[k] = ref
+				if replies[key] == nil {
+					replies[key] = map[string]int64{}
+				}
+				replies[key][uci] = ref
+				parentOf[ref], plyOf[ref] = parent, ply
 			}
-			walk(c, ref, ply+1)
+			walk(c, ref, PosKey(c.FEN))
 		}
 	}
 	st := ImportStats{}
@@ -117,12 +137,12 @@ func (s *Service) mergePGN(r *http.Request, rep *store.Repertoire, trees []*pgn.
 			continue
 		}
 		st.Games++
-		walk(&t.Root, 0, 0)
+		walk(&t.Root, 0, startKey)
 	}
 	if err := s.cfg.Store.AddRepMovesBulk(ctx, rep.ID, batch); err != nil {
 		return ImportStats{}, err
 	}
-	st.Added, st.Moves = len(batch), len(current)+len(batch)
+	st.Added, st.Moves, st.Transposed = len(batch), len(current)+len(batch), transposed
 	return st, nil
 }
 

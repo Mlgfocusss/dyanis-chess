@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"dyanis-chess/engine/internal/board"
+	"dyanis-chess/engine/internal/book"
 	"dyanis-chess/engine/internal/movegen"
 	"dyanis-chess/engine/internal/nnue"
 	"dyanis-chess/engine/internal/search"
@@ -225,4 +226,43 @@ func LoadNetwork(path string) error {
 	}
 	search.SetNetwork(n)
 	return nil
+}
+
+// openingBook is the book BookMove plays from (nil: none). Set once at start-up by LoadBooks.
+var openingBook book.Source
+
+// LoadBooks loads Polyglot opening books (.bin files) and makes BookMove play from them. Books are
+// tried in the order given: a position is answered by the first book that knows it (the others are
+// not mixed in). A book that cannot be read is skipped; the error returned names the last one that
+// failed, and the number is how many were loaded. Call it once at start-up.
+func LoadBooks(paths ...string) (int, error) {
+	var books []*book.Book
+	var last error
+	for _, p := range paths {
+		b, err := book.Load(p)
+		if err != nil {
+			last = err
+			continue
+		}
+		books = append(books, b)
+	}
+	switch len(books) {
+	case 0:
+		openingBook = nil
+	case 1:
+		openingBook = books[0]
+	default:
+		openingBook = book.NewChain(books...)
+	}
+	return len(books), last
+}
+
+// BookMove returns a move of the loaded opening books for p, chosen at random in proportion to the
+// weights the books give, or false when no book is loaded or none knows the position.
+func BookMove(p *Position) (Move, bool) {
+	if openingBook == nil {
+		return Move{}, false
+	}
+	m, ok := search.PickBookMove(p.b, openingBook)
+	return Move{m}, ok
 }

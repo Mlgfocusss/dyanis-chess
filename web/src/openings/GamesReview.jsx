@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Icon from "../ui/Icon.jsx";
 import { compareGames, fetchGames, getRepertoire, sendReview } from "./api.js";
-import { deviationLine, outcomeOf } from "./games.js";
+import { deviationLine, outcomeOf, transposeNote } from "./games.js";
 import { locale, useT } from "../i18n/index.js";
 
 const MAX_BYTES = 4 << 20; // the server's limit
@@ -232,6 +232,11 @@ export default function GamesReview({ id }) {
               </div>
               <p className="gamesrev__text">{text.headline}</p>
               {text.line && <p className="openings__line">{text.line}</p>}
+              {transposeNote(d) && (
+                <p className="gamesrev__trans">
+                  <Icon name="branch" size={14} /> {transposeNote(d)}
+                </p>
+              )}
               <div className="room__row">
                 {d.status === "you-deviated" && d.expected.some((m) => m.mine) && (
                   <button type="button" className="btn btn--primary" onClick={() => backToTraining(g)} disabled={sent[g.id]}>

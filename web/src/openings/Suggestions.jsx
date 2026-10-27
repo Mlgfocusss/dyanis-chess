@@ -23,9 +23,10 @@ const STATUS_TEXT = { opponent: "openings.status.opponent", new: "openings.statu
 // plays it (adds it to the repository, or goes along if it is there already).
 // side is who moves, "white" or "black". When the opponent moves, a popular reply the repository lacks
 // is marked as a hole; gaps (optional) are the holes the server's search found at this position,
-// a Map from the move (UCI) to the hole, which adds their weight. preset and onPreset (optional)
+// a Map from the move (UCI) to the hole, which adds their weight. children are the moves the repository has here, with those
+// of other branches to the same position (a move whose parent is not `here` is marked as a transposition). preset and onPreset (optional)
 // let the page share the rating range with the search for holes.
-export default function Suggestions({ fen, side, turn, children, onPick, onHover, gaps, preset: presetProp, onPreset }) {
+export default function Suggestions({ fen, side, turn, children, here, onPick, onHover, gaps, preset: presetProp, onPreset }) {
   const t = useT();
   const [theory, setTheory] = useState(null); // moves for this fen, null while loading
   const [stats, setStats] = useState({ state: "loading", data: null }); // state: loading | ready | off | wait | error
@@ -234,6 +235,11 @@ export default function Suggestions({ fen, side, turn, children, onPick, onHover
                   {r.repo && (
                     <span className="sug__tag sug__tag--repo" title={r.repo.mine ? t(STATUS_TEXT[statusOf(r.repo)]) : t("suggestions.24")}>
                       {t("suggestions.25")}
+                    </span>
+                  )}
+                  {r.repo && here !== undefined && r.repo.parent !== here && (
+                    <span className="sug__tag sug__tag--trans" title={t("openings2.trans.tagTitle")}>
+                      {t("openings2.trans.tag")}
                     </span>
                   )}
                   {hole && (

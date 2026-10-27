@@ -37,13 +37,12 @@ type Selection struct {
 // Select picks the cards of a session from a repertoire's moves: the due ones
 // (the longest overdue first), then up to maxNew new ones. New moves are taken
 // in the order they were added to the repertoire: line after line, each from
-// its start, since a move is always added after the moves before it.
+// its start, since a move is always added after the moves before it. A move
+// played in the same position by another order of moves is one card, asked once.
 func Select(moves []store.RepMove, now time.Time, maxNew, maxDue int) Selection {
 	var due, fresh []store.RepMove
-	for _, m := range moves {
-		if !m.Mine {
-			continue
-		}
+	for _, c := range NewGraph(moves).Cards() {
+		m := c.Rep
 		switch {
 		case !m.DueAt.Valid:
 			fresh = append(fresh, m)
@@ -74,8 +73,9 @@ func Select(moves []store.RepMove, now time.Time, maxNew, maxDue int) Selection 
 // nil when none is waiting.
 func NextDue(moves []store.RepMove, now time.Time) *string {
 	var first time.Time
-	for _, m := range moves {
-		if m.Mine && m.DueAt.Valid && m.DueAt.Time.After(now) && (first.IsZero() || m.DueAt.Time.Before(first)) {
+	for _, c := range NewGraph(moves).Cards() {
+		m := c.Rep
+		if m.DueAt.Valid && m.DueAt.Time.After(now) && (first.IsZero() || m.DueAt.Time.Before(first)) {
 			first = m.DueAt.Time
 		}
 	}
@@ -90,10 +90,14 @@ func NextDue(moves []store.RepMove, now time.Time) *string {
 // card's position, the answer, the other repertoire moves there, and the legal
 // moves (the browser has no rules of its own).
 func BuildDrill(moves []store.RepMove, id int64, isNew bool) (Drill, bool) {
-	byID := make(map[int64]store.RepMove, len(moves))
-	for _, m := range moves {
-		byID[m.ID] = m
-	}
+	return NewGraph(moves).Drill(id, isNew)
+}
+
+// Drill is BuildDrill on a graph that is already made. The other moves of the repository in the
+// position of the question include those it has in the same position reached by another order of
+// moves, so playing one of them is not a mistake.
+func (g *Graph) Drill(id int64, isNew bool) (Drill, bool) {
+	byID := g.byID
 	card, ok := byID[id]
 	if !ok {
 		return Drill{}, false
@@ -123,8 +127,8 @@ func BuildDrill(moves []store.RepMove, id int64, isNew bool) (Drill, bool) {
 		Answer: Step{UCI: card.UCI, SAN: card.SAN, FEN: card.FEN},
 		Alt:    []string{}, Legal: []string{},
 	}
-	for _, m := range moves {
-		if m.ParentID == card.ParentID && m.ID != card.ID {
+	for _, m := range g.Replies(card.ParentID) {
+		if m.UCI != card.UCI {
 			d.Alt = append(d.Alt, m.UCI)
 		}
 	}
@@ -135,17 +139,9 @@ func BuildDrill(moves []store.RepMove, id int64, isNew bool) (Drill, bool) {
 }
 
 // Gaps lists the lines that stop at the opponent's move: the person has no
-// answer there yet. Each is the id of that last move.
+// answer there yet. Each is the id of that last move. A position reached by two
+// orders of moves is listed once, and not at all when the repository answers it
+// on the other branch.
 func Gaps(moves []store.RepMove) []int64 {
-	hasChild := map[int64]bool{}
-	for _, m := range moves {
-		hasChild[m.ParentID] = true
-	}
-	var out []int64
-	for _, m := range moves {
-		if !m.Mine && !hasChild[m.ID] {
-			out = append(out, m.ID)
-		}
-	}
-	return out
+	return NewGraph(moves).UnansweredLines()
 }

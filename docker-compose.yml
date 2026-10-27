@@ -37,6 +37,7 @@ services:
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
       OPENROUTER_MODELS: ${OPENROUTER_MODELS:-}
       FORUM_ADMINS: ${FORUM_ADMINS:-}
+      SAME_PERSON_CHECK: ${SAME_PERSON_CHECK:-on}
     depends_on:
       db:
         condition: service_healthy

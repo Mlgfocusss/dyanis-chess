@@ -24,8 +24,10 @@ RUN adduser -D -u 10001 app
 WORKDIR /app
 COPY --from=build /out/server /app/server
 COPY engine/${NET_FILE} /app/net.bin
+# opening books of the strongest bot, in priority order (see -books)
+COPY engine/assets/gm2001.bin engine/assets/komodo.bin engine/assets/performance.bin /app/books/
 USER app
 EXPOSE 8080
 HEALTHCHECK --interval=15s --timeout=3s --start-period=10s \
     CMD wget -qO- http://127.0.0.1:8080/api/health >/dev/null || exit 1
-ENTRYPOINT ["/app/server", "-addr", ":8080", "-evalfile", "/app/net.bin"]
+ENTRYPOINT ["/app/server", "-addr", ":8080", "-evalfile", "/app/net.bin", "-books", "/app/books/gm2001.bin,/app/books/komodo.bin,/app/books/performance.bin"]

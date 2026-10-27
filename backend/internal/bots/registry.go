@@ -84,7 +84,7 @@ var all = []Bot{
 		Greeting: "Играю в полную силу.",
 		OnWin:    "Партия сыграна. Разбор покажет, где было упущено.",
 		OnLose:   "Невероятно. Вы обыграли движок.",
-		Params:   Params{MoveTime: 500 * time.Millisecond},
+		Params:   Params{MoveTime: 500 * time.Millisecond, Book: true},
 	},
 
 	// ---- Спортсмены

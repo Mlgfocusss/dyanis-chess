@@ -368,11 +368,8 @@ func TestBudgetPartialAndResuming(t *testing.T) {
 func TestDefaultBudgetIsForty(t *testing.T) {
 	// a long line of 60 positions where the opponent moves, every one in the explorer with the
 	// move of the line as its popular reply (weight 0.9 per step): too many for one call
-	var line []string
-	for i := 0; i < 30; i++ {
-		line = append(line, "g1f3", "g8f6", "f3g1", "f6g8")
-	}
-	moves := buildTree(t, "white", line)
+	// (all the positions differ: one reached twice would be searched once)
+	moves := buildTree(t, "white", distinctLine(t, 120))
 	data := map[string]explorer.Response{}
 	for _, m := range moves {
 		if !m.Mine {
@@ -566,4 +563,38 @@ func TestNegativeBudgetMeansNoRequests(t *testing.T) {
 	if f.calls != 0 || !sc.Partial || len(sc.Pending) != 1 || sc.Source == "theory" {
 		t.Errorf("no budget: %d requests, partial=%v pending=%v source=%s", f.calls, sc.Partial, sc.Pending, sc.Source)
 	}
+}
+
+// distinctLine is a legal line of n plies whose positions are all different (a fixed pseudo-random game).
+func distinctLine(t testing.TB, n int) []string {
+	t.Helper()
+	pos, _ := engine.ParseFEN(engine.StartFEN)
+	seen := map[string]bool{PosKey(pos.FEN()): true}
+	var line []string
+	state := uint32(12345)
+	for len(line) < n {
+		legal := pos.LegalMoves()
+		if len(legal) == 0 {
+			t.Fatalf("the game ended after %d plies", len(line))
+		}
+		state = state*1664525 + 1013904223
+		start := int(state>>8) % len(legal)
+		picked := false
+		for i := range legal {
+			m := legal[(start+i)%len(legal)]
+			c := pos.Copy()
+			c.Play(m)
+			if k := PosKey(c.FEN()); !seen[k] {
+				seen[k] = true
+				pos.Play(m)
+				line = append(line, m.String())
+				picked = true
+				break
+			}
+		}
+		if !picked {
+			t.Fatal("no new position")
+		}
+	}
+	return line
 }

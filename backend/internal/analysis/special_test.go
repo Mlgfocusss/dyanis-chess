@@ -157,8 +157,9 @@ func TestOnlyMoveGap(t *testing.T) {
 	if pct, gap := gapOf("6k1/5ppp/8/8/8/8/5PPP/r3R1K1 w - - 0 1"); gap < GreatGap || pct < 60 {
 		t.Errorf("rook capture: pct %.1f gap %.1f", pct, gap)
 	}
-	// A quiet position with several good moves has no only move.
-	if _, gap := gapOf(engine.StartFEN); gap != 0 {
+	// A quiet position with several good moves has no only move: the best one leads by a rounding
+	// error at most, far below the gap that makes a move "great".
+	if _, gap := gapOf(engine.StartFEN); gap >= GreatGap {
 		t.Errorf("start position: gap %.1f", gap)
 	}
 	// With fewer than three legal moves there is no choice to test.

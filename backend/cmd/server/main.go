@@ -36,6 +36,7 @@ import (
 	"dyanis-chess/backend/internal/puzzles"
 	"dyanis-chess/backend/internal/ratings"
 	"dyanis-chess/backend/internal/repertoire"
+	"dyanis-chess/backend/internal/sameperson"
 	"dyanis-chess/backend/internal/stats"
 	"dyanis-chess/backend/internal/store"
 	"dyanis-chess/backend/internal/trainer"
@@ -57,12 +58,15 @@ func splitList(s string) []string {
 func main() {
 	addr := flag.String("addr", "127.0.0.1:8080", "address to listen on")
 	evalFile := flag.String("evalfile", "", "NNUE weights file; empty = hand-written eval")
+	books := flag.String("books", "", "comma-separated Polyglot opening books in priority order, played by the strongest bot (\"Максимум\"); empty = no book")
 	depth := flag.Int("depth", 14, "default search depth per position")
 	maxDepth := flag.Int("maxdepth", 20, "largest depth a request may ask for")
 	static := flag.String("static", "", "directory with the built front end to serve at /")
 	dsn := flag.String("dsn", os.Getenv("DYANIS_DB_DSN"), "MySQL DSN (user:pass@tcp(host:3306)/db); empty = keep results in memory only")
 	publicURL := flag.String("public-url", envOr("PUBLIC_URL", "http://localhost:8080"), "address people open the site at; Google redirects back to it")
 	googleID := flag.String("google-client-id", os.Getenv("GOOGLE_CLIENT_ID"), "Google OAuth client id (empty = no Google sign-in)")
+	samePerson := flag.Bool("same-person-check", envOr("SAME_PERSON_CHECK", "on") != "off",
+		"rated games, rated matchmaking and duels do not count between accounts that share a browser or a network (SAME_PERSON_CHECK=off switches it off, e.g. to try matchmaking with two windows)")
 	flag.Parse()
 
 	if *evalFile != "" {
@@ -74,11 +78,20 @@ func main() {
 		log.Printf("no -evalfile: using the hand-written evaluation")
 	}
 
+	if *books != "" {
+		n, err := engine.LoadBooks(strings.Split(*books, ",")...)
+		if err != nil {
+			log.Printf("books: %v", err)
+		}
+		log.Printf("%d opening books loaded", n)
+	}
+
 	cfg := api.Config{DefaultDepth: *depth, MaxDepth: *maxDepth}
 	var accounts *auth.Service
 	var games *play.Hub
 	var variantGames *vplay.Hub
 	var rated *ratings.Service
+	var sameAPI *sameperson.Service
 	var profilesAPI *profiles.Service
 	var matcher *match.Service
 	var puzzleAPI *puzzles.Service
@@ -115,6 +128,13 @@ func main() {
 		})
 		cfg.UserID = accounts.UserID
 		rated = ratings.New(db, nil)
+		if *samePerson {
+			sameAPI = sameperson.New(sameperson.Config{Store: db, Session: accounts.SessionKey,
+				User: accounts.UserID, CookieSecure: strings.HasPrefix(*publicURL, "https://")})
+			rated.SetSamePerson(sameAPI.Same)
+		} else {
+			log.Printf("same-person check is off: accounts of one browser or network may play each other for rating")
+		}
 		profilesAPI = profiles.New(db, rated, nil)
 		// Friends, messages, challenges and the vacations of correspondence games. A challenge starts
 		// its game in the hub made just below, which in turn asks the community for the settings
@@ -174,10 +194,15 @@ func main() {
 		achievementsAPI = achievements.New(achievements.Config{Store: db, UserID: accounts.UserID, Sections: lessonSections})
 		trainerAPI = trainer.New(trainer.Config{Store: db, UserID: accounts.UserID})
 		// Matchmaking brings two people together for a game with a clock or a puzzle duel.
+		var related func(ctx context.Context, userID string) (map[string]bool, error)
+		if sameAPI != nil {
+			related = sameAPI.Others // accounts of one person are not paired for rating
+		}
 		matcher = match.New(match.Config{
-			User:   accounts.UserFromRequest,
-			Rating: rated.Get,
-			Avoid:  db.BlockedWith, // people who blocked each other are never paired
+			User:    accounts.UserFromRequest,
+			Rating:  rated.Get,
+			Avoid:   db.BlockedWith, // people who blocked each other are never paired
+			Related: related,
 			Chess: func(ctx context.Context, a, b match.Seeker, req match.Request) (string, error) {
 				return games.NewMatched(ctx, play.Player{ID: a.ID, Name: a.Name, Avatar: a.Avatar}, play.Player{ID: b.ID, Name: b.Name, Avatar: b.Avatar},
 					play.TimeControl{BaseMs: req.BaseMs, IncMs: req.IncMs}, req.Rated)
@@ -270,9 +295,13 @@ func main() {
 	if *static != "" {
 		mux.Handle("/", spa(*static))
 	}
+	var root http.Handler = mux
+	if sameAPI != nil {
+		root = sameAPI.Middleware(mux) // a device cookie for every visitor, and the traces of the signed-in
+	}
 	hs := &http.Server{
 		Addr:              *addr,
-		Handler:           mux,
+		Handler:           root,
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       30 * time.Second,
 		IdleTimeout:       2 * time.Minute,

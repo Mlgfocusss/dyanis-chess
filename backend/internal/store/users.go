@@ -120,6 +120,10 @@ func (s *Store) MergeUsers(ctx context.Context, from, to string) error {
 	if _, err := tx.ExecContext(ctx, "UPDATE analyses SET user_id = ? WHERE user_id = ?", to, from); err != nil {
 		return err
 	}
+	// The devices of the guest become the devices of the account (the rest go with the guest).
+	if _, err := tx.ExecContext(ctx, "UPDATE IGNORE user_devices SET user_id = ? WHERE user_id = ?", to, from); err != nil {
+		return err
+	}
 	for _, col := range []string{"white_id", "black_id"} {
 		if _, err := tx.ExecContext(ctx, "UPDATE games SET "+col+" = ? WHERE "+col+" = ?", to, from); err != nil {
 			return err

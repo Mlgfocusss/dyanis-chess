@@ -86,4 +86,16 @@ export default {
   "openings2.preset.french": "French Defence",
   "openings2.preset.slav": "Slav Defence",
   "openings2.preset.kingsIndian": "King's Indian Defence",
+
+  // transpositions: one position reached by different orders of moves
+  "openings2.trans.moved": "The repository already has {san} in this position: it also stands on another branch. You were taken to it, no need to enter it again.",
+  "openings2.trans.here": "This position is already on another branch:",
+  "openings2.trans.hereTail": "Its continuations are in the list of moves, no need to enter them again.",
+  "openings2.trans.go": "Go to that branch",
+  "openings2.trans.tree": "same position on another branch",
+  "openings2.trans.treeTitle": "The continuation of this position is on another branch: {line}",
+  "openings2.trans.tag": "other branch",
+  "openings2.trans.tagTitle": "The repository already knows this move in this same position, which a different order of moves reaches (a transposition).",
+  "openings2.trans.gameNote": "The game came to a position of the repository by a different order of moves (after {mv}): that is not leaving the repository.",
+  "openings2.trans.importN": { one: "{n} move of the file was already in the repository by another order of moves and was not added again", other: "{n} moves of the file were already in the repository by another order of moves and were not added again" },
 };

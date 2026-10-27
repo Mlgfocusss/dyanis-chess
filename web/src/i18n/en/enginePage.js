@@ -23,8 +23,6 @@ export default {
   "enginePage.34": "paste a position here",
   "enginePage.35": "Load FEN",
   "enginePage.36": "Copy the current FEN",
-  "enginePage.37": "Load the book",
-  "enginePage.38": "Turn off the book",
   "enginePage.39": "book: {entries} entries",
   "enginePage.40": "book: not loaded",
   "enginePage.42": "The engine works right in the browser (Go compiled to WebAssembly), no server needed.",

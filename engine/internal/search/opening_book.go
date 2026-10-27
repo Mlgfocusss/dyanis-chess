@@ -168,6 +168,12 @@ func BestMoveTimedWithBookMTShared(b *board.Board, maxDepth int, budget time.Dur
 // popular try — always doing that would make it perfectly predictable
 // and throw away the variety the weights are meant to encode.
 func pickBookMove(b *board.Board, bk book.Source) (board.Move, bool) {
+	return PickBookMove(b, bk)
+}
+
+// PickBookMove is pickBookMove for callers outside search (the engine facade): a weighted random
+// book move for b, or false when the book has none.
+func PickBookMove(b *board.Board, bk book.Source) (board.Move, bool) {
 	entries := bk.LookupBoard(b)
 	if len(entries) == 0 {
 		return board.Move{}, false

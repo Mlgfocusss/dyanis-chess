@@ -129,3 +129,12 @@
   .repcard__actions { grid-template-columns: 1fr; }
   .gaprow { grid-template-columns: 60px minmax(0, 1fr) auto; gap: 8px; }
 }
+
+/* transpositions: the same position reached by another order of moves */
+.reptree__twin { display: inline-flex; align-items: center; gap: 4px; margin: 2px 0 0 6px; padding: 1px 8px; border: 1px dashed var(--border-strong); border-radius: 999px; background: transparent; color: var(--muted); font-size: 0.74rem; cursor: pointer; }
+.reptree__twin:hover, .reptree__twin:focus-visible { color: var(--text); border-color: var(--info); }
+.sug__tag--trans { color: var(--info); border-color: rgba(var(--info-rgb), 0.6); }
+.openings__twin { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin: 8px 0 0; padding: 8px 10px; border: 1px dashed var(--border-strong); border-radius: 8px; color: var(--text-2); font-size: 0.85rem; line-height: 1.4; }
+.openings__twinbtn { padding: 0; border: 0; background: none; color: var(--info); font: inherit; text-decoration: underline; cursor: pointer; }
+.openings__moved svg { color: var(--info); }
+.gamesrev__trans { display: flex; align-items: center; gap: 6px; margin: 6px 0 0; color: var(--info); font-size: 0.85rem; }

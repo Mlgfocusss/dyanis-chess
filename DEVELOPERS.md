@@ -23,16 +23,16 @@
 |---|---|
 | ручная оценка позиции | ≈ 2700 |
 | первая NNUE-сеть | ≈ 2800 |
-| **текущая сеть** (`net-kingf-m4.bin`), измерено 2026-10-17 | **≈ 2910** |
+| сеть `net-kingf-m4.bin`, прежний поиск, измерено 2026-10-17 | ≈ 2910 |
+| **текущая версия** (та же сеть, переработанный поиск), измерено 2026-10-24 | **≈ 3024** |
 
-Текущая версия против Stockfish 19, 500 мс на ход, один поток, по 100 пар (200 партий) на уровень:
+Текущая версия против Stockfish 19, 500 мс на ход, один поток, 100 пар (200 партий) на уровне 3000:
 
 | `UCI_Elo` Stockfish | счёт (наш движок) | Elo (мы − SF) | оценка |
 |---|---|---|---|
-| 2900 | +74 =70 −56 (54,5%) | +31 ± 38 | ≈ 2931 |
-| 3050 | +9 =95 −96 (28,2%) | −162 ± 35 | ≈ 2888 |
+| 3000 | +64 =86 −50 (53,5%) | +24 ± 34 | ≈ 3024 |
 
-Оба уровня согласуются, итог **≈ 2910 по шкале `UCI_Elo`** (погрешность около ±30). Прирост сетей против первой NNUE оказался меньше, чем
+Итог **≈ 3000 по шкале `UCI_Elo`** (погрешность около ±35). Прежняя версия с той же сетью давала ≈ 2910: на уровнях 2900 и 3050 счёт был +74 =70 −56 и +9 =95 −96. Рост даёт переработка поиска (историческая эвристика, correction history, singular-расширения, обрезания и поправки оценки), подробности в `engine/plan.md`. Бот в браузере (WebAssembly) работает без сети и заметно слабее. Прирост сетей против первой NNUE оказался меньше, чем
 по цепочке матчей между версиями (+110 вместо +250): цепочка суммирует погрешности, абсолютное измерение надёжнее. Шкала `UCI_Elo` откалибрована на длинном
 контроле времени и не равна рейтингу FIDE или CCRL — это ориентир, а не
 рейтинг. Как мерили и что пробовали — в [`engine/plan.md`](./engine/plan.md) и
@@ -191,6 +191,7 @@ $env:GOOS="js"; $env:GOARCH="wasm"; go build -o cmd/wasm/dyanis.wasm ./cmd/wasm
 # 2. Скопировать файлы для веб-интерфейса (в Docker это делает сборка сама)
 cp cmd/wasm/dyanis.wasm cmd/wasm/wasm_exec.js ../web/public/wasm/
 cp assets/*.bin ../web/public/assets/
+cp net-kingf-m4.bin ../web/public/assets/net.bin   # нейросеть: браузерный бот играет с ней, как сервер
 
 # 3. Запустить
 cd ../web
@@ -398,6 +399,7 @@ go run ./backend/cmd/puzzleimport -file data/puzzles/lichess_db_puzzle.csv.zst -
 - **Сообщения** (только друзьям): `GET /api/community/conversations`, `GET|POST /api/community/messages/{id}` (`?after=<id>`).
 - **Вызовы:** `GET|POST /api/community/challenges`, `POST .../challenges/{id}/accept|decline`, `DELETE .../challenges/{id}`. Кто может вызывать, границы рейтинга, «оффлайн» и прочее берутся из настроек получателя (`challengesFrom`, `challengeMin`, `challengeMax`, `challengeFriendsIgnoreRating`, `challengeOffline`, `corrAutoClaim` в `users.settings`).
 - **Заочные партии:** `POST /api/games` с `days` (1, 2, 3, 5, 7, 10, 14) вместо часов; `GET /api/community/correspondence`; `PUT /api/community/vacation {days}`; сообщение сокета `claim`. Сводка для значков меню: `GET /api/community/summary` (опрашивается сайтом каждые 15 с).
+- **Один человек с двумя аккаунтами:** посетителю выдаётся кука `dyanis_dev`, для вошедших хеши куки и IP пишутся в `user_devices` (`backend/internal/sameperson`). Аккаунты с общей кукой (90 дней) или свежим IP (3 дня) не попадают в пару в рейтинговой партии и дуэли, а рейтинговая партия между ними рейтинг не двигает (`ratingChange.reason = "shared"`). Выключить, например чтобы пробовать подбор двумя окнами на одной машине: `SAME_PERSON_CHECK=off` в `.env` или флаг `-same-person-check=false`.
 - **Форум:** `GET /api/forum/categories|topics|topics/{id}`, запись `POST /api/forum/topics`, `.../topics/{id}/posts`, `PUT|DELETE /api/forum/posts/{id}`, закрепление и закрытие только модераторам. Модераторы: id пользователей в `FORUM_ADMINS` (`.env`).
 - Тесты: `go test ./backend/internal/community ./backend/internal/forum ./backend/internal/store` (нужна MySQL: `DYANIS_TEST_DSN`), `go test ./backend/internal/play` (сроки заочных партий на подставных часах), `npm test` (`community/logic.test.js`).
 

@@ -154,12 +154,13 @@ func moveJSON(m store.RepMove) MoveJSON {
 	return j
 }
 
+// countsOf counts what the person has: a move played in the same position by another order of
+// moves counts once, as one card.
 func countsOf(moves []store.RepMove, now time.Time) Counts {
-	c := Counts{Moves: len(moves)}
-	for _, m := range moves {
-		if !m.Mine {
-			continue
-		}
+	g := NewGraph(moves)
+	c := Counts{Moves: g.Edges()}
+	for _, card := range g.Cards() {
+		m := card.Rep
 		c.Mine++
 		switch {
 		case !m.DueAt.Valid:
@@ -233,10 +234,20 @@ func (s *Service) list(w http.ResponseWriter, r *http.Request) {
 	}
 	out := make([]RepertoireJSON, 0, len(reps))
 	for _, x := range reps {
-		g := summaryOf(overviews[x.ID], x.Counts.Moves)
-		out = append(out, RepertoireJSON{ID: x.ID, Name: x.Name, Color: x.Color,
-			Counts: Counts{Moves: x.Counts.Moves, Mine: x.Counts.Mine, New: x.Counts.New, Due: x.Counts.Due, Learned: x.Counts.Learned},
-			Gaps:   &g})
+		ov := overviews[x.ID]
+		counts := Counts{Moves: x.Counts.Moves, Mine: x.Counts.Mine, New: x.Counts.New, Due: x.Counts.Due, Learned: x.Counts.Learned}
+		if x.Counts.Moves > 0 {
+			// the counts of the SQL count a position reached by two orders of moves twice: count by positions
+			moves, err := s.cfg.Store.RepMoves(r.Context(), x.ID)
+			if err != nil {
+				serverError(w, "moves", err)
+				return
+			}
+			counts = countsOf(moves, s.cfg.Now())
+			ov.Open = len(Gaps(moves))
+		}
+		g := summaryOf(ov, x.Counts.Moves) // the stored search saw the rows of the tree, not the positions
+		out = append(out, RepertoireJSON{ID: x.ID, Name: x.Name, Color: x.Color, Counts: counts, Gaps: &g})
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"repertoires": out})
 }
@@ -383,6 +394,17 @@ func (s *Service) addMove(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "такой ход здесь невозможен")
 		return
 	}
+	// the repository may already have this move in this position, reached by another order of
+	// moves: then it is not added again, the person is led to the one they have
+	all, err := s.cfg.Store.RepMoves(r.Context(), rep.ID)
+	if err != nil {
+		serverError(w, "moves", err)
+		return
+	}
+	if known, ok := NewGraph(all).Reply(req.Parent, req.UCI); ok {
+		writeJSON(w, http.StatusOK, map[string]any{"move": moveJSON(known), "created": false, "transposed": known.ParentID != req.Parent})
+		return
+	}
 	san := pos.SAN(mv)
 	pos.Play(mv)
 	ply++
@@ -402,7 +424,7 @@ func (s *Service) addMove(w http.ResponseWriter, r *http.Request) {
 	if created {
 		code = http.StatusCreated
 	}
-	writeJSON(w, code, map[string]any{"move": moveJSON(m), "created": created})
+	writeJSON(w, code, map[string]any{"move": moveJSON(m), "created": created, "transposed": false})
 }
 
 func (s *Service) deleteMove(w http.ResponseWriter, r *http.Request) {
@@ -453,12 +475,13 @@ func (s *Service) train(w http.ResponseWriter, r *http.Request) {
 	}
 	sel := Select(moves, s.cfg.Now(), intParam(r, "new", defaultNew, maxNewPerSession), maxDuePerSession)
 	drills := []Drill{}
+	graph := NewGraph(moves)
 	for _, group := range []struct {
 		ids   []int64
 		isNew bool
 	}{{sel.Due, false}, {sel.New, true}} {
 		for _, id := range group.ids {
-			if d, ok := BuildDrill(moves, id, group.isNew); ok {
+			if d, ok := graph.Drill(id, group.isNew); ok {
 				drills = append(drills, d)
 			}
 		}
@@ -490,9 +513,28 @@ func (s *Service) review(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	now := s.cfg.Now()
-	c, err := s.cfg.Store.ReviewRepMove(r.Context(), rep.ID, req.Move, func(box, lapses int) store.Card {
+	// a card may be held by several nodes of the tree (the same position reached by other orders
+	// of moves): the answer moves them all together, from the state of the most asked one
+	moves, err := s.cfg.Store.RepMoves(r.Context(), rep.ID)
+	if err != nil {
+		serverError(w, "moves", err)
+		return
+	}
+	group, ok := NewGraph(moves).CardOf(req.Move)
+	if !ok {
+		writeError(w, http.StatusNotFound, "такого хода нет")
+		return
+	}
+	c, err := s.cfg.Store.ReviewRepMove(r.Context(), rep.ID, group.Rep.ID, func(box, lapses int) store.Card {
 		return Review(box, lapses, req.Correct, now)
 	})
+	for _, id := range group.Members {
+		if err != nil || id == group.Rep.ID {
+			continue
+		}
+		next := c
+		_, err = s.cfg.Store.ReviewRepMove(r.Context(), rep.ID, id, func(int, int) store.Card { return next })
+	}
 	if errors.Is(err, store.ErrNotFound) {
 		writeError(w, http.StatusNotFound, "такого хода нет")
 		return

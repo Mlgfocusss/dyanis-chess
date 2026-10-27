@@ -60,7 +60,11 @@ type Config struct {
 	// Avoid returns the people the person has a block with (either way); they are never paired with
 	// them. Read when the person joins the queue. nil: nobody is avoided.
 	Avoid func(ctx context.Context, userID string) (map[string]bool, error)
-	Now   func() time.Time
+	// Related returns the accounts that look like the same person as the user (one browser or one
+	// network). They are not paired in a rated game or a duel, where a win would be a gift to oneself.
+	// nil: nobody is related.
+	Related func(ctx context.Context, userID string) (map[string]bool, error)
+	Now     func() time.Time
 }
 
 // Timing.
@@ -194,6 +198,22 @@ func (s *Service) Join(ctx context.Context, u Seeker, req Request) error {
 		if avoid, err = s.cfg.Avoid(ctx, u.ID); err != nil {
 			log.Printf("match: blocks of %s: %v", u.ID, err) // better to play than to wait for ever
 			avoid = nil
+		}
+	}
+	if s.cfg.Related != nil && (req.Rated || req.Kind == KindDuel) {
+		rel, err := s.cfg.Related(ctx, u.ID)
+		if err != nil {
+			log.Printf("match: accounts of the same person as %s: %v", u.ID, err)
+		}
+		if len(rel) > 0 {
+			merged := make(map[string]bool, len(avoid)+len(rel))
+			for id := range avoid {
+				merged[id] = true
+			}
+			for id := range rel {
+				merged[id] = true
+			}
+			avoid = merged
 		}
 	}
 	now := s.cfg.Now()

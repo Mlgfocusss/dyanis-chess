@@ -20,6 +20,9 @@ type Ratings interface {
 type RatingChanges struct {
 	White *ratings.Change `json:"white,omitempty"`
 	Black *ratings.Change `json:"black,omitempty"`
+	// Reason says why nobody's rating moved: "shared" when the two accounts look like one person
+	// (the same browser or network, see internal/sameperson).
+	Reason string `json:"reason,omitempty"`
 }
 
 // category is the rating category of the game, "" when it has no clock.
@@ -63,16 +66,20 @@ func (h *Hub) afterRating(g *Game) {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		var cw, cb ratings.Change
+		reason := ""
 		if !short {
 			var err error
 			cw, cb, err = h.cfg.Ratings.Apply(ctx, cat, w, b, score)
-			if err != nil {
+			switch {
+			case errors.Is(err, ratings.ErrSamePerson):
+				short, reason = true, "shared"
+			case err != nil:
 				log.Printf("play: rating of game %s: %v", g.ID, err)
 				return
 			}
 		}
 		g.mu.Lock()
-		g.change = &RatingChanges{}
+		g.change = &RatingChanges{Reason: reason}
 		if !short {
 			g.change = &RatingChanges{White: &cw, Black: &cb}
 		}

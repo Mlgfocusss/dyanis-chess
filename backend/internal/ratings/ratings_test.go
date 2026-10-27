@@ -2,6 +2,7 @@ package ratings
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -123,5 +124,22 @@ func TestHandler(t *testing.T) {
 	}
 	if rec := get(""); rec.Code != 401 {
 		t.Errorf("nobody: %d", rec.Code)
+	}
+}
+
+func TestApplyRefusesTheAccountsOfOnePerson(t *testing.T) {
+	ctx := context.Background()
+	m := &memStore{rows: map[string]*store.RatingRow{}}
+	s := New(m, func() time.Time { return time.Date(2026, 10, 27, 12, 0, 0, 0, time.UTC) })
+	s.SetSamePerson(func(_ context.Context, a, b string) bool { return a == "anna" && b == "anna2" })
+
+	if _, _, err := s.Apply(ctx, Blitz, "anna", "anna2", 1); !errors.Is(err, ErrSamePerson) {
+		t.Fatalf("one person: %v", err)
+	}
+	if len(m.rows) != 0 {
+		t.Errorf("nothing may be saved: %+v", m.rows)
+	}
+	if _, _, err := s.Apply(ctx, Blitz, "anna", "boris", 1); err != nil {
+		t.Errorf("two people: %v", err)
 	}
 }

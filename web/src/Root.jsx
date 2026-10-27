@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import App from "./App.jsx";
+import EnginePlay from "./engine/EnginePlay.jsx";
 import HomePage from "./home/HomePage.jsx";
 import ReviewPage from "./review/ReviewPage.jsx";
 import AnalysisPage from "./review/AnalysisPage.jsx";
@@ -261,7 +262,8 @@ function MoreSheet({ items, select, onClose, page, badges }) {
 // Pages with a board that the focus mode makes sense for: the game pages only
 // while a game is on (#online/<id>, #bots/<id>), not in their lobbies.
 function pageHasBoard(page) {
-  if (page === "review" || page === "analysis" || page === "play" || page === "puzzles") return true;
+  if (page === "review" || page === "analysis" || page === "puzzles") return true;
+  if (page === "play") return !!window.location.hash.slice(1).split("/")[1]; // a game or the local page, not the choice
   if (page === "openings") return !!window.location.hash.slice(1).split("/")[1];
   if (page === "online" || page === "bots") return !!window.location.hash.slice(1).split("/")[1];
   if (page === "variants") return window.location.hash.slice(1).split("/")[1] === "game"; // a game, not the lobby
@@ -398,7 +400,7 @@ function Shell() {
         {page === "online" && <OnlinePage />}
         {page === "bots" && <BotsPage />}
         {page === "variants" && <VariantsPage />}
-        {page === "play" && <App />}
+        {page === "play" && (window.location.hash.slice(1).split("/")[1] === "local" ? <App /> : <EnginePlay />)}
         {page === "puzzles" && (puzzleSection() === "rush" ? <RushPage /> : puzzleSection() === "duel" ? <DuelPage /> : <PuzzlesPage />)}
         {page === "openings" && <OpeningsPage />}
         {page === "lessons" && <LessonsPage />}

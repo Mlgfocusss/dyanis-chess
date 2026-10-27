@@ -209,3 +209,36 @@ func TestTheFirstBotDoesNotKnowMate(t *testing.T) {
 		t.Errorf("misha found Qxf7# %d times out of 60: it still sees the mate", hits)
 	}
 }
+
+// The strongest bot plays the opening books while they know the position, so its first move comes at
+// once instead of after its half-second search.
+func TestMaxPlaysFromBooks(t *testing.T) {
+	n, err := engine.LoadBooks("../../../engine/assets/gm2001.bin", "../../../engine/assets/komodo.bin", "../../../engine/assets/performance.bin")
+	if n == 0 {
+		t.Skipf("no opening books: %v", err)
+	}
+	t.Cleanup(func() { engine.LoadBooks() })
+	max, ok := Get("max")
+	if !ok || !max.Params.Book {
+		t.Fatal("max has no book")
+	}
+	pos := engine.NewPosition()
+	started := time.Now()
+	mv, err := max.Choose(context.Background(), pos, []uint64{pos.Hash()}, 0, 0, rand.New(rand.NewSource(1)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d := time.Since(started); d > 200*time.Millisecond {
+		t.Errorf("book move took %v", d)
+	}
+	legal := false
+	for _, m := range pos.LegalMoves() {
+		legal = legal || m == mv
+	}
+	if !legal {
+		t.Errorf("%v is not legal", mv)
+	}
+	if other, _ := Get("sofia"); other.Params.Book {
+		t.Error("only the strongest bot uses the books")
+	}
+}

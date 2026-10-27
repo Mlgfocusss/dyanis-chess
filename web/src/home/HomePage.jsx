@@ -17,7 +17,7 @@ const SHOWCASE_ARROWS = [["b3", "b8", "rgba(52, 211, 153, 0.85)"]];
 const SHOWCASE_BADGE = { square: "b8", cls: "brilliant" };
 
 const FACTS = [
-  { value: "≈ 2900", labelKey: "home.fact1" },
+  { value: "≈ 3000", labelKey: "home.fact1" },
   { value: "80 000+", labelKey: "home.fact2" },
   { value: "10", labelKey: "home.fact3" },
   { value: "NNUE", labelKey: "home.fact4" },

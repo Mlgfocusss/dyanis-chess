@@ -401,6 +401,7 @@ export default function GameRoom({ id, backHash = "online", backLabel }) {
   if (!botSeat && ended && game.rated && you) {
     const line = changeLine(game.ratingChange?.[you]);
     if (line) reward = t("gameRoom.32", { line });
+    else if (game.ratingChange?.reason === "shared") reward = t("gameRoom.shared");
     else reward = game.ratingChange ? t("gameRoom.33") : t("gameRoom.34");
   }
   // The bot's line: a greeting at the start, a remark at the end.

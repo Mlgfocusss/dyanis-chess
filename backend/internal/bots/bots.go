@@ -45,6 +45,8 @@ type Params struct {
 	// NoMate makes the bot blind to checkmate, like a child who has not been taught it: a move
 	// that mates is no better than any other, and a mate it walks into does not frighten it.
 	NoMate bool
+	// Book makes the bot play from the opening books (engine.LoadBooks) while they know the position.
+	Book bool
 }
 
 // Bot is one opponent.
@@ -94,6 +96,11 @@ func (b *Bot) Choose(ctx context.Context, pos *engine.Position, history []uint64
 		return moves[0], nil
 	}
 	p := b.Params
+	if p.Book {
+		if m, ok := engine.BookMove(pos); ok {
+			return m, nil
+		}
+	}
 	if p.Depth == 0 {
 		t := p.MoveTime
 		if remaining > 0 { // never spend more than a share of the clock

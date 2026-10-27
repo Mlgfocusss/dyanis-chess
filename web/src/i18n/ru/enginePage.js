@@ -23,8 +23,6 @@ export default {
   "enginePage.34": "вставь позицию сюда",
   "enginePage.35": "Загрузить FEN",
   "enginePage.36": "Скопировать текущий FEN",
-  "enginePage.37": "Загрузить книгу",
-  "enginePage.38": "Отключить книгу",
   "enginePage.39": "книга: {entries} записей",
   "enginePage.40": "книга: не загружена",
   "enginePage.title": "Игра против движка",

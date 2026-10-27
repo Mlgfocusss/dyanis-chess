@@ -32,6 +32,7 @@ import (
 	"dyanis-chess/engine/internal/board"
 	"dyanis-chess/engine/internal/book"
 	"dyanis-chess/engine/internal/movegen"
+	"dyanis-chess/engine/internal/nnue"
 	"dyanis-chess/engine/internal/perft"
 	"dyanis-chess/engine/internal/search"
 )
@@ -244,6 +245,8 @@ func registerAPI() {
 	api.Set("clearBook", js.FuncOf(jsClearBook))
 	api.Set("bookInfo", js.FuncOf(jsBookInfo))
 	api.Set("searchMove", js.FuncOf(jsSearchMove))
+	api.Set("loadNetwork", js.FuncOf(jsLoadNetwork))
+	api.Set("networkInfo", js.FuncOf(jsNetworkInfo))
 
 	js.Global().Set("Dyanis", api)
 }
@@ -426,6 +429,31 @@ func jsBookInfo(this js.Value, args []js.Value) any {
 		total += b.Len()
 	}
 	return toJSON(map[string]any{"loaded": true, "books": len(game.books), "entries": total})
+}
+
+// Dyanis.loadNetwork(bytes) -> {"ok":true} or {"ok":false,"error":...}. bytes is a Uint8Array with the
+// contents of an NNUE weights file (engine/net-kingf-m4.bin); like loadBook there is no filesystem, so
+// JS fetch()es it. From then on every search of THIS instance evaluates with the network instead of the
+// hand-written evaluation (the same switch engine.LoadNetwork makes on the server). Call it on the
+// instance that searches (the worker's, see searchMove) before the first search.
+func jsLoadNetwork(this js.Value, args []js.Value) any {
+	if len(args) < 1 {
+		return toJSON(map[string]any{"ok": false, "error": "loadNetwork expects a Uint8Array of NNUE file contents"})
+	}
+	data := make([]byte, args[0].Get("length").Int())
+	js.CopyBytesToGo(data, args[0])
+
+	n, err := nnue.Parse(data)
+	if err != nil {
+		return toJSON(map[string]any{"ok": false, "error": err.Error()})
+	}
+	search.SetNetwork(n)
+	return toJSON(map[string]any{"ok": true})
+}
+
+// Dyanis.networkInfo() -> {"loaded":bool}: whether searches of this instance use a network.
+func jsNetworkInfo(this js.Value, args []js.Value) any {
+	return toJSON(map[string]any{"loaded": search.Network() != nil})
 }
 
 // Dyanis.searchMove(fen, depth?, movetimeMs?) -> like engineMove's

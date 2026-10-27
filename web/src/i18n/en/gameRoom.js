@@ -30,6 +30,7 @@ export default {
   "gameRoom.32": "Rating. {line}",
   "gameRoom.33": "The game was too short: the rating did not change.",
   "gameRoom.34": "Calculating the rating…",
+  "gameRoom.shared": "The rating did not change: both accounts play from one browser or one network. Friends on one network should play unrated.",
   "gameRoom.35": "A draw. A good game!",
   "gameRoom.36": "Thinking…",
   "gameRoom.37": "Waiting for an answer…",
